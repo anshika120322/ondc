@@ -1,0 +1,38 @@
+ondcRegistry:
+  host: https://registry-uat.kynondc.net
+  admin_auth_url: https://admin-auth-uat.kynondc.net/api/auth/login
+  admin_username: admin@ondc.org
+  admin_password: Admin@123
+  admin_token: ""
+  participant_id: buyer.ondc.zionmart.in
+  uk_id: 6c939b20-35ac-4102-9c53-ec8b1b60139d
+  private_key_seed: 06fb9cb9daa3234a165a0307629e45fc2c1a8b30b0bbb273142deab42a17803f
+  signing_public_key: sU5CIDY3HjC58sG5f+pYbM0hmcFcn7Ylwu4OEmFEcoM=
+  encryption_public_key: WMCuW4HwT/BVTtHBVQJC58X/NJjn9ho+pneabs04aDA=
+  use_fixed_participant: false
+  domains:
+  - ONDC:RET10
+  - ONDC:FIS12
+  - ONDC:RET12
+  - ONDC:AGR10
+  - ONDC:LOG10
+  - ONDC:TRV10
+  cities:
+  - std:080
+  - std:011
+  - std:022
+  - std:033
+  - std:044
+  np_types:
+  - seller
+  - buyer
+  - logistics
+  test_credentials:
+    gst: 22ABCDE1234F1Z5
+    pan: ABCDE1234F
+    fssai: '12345678901234'
+  test_contacts:
+    technical_email: tech@example.com
+    business_email: business@example.com
+    support_email: support@example.com
+    phone: '+911234567890'

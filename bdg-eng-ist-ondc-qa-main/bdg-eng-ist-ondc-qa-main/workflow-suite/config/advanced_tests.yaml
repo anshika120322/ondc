@@ -1,0 +1,1140 @@
+# Advanced Scenarios Test Configuration
+# 15 tests for multi-domain, concurrency, and edge cases
+
+test_suite:
+  name: "Advanced Scenarios"
+  category: "advanced"
+  total_tests: 15
+  description: "Advanced testing including multi-domain operations, concurrency, performance, and edge cases"
+
+# Test configuration
+config:
+  default_timeout: 60
+  retry_on_failure: false
+
+# ==========================================
+# 4.1 MULTI-DOMAIN OPERATIONS (5 tests)
+# ==========================================
+
+tests:
+  - id: "D01"
+    name: "Participant with 5+ domains, update each independently"
+    description: "Test granular per-domain configuration management"
+    workflow: true
+    steps:
+      - name: "Admin creates with 5 domains"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_d01"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "D01 Multi Domain"
+            - cred_id: "cred_pan_d01"
+              type: "PAN"
+              cred_data:
+                pan_no: "ABCDE1234F"
+          contacts:
+            - contact_id: "contact_auth_d01"
+              name: "D01 Contact"
+              email: "d01@example.com"
+              phone: "+919876543210"
+              type: "AUTHORISED_SIGNATORY"
+            - contact_id: "contact_biz_d01"
+              type: "BUSINESS"
+              name: "D01 Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543211"
+          key:
+            uk_id: "key_advanced_001"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_d01"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_d01"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+          configs:
+            - domain: "ONDC:RET10"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_d01"
+              uri_id: "uri_d01"
+              key_id: "key_advanced_001"
+            - domain: "ONDC:RET11"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_d01"
+              uri_id: "uri_d01"
+              key_id: "key_advanced_001"
+            - domain: "ONDC:RET12"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_d01"
+              uri_id: "uri_d01"
+              key_id: "key_advanced_001"
+            - domain: "ONDC:LOG"
+              np_type: "LOGISTICS"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_d01"
+              uri_id: "uri_d01"
+              key_id: "key_advanced_001"
+            - domain: "ONDC:FIS10"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_d01"
+              uri_id: "uri_d01"
+              key_id: "key_advanced_001"
+        expected_status: 200
+        
+      - name: "Update domain 1 np_type"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          configs:
+            - domain: "ONDC:RET10"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_d01"
+              uri_id: "uri_d01"
+              key_id: "key_advanced_001"
+            - domain: "ONDC:RET11"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_d01"
+              uri_id: "uri_d01"
+              key_id: "key_advanced_001"
+            - domain: "ONDC:RET12"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_d01"
+              uri_id: "uri_d01"
+              key_id: "key_advanced_001"
+            - domain: "ONDC:LOG"
+              np_type: "LOGISTICS"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_d01"
+              uri_id: "uri_d01"
+              key_id: "key_advanced_001"
+            - domain: "ONDC:FIS10"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_d01"
+              uri_id: "uri_d01"
+              key_id: "key_advanced_001"
+        expected_status: 200
+        
+      - name: "Update domain 3 np_type"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          configs:
+            - domain: "ONDC:RET10"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_d01"
+              uri_id: "uri_d01"
+              key_id: "key_advanced_001"
+            - domain: "ONDC:RET11"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_d01"
+              uri_id: "uri_d01"
+              key_id: "key_advanced_001"
+            - domain: "ONDC:RET12"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_d01"
+              uri_id: "uri_d01"
+              key_id: "key_advanced_001"
+            - domain: "ONDC:LOG"
+              np_type: "LOGISTICS"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_d01"
+              uri_id: "uri_d01"
+              key_id: "key_advanced_001"
+            - domain: "ONDC:FIS10"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_d01"
+              uri_id: "uri_d01"
+              key_id: "key_advanced_001"
+        expected_status: 200
+
+  - id: "D02"
+    name: "Add/remove domains dynamically"
+    description: "Test dynamic domain list modification"
+    workflow: true
+    steps:
+      - name: "Create with 2 domains"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_d02"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "D02 Dynamic Domains"
+            - cred_id: "cred_pan_d02"
+              type: "PAN"
+              cred_data:
+                pan_no: "ABCDE1234F"
+          contacts:
+            - contact_id: "contact_auth_d02"
+              name: "D02 Contact"
+              email: "d02@example.com"
+              phone: "+919876543210"
+              type: "AUTHORISED_SIGNATORY"
+            - contact_id: "contact_biz_d02"
+              type: "BUSINESS"
+              name: "D02 Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543211"
+          key:
+            uk_id: "key_advanced_001"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_d02"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_d02"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+          configs:
+            - domain: "ONDC:RET10"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_d02"
+              uri_id: "uri_d02"
+              key_id: "key_advanced_001"
+            - domain: "ONDC:RET11"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_d02"
+              uri_id: "uri_d02"
+              key_id: "key_advanced_001"
+        expected_status: 200
+        
+      - name: "Add 3 more domains"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          configs:
+            - domain: "ONDC:RET10"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_d02"
+              uri_id: "uri_d02"
+              key_id: "key_advanced_001"
+            - domain: "ONDC:RET11"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_d02"
+              uri_id: "uri_d02"
+              key_id: "key_advanced_001"
+            - domain: "ONDC:RET12"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_d02"
+              uri_id: "uri_d02"
+              key_id: "key_advanced_001"
+            - domain: "ONDC:LOG"
+              np_type: "LOGISTICS"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_d02"
+              uri_id: "uri_d02"
+              key_id: "key_advanced_001"
+            - domain: "ONDC:FIS10"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_d02"
+              uri_id: "uri_d02"
+              key_id: "key_advanced_001"
+        expected_status: 200
+        
+      - name: "Remove 2 domains"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          configs:
+            - domain: "ONDC:RET10"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_d02"
+              uri_id: "uri_d02"
+              key_id: "key_advanced_001"
+            - domain: "ONDC:LOG"
+              np_type: "LOGISTICS"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_d02"
+              uri_id: "uri_d02"
+              key_id: "key_advanced_001"
+            - domain: "ONDC:FIS10"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_d02"
+              uri_id: "uri_d02"
+              key_id: "key_advanced_001"
+        expected_status: 200
+
+  - id: "D03"
+    name: "Domain-specific credential rotations"
+    description: "Test credential management across multiple domains"
+    workflow: true
+    steps:
+      - name: "Create multi-domain participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_d03_initial"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "D03 Initial Company"
+            - cred_id: "cred_pan_d03_initial"
+              type: "PAN"
+              cred_data:
+                pan_no: "ABCDE1234F"
+          contacts:
+            - contact_id: "contact_auth_d03"
+              name: "D03 Contact"
+              email: "d03@example.com"
+              phone: "+919876543210"
+              type: "AUTHORISED_SIGNATORY"
+            - contact_id: "contact_biz_d03"
+              type: "BUSINESS"
+              name: "D03 Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543211"
+          key:
+            uk_id: "uk_d03_initial"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_d03"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_d03"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+          configs:
+            - domain: "ONDC:RET13"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_d03"
+              uri_id: "uri_d03"
+              key_id: "uk_d03_initial"
+            - domain: "ONDC:RET14"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_d03"
+              uri_id: "uri_d03"
+              key_id: "uk_d03_initial"
+            - domain: "ONDC:LOG"
+              np_type: "LOGISTICS"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_d03"
+              uri_id: "uri_d03"
+              key_id: "uk_d03_initial"
+        expected_status: 200
+        
+      - name: "Rotate credentials and key (all domains affected)"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          credentials:
+            - cred_id: "cred_gst_d03_rotated"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "D03 Rotated Company"
+            - cred_id: "cred_pan_d03_rotated"
+              type: "PAN"
+              cred_data:
+                pan_no: "ABCDE1234F"
+          key:
+            uk_id: "key_advanced_001"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+        expected_status: 200
+
+  - id: "D04"
+    name: "Cross-domain config inheritance"
+    description: "Test shared settings across domains"
+    workflow: true
+    steps:
+      - name: "Create with shared credentials across domains"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_d04_shared"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "D04 Shared Config"
+            - cred_id: "cred_pan_d04_shared"
+              type: "PAN"
+              cred_data:
+                pan_no: "ABCDE1234F"
+          contacts:
+            - contact_id: "contact_shared_d04"
+              name: "D04 Shared"
+              email: "shared@example.com"
+              phone: "+919876543210"
+              type: "AUTHORISED_SIGNATORY"
+            - contact_id: "contact_biz_d04"
+              type: "BUSINESS"
+              name: "D04 Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543211"
+          key:
+            uk_id: "key_advanced_001"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_d04"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_d04"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+          configs:
+            - domain: "ONDC:RET10"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_d04"
+              uri_id: "uri_d04"
+              key_id: "key_advanced_001"
+            - domain: "ONDC:RET11"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_d04"
+              uri_id: "uri_d04"
+              key_id: "key_advanced_001"
+            - domain: "ONDC:RET12"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_d04"
+              uri_id: "uri_d04"
+              key_id: "key_advanced_001"
+        expected_status: 200
+
+  - id: "D05"
+    name: "Partial domain subscription (mixed statuses)"
+    description: "Test participant with some domains active, others inactive"
+    workflow: true
+    steps:
+      - name: "Admin creates WHITELISTED for 3 domains"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET13"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+            - domain: "ONDC:RET14"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+            - domain: "ONDC:LOG"
+              np_type: "LOGISTICS"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+        
+      - name: "V3 subscribes (activates all domains)"
+        method: "POST"
+        endpoint: "/api/v3/subscribe"
+        auth_type: "v3"
+        data:
+          request_id: "{{request_id}}"
+          uk_id: "key_advanced_001"
+          participant_id: "{{subscriber_id}}"
+          credentials:
+            - cred_id: "cred_gst_d05"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "D05 Partial Subscribe"
+            - cred_id: "cred_pan_d05"
+              type: "PAN"
+              cred_data:
+                pan_no: "ABCDE1234F"
+          contacts:
+            - contact_id: "contact_auth_d05"
+              name: "D05 Contact"
+              email: "d05@example.com"
+              phone: "+919876543210"
+              type: "AUTHORISED_SIGNATORY"
+          key:
+            uk_id: "key_advanced_001"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_d05"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_d05"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+          configs:
+            - domain: "ONDC:RET13"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_d05"
+              uri_id: "uri_d05"
+              key_id: "key_advanced_001"
+            - domain: "ONDC:RET14"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_d05"
+              uri_id: "uri_d05"
+              key_id: "key_advanced_001"
+            - domain: "ONDC:LOG"
+              np_type: "LOGISTICS"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_d05"
+              uri_id: "uri_d05"
+              key_id: "key_advanced_001"
+        expected_status: 200
+
+# ==========================================
+# 4.2 CONCURRENCY & PERFORMANCE (5 tests)
+# ==========================================
+
+  - id: "D06"
+    name: "Concurrent Admin + V3 updates on same participant"
+    description: "Test race condition handling"
+    workflow: true
+    concurrent_steps: true
+    steps:
+      - name: "Setup participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_d06"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "D06 Concurrent Test"
+            - cred_id: "cred_pan_d06"
+              type: "PAN"
+              cred_data:
+                pan_no: "ABCDE1234F"
+          contacts:
+            - contact_id: "contact_auth_d06"
+              name: "D06 Contact"
+              email: "d06@example.com"
+              phone: "+919876543210"
+              type: "AUTHORISED_SIGNATORY"
+            - contact_id: "contact_biz_d06"
+              type: "BUSINESS"
+              name: "D06 Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543211"
+          key:
+            uk_id: "key_advanced_001"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_d06"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_d06"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+          configs:
+            - domain: "ONDC:RET10"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_d06"
+              uri_id: "uri_d06"
+              key_id: "key_advanced_001"
+        expected_status: 200
+        
+      - name: "Admin updates location (concurrent)"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        concurrent: true
+        data:
+          participant_id: "{{subscriber_id}}"
+          location:
+            location_id: "loc_d06"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080", "std:011"]
+        expected_status: [200, 409]
+        
+      - name: "V3 updates contacts (concurrent)"
+        method: "PATCH"
+        endpoint: "/api/v3/subscribe"
+        auth_type: "v3"
+        concurrent: true
+        data:
+          request_id: "{{request_id}}"
+          uk_id: "key_advanced_001"
+          participant_id: "{{subscriber_id}}"
+          contacts:
+            - contact_id: "contact_auth_d06"
+              name: "D06 Concurrent Update"
+              email: "concurrent@example.com"
+              phone: "+919876543210"
+              type: "AUTHORISED_SIGNATORY"
+        expected_status: [200, 409]
+
+  - id: "D07"
+    name: "Rapid status transitions (stress test)"
+    description: "Test system stability under rapid state changes"
+    workflow: true
+    steps:
+      - name: "Create WHITELISTED"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET11"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+        
+      - name: "Rapid transition to SUBSCRIBED"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+        expected_status: 200
+        
+      - name: "Rapid transition to SUSPENDED"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "SUSPENDED"
+        expected_status: 200
+        
+      - name: "Rapid transition to INACTIVE"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "INACTIVE"
+        expected_status: 200
+        
+      - name: "Rapid transition to SUBSCRIBED"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+        expected_status: 200
+        
+      - name: "Rapid transition to UNSUBSCRIBED"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "UNSUBSCRIBED"
+        expected_status: 200
+
+  - id: "D08"
+    name: "Batch create 50 participants"
+    description: "Performance test for bulk participant creation"
+    method: "POST"
+    endpoint: "/admin/subscribe"
+    auth_type: "admin"
+    batch_size: 50
+    data:
+      participant_id: "batch_create_{{batch_index}}_{{timestamp}}"
+      action: "WHITELISTED"
+      configs:
+        - domain: "ONDC:RET10"
+          np_type: "BPP"
+          subscriber_id: "batch_create_{{batch_index}}_{{timestamp}}"
+    expected_status: 200
+    performance_threshold_ms: 5000
+
+  - id: "D09"
+    name: "Batch update 50 participants"
+    description: "Performance test for bulk participant updates"
+    workflow: true
+    steps:
+      - name: "Batch create 50"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        batch_size: 50
+        data:
+          participant_id: "batch_update_{{batch_index}}_{{timestamp}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_batch_{{batch_index}}"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "Batch {{batch_index}}"
+            - cred_id: "cred_pan_batch_{{batch_index}}"
+              type: "PAN"
+              cred_data:
+                pan_no: "ABCDE1234F"
+          contacts:
+            - contact_id: "contact_batch_{{batch_index}}"
+              name: "Batch Contact {{batch_index}}"
+              email: "batch{{batch_index}}@example.com"
+              phone: "+919876543210"
+              type: "AUTHORISED_SIGNATORY"
+            - contact_id: "contact_biz_batch_{{batch_index}}"
+              type: "BUSINESS"
+              name: "Batch Business Manager {{batch_index}}"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543211"
+          key:
+            uk_id: "uk_batch_{{batch_index}}"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_batch_{{batch_index}}"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_batch_{{batch_index}}"
+            type: "CALLBACK"
+            url: "https://batch{{batch_index}}.example.com/callback"
+          configs:
+            - domain: "ONDC:RET12"
+              np_type: "BAP"
+              subscriber_id: "batch_update_{{batch_index}}_{{timestamp}}"
+              location_id: "loc_batch_{{batch_index}}"
+              uri_id: "uri_batch_{{batch_index}}"
+              key_id: "uk_batch_{{batch_index}}"
+        expected_status: 200
+        
+      - name: "Batch update all 50"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        batch_size: 50
+        data:
+          participant_id: "batch_update_{{batch_index}}_{{timestamp}}"
+          contacts:
+            - contact_id: "contact_batch_{{batch_index}}"
+              name: "Batch Updated {{batch_index}}"
+              email: "batch-update@example.com"
+              phone: "+919876543210"
+              type: "AUTHORISED_SIGNATORY"
+        expected_status: 200
+        performance_threshold_ms: 10000
+
+  - id: "D10"
+    name: "Race condition: simultaneous PATCH requests"
+    description: "Test handling of simultaneous updates to same field"
+    workflow: true
+    concurrent_steps: true
+    steps:
+      - name: "Setup participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_d10"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "D10 Race Test"
+            - cred_id: "cred_pan_d10"
+              type: "PAN"
+              cred_data:
+                pan_no: "ABCDE1234F"
+          contacts:
+            - contact_id: "contact_auth_d10"
+              name: "D10 Contact"
+              email: "d10@example.com"
+              phone: "+919876543210"
+              type: "AUTHORISED_SIGNATORY"
+            - contact_id: "contact_biz_d10"
+              type: "BUSINESS"
+              name: "D10 Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543211"
+          key:
+            uk_id: "key_advanced_001"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_d10"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_d10"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+          configs:
+            - domain: "ONDC:LOG"
+              np_type: "LOGISTICS"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_d10"
+              uri_id: "uri_d10"
+              key_id: "key_advanced_001"
+        expected_status: 200
+        
+      - name: "Update contacts (request 1)"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        concurrent: true
+        data:
+          participant_id: "{{subscriber_id}}"
+          contacts:
+            - contact_id: "contact_auth_d10"
+              name: "D10 Race 1"
+              email: "race1@example.com"
+              phone: "+919111111111"
+              type: "AUTHORISED_SIGNATORY"
+        expected_status: [200, 409]
+        
+      - name: "Update contacts (request 2)"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        concurrent: true
+        data:
+          participant_id: "{{subscriber_id}}"
+          contacts:
+            - contact_id: "contact_auth_d10"
+              name: "D10 Race 2"
+              email: "race2@example.com"
+              phone: "+919222222222"
+              type: "AUTHORISED_SIGNATORY"
+        expected_status: [200, 409]
+
+# ==========================================
+# 4.3 EDGE CASES & BOUNDARY (5 tests)
+# ==========================================
+
+  - id: "D11"
+    name: "Maximum field lengths"
+    description: "Test with maximum allowed string lengths"
+    method: "POST"
+    endpoint: "/admin/subscribe"
+    auth_type: "admin"
+    data:
+      participant_id: "{{subscriber_id}}"
+      action: "WHITELISTED"
+      credentials:
+        - cred_id: "cred_gst_d11_very_long_id_that_tests_maximum_length"
+          type: "GST"
+          cred_data:
+            gstin: "29ABCDE1234F1Z5"
+            legal_name: "VeryLongCompanyNameThatExceedsNormalLengthAndTestsTheBoundaryConditionsOfTheSystemToEnsureProperValidationAndHandlingOfExtremelyLongInputStrings"
+        - cred_id: "cred_pan_d11"
+          type: "PAN"
+          cred_data:
+            pan_no: "ABCDE1234F"
+      contacts:
+        - contact_id: "contact_d11_very_long_contact_id"
+          name: "D11 Contact"
+          email: "very-long-email-address-that-tests-maximum-field-length@extremely-long-domain-name-for-testing-purposes.example.com"
+          phone: "+919876543210"
+          type: "AUTHORISED_SIGNATORY"
+      key:
+        uk_id: "key_advanced_001"
+        signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+        encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+        signed_algorithm: "ED25519"
+        encryption_algorithm: "X25519"
+        valid_from: "2026-02-04T00:00:00.000Z"
+        valid_until: "2027-02-04T00:00:00.000Z"
+      location:
+        location_id: "loc_d11"
+        type: "SERVICEABLE"
+        country: "IND"
+        city: ["std:080"]
+      uri:
+        uri_id: "uri_d11"
+        type: "CALLBACK"
+        url: "https://{{subscriber_id}}/callback"
+      configs:
+        - domain: "ONDC:RET10"
+          np_type: "BPP"
+          subscriber_id: "{{subscriber_id}}"
+          location_id: "loc_d11"
+          uri_id: "uri_d11"
+          key_id: "key_advanced_001"
+    expected_status: [200, 400]
+
+  - id: "D12"
+    name: "Minimum required fields"
+    description: "Test with absolute minimum data"
+    method: "POST"
+    endpoint: "/admin/subscribe"
+    auth_type: "admin"
+    data:
+      participant_id: "{{subscriber_id}}"
+      action: "WHITELISTED"
+      configs:
+        - domain: "ONDC:RET11"
+          np_type: "BPP"
+          subscriber_id: "{{subscriber_id}}"
+    expected_status: 200
+
+  - id: "D13"
+    name: "Special characters in fields"
+    description: "Test handling of special characters"
+    method: "POST"
+    endpoint: "/admin/subscribe"
+    auth_type: "admin"
+    data:
+      participant_id: "{{subscriber_id}}"
+      action: "SUBSCRIBED"
+      credentials:
+        - cred_id: "cred_gst_d13_special+chars"
+          type: "GST"
+          cred_data:
+            gstin: "29ABCDE1234F1Z5"
+            legal_name: "D13 Special & Co."
+        - cred_id: "cred_pan_d13"
+          type: "PAN"
+          cred_data:
+            pan_no: "ABCDE1234F"
+      contacts:
+        - contact_id: "contact_d13_special.chars"
+          name: "D13 Contact"
+          email: "test+special_chars.123@example-domain.co.in"
+          phone: "+91-9876-543-210"
+          type: "AUTHORISED_SIGNATORY"
+        - contact_id: "contact_biz_d13"
+          type: "BUSINESS"
+          name: "D13 Business Manager"
+          email: "business@{{subscriber_id}}"
+          phone: "+919876543211"
+      key:
+        uk_id: "key_advanced_001"
+        signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+        encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+        signed_algorithm: "ED25519"
+        encryption_algorithm: "X25519"
+        valid_from: "2026-02-04T00:00:00.000Z"
+        valid_until: "2027-02-04T00:00:00.000Z"
+      location:
+        location_id: "loc_d13"
+        type: "SERVICEABLE"
+        country: "IND"
+        city: ["std:080"]
+      uri:
+        uri_id: "uri_d13"
+        type: "CALLBACK"
+        url: "https://{{subscriber_id}}/callback"
+      configs:
+        - domain: "ONDC:RET12"
+          np_type: "BAP"
+          subscriber_id: "{{subscriber_id}}"
+          location_id: "loc_d13"
+          uri_id: "uri_d13"
+          key_id: "key_advanced_001"
+    expected_status: 200
+
+  - id: "D14"
+    name: "Empty arrays vs null values"
+    description: "Test difference between empty arrays and omitted fields"
+    workflow: true
+    steps:
+      - name: "Create with minimal data"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET13"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+        
+      - name: "Update with contacts added"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          contacts:
+            - contact_id: "contact_d14"
+              name: "D14 Contact"
+              email: "test@example.com"
+              phone: "+919876543210"
+              type: "AUTHORISED_SIGNATORY"
+        expected_status: 200
+
+  - id: "D15"
+    name: "Schema version compatibility"
+    description: "Test handling of different API versions/schemas"
+    workflow: true
+    steps:
+      - name: "Admin creates (admin schema)"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET14"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+        
+      - name: "V3 updates (v3 schema)"
+        method: "POST"
+        endpoint: "/api/v3/subscribe"
+        auth_type: "v3"
+        data:
+          request_id: "{{request_id}}"
+          uk_id: "key_advanced_001"
+          participant_id: "{{subscriber_id}}"
+          credentials:
+            - cred_id: "cred_gst_d15"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "D15 Schema Compat"
+            - cred_id: "cred_pan_d15"
+              type: "PAN"
+              cred_data:
+                pan_no: "ABCDE1234F"
+          contacts:
+            - contact_id: "contact_auth_d15"
+              name: "D15 Contact"
+              email: "d15@example.com"
+              phone: "+919876543210"
+              type: "AUTHORISED_SIGNATORY"
+          key:
+            uk_id: "key_advanced_001"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_d15"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_d15"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+          configs:
+            - domain: "ONDC:RET14"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_d15"
+              uri_id: "uri_d15"
+              key_id: "key_advanced_001"
+        expected_status: 200
+        
+      - name: "Admin PATCH (admin schema)"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+        expected_status: 200

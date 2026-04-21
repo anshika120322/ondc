@@ -1,0 +1,63 @@
+ondcGateway:
+  environments:
+    uat:
+      host: https://gateway-uat.kynondc.net
+      verify_ssl: true
+    preprod:
+      host: https://gateway-preprod.ondc.org
+      verify_ssl: true
+
+endpoints:
+  # ── Health ───────────────────────────────────────────────────────────
+  - method: GET
+    path: /
+  - method: GET
+    path: /health
+
+  # ── Beckn Async APIs (BAP → BG) ─────────────────────────────────────
+  - method: POST
+    path: /search
+  - method: POST
+    path: /select
+  - method: POST
+    path: /init
+  - method: POST
+    path: /confirm
+  - method: POST
+    path: /status
+  - method: POST
+    path: /track
+  - method: POST
+    path: /cancel
+  - method: POST
+    path: /update
+  - method: POST
+    path: /rating
+  - method: POST
+    path: /support
+
+  # ── Beckn Async Callbacks (BPP → BG) ────────────────────────────────
+  - method: POST
+    path: /on_search
+  - method: POST
+    path: /on_select
+  - method: POST
+    path: /on_init
+  - method: POST
+    path: /on_confirm
+  - method: POST
+    path: /on_status
+  - method: POST
+    path: /on_track
+  - method: POST
+    path: /on_cancel
+  - method: POST
+    path: /on_update
+  - method: POST
+    path: /on_rating
+  - method: POST
+    path: /on_support
+  - method: POST
+    path: /issue
+  - method: POST
+    path: /on_issue_status

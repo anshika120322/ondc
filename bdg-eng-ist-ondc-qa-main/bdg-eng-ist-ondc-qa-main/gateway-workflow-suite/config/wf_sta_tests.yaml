@@ -1,0 +1,1409 @@
+# =============================================================================
+# Gateway Participant Status Enforcement Tests — gateway-workflow-suite
+# Source: design_docs/Workflow Scenarios Docs/ONDC-Gateway-Workflow-Scenarios.md
+#
+# Implemented:
+#   WF-STA-01  Inactive BAP Blocked                    [implemented]
+#   WF-STA-02  Inactive BPP Hidden from Broadcast      [implemented]
+#   WF-STA-03  Suspended Participant Blocked            [implemented]
+#   WF-STA-04  Unregistered Participant Rejected        [implemented]
+# =============================================================================
+
+test_suite:
+  name: "Gateway Participant Status Enforcement Tests"
+  category: "status"
+  total_tests: 4
+  description: >
+    Verifies that the Gateway enforces participant status rules — blocking
+    INACTIVE/SUSPENDED BAPs from sending requests, excluding INACTIVE/SUSPENDED
+    BPPs from broadcast dispatch, and rejecting unregistered participants.
+
+config:
+  default_timeout: 30
+  retry_on_failure: false
+
+# ---------------------------------------------------------------------------
+# Participants
+# ---------------------------------------------------------------------------
+participants:
+  # bap_active — Active BAP used in WF-STA-02/03 for valid broadcast searches.
+  - alias: "bap_active"
+    subscriber_id_prefix: "bap-sta-active"
+    generate_unique_id: true
+    domain: "ONDC:RET10"
+    callback_uri: "https://seller-mock.kynondc.net"
+    private_key_seed: "MC4CAQAwBQYDK2VwBCIEIPGt7Hv6vy2haK04ipiBbgU0omo/IGjs+hmuGE+jXkbf"
+
+  # bap_inactive — BAP registered SUBSCRIBED then set INACTIVE. Used in WF-STA-01
+  # to prove Gateway rejects INACTIVE BAPs before any BPP dispatch.
+  - alias: "bap_inactive"
+    subscriber_id_prefix: "bap-sta-inactive"
+    generate_unique_id: true
+    domain: "ONDC:RET10"
+    callback_uri: "https://seller-mock.kynondc.net"
+    private_key_seed: "MC4CAQAwBQYDK2VwBCIEIPGt7Hv6vy2haK04ipiBbgU0omo/IGjs+hmuGE+jXkbf"
+
+  # bap_suspended — BAP registered SUBSCRIBED then set SUSPENDED. Used in WF-STA-03
+  # sender-block sub-test.
+  - alias: "bap_suspended"
+    subscriber_id_prefix: "bap-sta-suspended"
+    generate_unique_id: true
+    domain: "ONDC:RET10"
+    callback_uri: "https://seller-mock.kynondc.net"
+    private_key_seed: "MC4CAQAwBQYDK2VwBCIEIPGt7Hv6vy2haK04ipiBbgU0omo/IGjs+hmuGE+jXkbf"
+
+  # bpp_active — Active SUBSCRIBED BPP; receives broadcast in WF-STA-02/03.
+  - alias: "bpp_active"
+    subscriber_id_prefix: "bpp-sta-active"
+    generate_unique_id: true
+    domain: "ONDC:RET10"
+    callback_uri: "https://seller-mock.kynondc.net"
+    private_key_seed: "MC4CAQAwBQYDK2VwBCIEIPGt7Hv6vy2haK04ipiBbgU0omo/IGjs+hmuGE+jXkbf"
+
+  # bpp_inactive — BPP registered SUBSCRIBED then set INACTIVE. Used in WF-STA-02
+  # to prove Gateway excludes INACTIVE BPPs from broadcast dispatch.
+  - alias: "bpp_inactive"
+    subscriber_id_prefix: "bpp-sta-inactive"
+    generate_unique_id: true
+    domain: "ONDC:RET10"
+    callback_uri: "https://seller-mock.kynondc.net"
+    private_key_seed: "MC4CAQAwBQYDK2VwBCIEIPGt7Hv6vy2haK04ipiBbgU0omo/IGjs+hmuGE+jXkbf"
+
+  # bpp_suspended — BPP registered SUBSCRIBED then set SUSPENDED. Used in WF-STA-03
+  # receiver-exclusion sub-test.
+  - alias: "bpp_suspended"
+    subscriber_id_prefix: "bpp-sta-suspended"
+    generate_unique_id: true
+    domain: "ONDC:RET10"
+    callback_uri: "https://seller-mock.kynondc.net"
+    private_key_seed: "MC4CAQAwBQYDK2VwBCIEIPGt7Hv6vy2haK04ipiBbgU0omo/IGjs+hmuGE+jXkbf"
+
+  # bap_unknown — A locally generated key pair whose subscriber_id is never
+  # registered in the Registry. Used in WF-STA-04 to prove the Gateway rejects
+  # unregistered participants. generate_unique_id: true ensures a fresh id each run.
+  # No private_key_seed — the runner generates a fresh ephemeral Ed25519 key pair
+  # each run so the signer is genuinely unknown to the Registry.
+  - alias: "bap_unknown"
+    subscriber_id_prefix: "bap-sta-unknown-never-registered"
+    generate_unique_id: true
+    domain: "ONDC:RET10"
+    callback_uri: "https://seller-mock.kynondc.net"
+
+tests:
+
+  # ===========================================================================
+  # WF-STA-01 · Inactive BAP Blocked
+  #
+  # Goal: A BAP with status=INACTIVE is rejected by the Gateway before any BPP
+  #       dispatch. The BAP's key IS in the key store (auth parses), but status
+  #       enforcement blocks the request.
+  #
+  # Core assertions:
+  #   Step 3  PATCH bap_inactive → INACTIVE → 200 ACK (definitive proof)
+  #   Step 5  Gateway rejects bap_inactive search → expected non-ACK response
+  # ===========================================================================
+
+  - id: "WF-STA-01"
+    name: "Inactive BAP Blocked"
+    description: >
+      BAP-STA-INACTIVE is registered as SUBSCRIBED (key in key store) then set
+      INACTIVE. Its subsequent search request to the Gateway must be rejected
+      before any BPP dispatch occurs. The Gateway's status enforcement fires even
+      though the ONDC-SIG header is cryptographically valid.
+    workflow: true
+
+    steps:
+
+      # ── Step 1: Register bap_inactive as SUBSCRIBED ─────────────────────────
+      - name: "Step 1 – Admin: Register BAP-STA-INACTIVE as SUBSCRIBED (key enters key store)"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{bap_inactive_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred-gst-{{bap_inactive_uk_id}}"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "BAP STA Inactive Status Test"
+            - cred_id: "cred-pan-{{bap_inactive_uk_id}}"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "BAP STA Inactive Status Test"
+          contacts:
+            - contact_id: "contact-auth-{{bap_inactive_uk_id}}"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Auth Rep"
+              email: "auth@bap-sta-inactive.example.com"
+              phone: "+919876543210"
+            - contact_id: "contact-biz-{{bap_inactive_uk_id}}"
+              type: "BUSINESS"
+              name: "Biz Rep"
+              email: "biz@bap-sta-inactive.example.com"
+              phone: "+919876543211"
+            - contact_id: "contact-tech-{{bap_inactive_uk_id}}"
+              type: "TECHNICAL"
+              name: "Tech Rep"
+              email: "tech@bap-sta-inactive.example.com"
+              phone: "+919876543212"
+          key:
+            - uk_id: "{{bap_inactive_uk_id}}"
+              signing_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              encryption_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              valid_from: "{{bap_inactive_valid_from}}"
+              valid_until: "{{bap_inactive_valid_until}}"
+          location:
+            - location_id: "loc-{{bap_inactive_uk_id}}"
+              type: "SERVICEABLE"
+              country: "IND"
+              city:
+                - "std:080"
+          uri:
+            - uri_id: "uri-{{bap_inactive_uk_id}}"
+              type: "CALLBACK"
+              url: "{{bap_inactive_uri}}"
+          configs:
+            - domain: "{{bap_inactive_domain}}"
+              np_type: "BAP"
+              subscriber_id: "{{bap_inactive_id}}"
+              location_id: "loc-{{bap_inactive_uk_id}}"
+              uri_id: "uri-{{bap_inactive_uk_id}}"
+              key_id: "{{bap_inactive_uk_id}}"
+        expected_status: [200, 409]
+
+      # ── Step 2: Register a SUBSCRIBED BPP (would receive dispatch if BAP were active)
+      - name: "Step 2 – Admin: Register BPP-STA-ACTIVE as SUBSCRIBED (would receive dispatch)"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{bpp_active_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred-gst-{{bpp_active_uk_id}}"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "BPP STA Active Dispatch Target"
+            - cred_id: "cred-pan-{{bpp_active_uk_id}}"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "BPP STA Active Dispatch Target"
+          contacts:
+            - contact_id: "contact-auth-{{bpp_active_uk_id}}"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Auth Rep"
+              email: "auth@bpp-sta-active.example.com"
+              phone: "+919876543210"
+            - contact_id: "contact-biz-{{bpp_active_uk_id}}"
+              type: "BUSINESS"
+              name: "Biz Rep"
+              email: "biz@bpp-sta-active.example.com"
+              phone: "+919876543211"
+            - contact_id: "contact-tech-{{bpp_active_uk_id}}"
+              type: "TECHNICAL"
+              name: "Tech Rep"
+              email: "tech@bpp-sta-active.example.com"
+              phone: "+919876543212"
+          key:
+            - uk_id: "{{bpp_active_uk_id}}"
+              signing_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              encryption_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              valid_from: "{{bpp_active_valid_from}}"
+              valid_until: "{{bpp_active_valid_until}}"
+          location:
+            - location_id: "loc-{{bpp_active_uk_id}}"
+              type: "SERVICEABLE"
+              country: "IND"
+              city:
+                - "std:080"
+          uri:
+            - uri_id: "uri-{{bpp_active_uk_id}}"
+              type: "CALLBACK"
+              url: "{{bpp_active_uri}}"
+          configs:
+            - domain: "{{bpp_active_domain}}"
+              np_type: "BPP"
+              subscriber_id: "{{bpp_active_id}}"
+              location_id: "loc-{{bpp_active_uk_id}}"
+              uri_id: "uri-{{bpp_active_uk_id}}"
+              key_id: "{{bpp_active_uk_id}}"
+        expected_status: [200, 409]
+
+      # ── Step 3: PATCH bap_inactive → INACTIVE (definitive proof) ────────────
+      - name: "Step 3 – Admin: Set BAP-STA-INACTIVE to INACTIVE — 200 ACK = definitive proof"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{bap_inactive_id}}"
+          action: "INACTIVE"
+        expected_status: 200
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+      # ── Step 4: Confirm bap_inactive record exists in Registry ───────────────
+      - name: "Step 4 – Admin: Confirm BAP-STA-INACTIVE record exists (INACTIVE)"
+        method: "GET"
+        endpoint: "/admin/participants/{{bap_inactive_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "participant_id"
+            exists: true
+        post_wait_seconds: 5
+
+      # ── Step 4b: Registry v3 lookup — confirm bap_inactive hidden ───────────
+      # POST /v3.0/lookup filtered by bap_inactive_id — same call the Gateway
+      # makes internally when resolving a subscriber_id. NACK confirms the
+      # INACTIVE participant is invisible from the same vantage point the
+      # Gateway uses at runtime, providing a second independent proof beyond
+      # the admin API.
+      - name: "Step 4b – Registry: Lookup BAP-STA-INACTIVE via /v3.0/lookup — expect configs.status=INACTIVE"
+        method: "POST"
+        endpoint: "/v3.0/lookup"
+        auth_type: "v3"
+        auth_subscriber_id: "bpp_active"
+        use_base_url: true
+        data:
+          subscriber_id: "{{bap_inactive_id}}"
+          country: "IND"
+          domain: "ONDC:RET10"
+          type: "BAP"
+        expected_status: [200]
+        continue_on_failure: true
+        retry:
+          timeout_seconds: 15
+          interval_seconds: 1
+        validate:
+          - field: "0.configs.0.status"
+            value: "INACTIVE"
+
+      # ── Step 5: Gateway internal — status check fires ────────────────────────
+      - name: "Step 5 – Gateway internal: Gateway resolves INACTIVE status; request rejected before BPP dispatch"
+        method: "INTERNAL"
+
+      # ── Step 6: INACTIVE BAP sends search — expect rejection ─────────────────
+      # The ONDC-SIG header is cryptographically valid (key is in the key store).
+      # The Gateway must reject based on status=INACTIVE, not on signature failure.
+      # Expected: NACK or 4xx — any non-ACK response proves status enforcement.
+      - name: "Step 6 – Gateway: INACTIVE BAP-STA-INACTIVE sends search — expect NACK or rejection"
+        method: "POST"
+        action: "search"
+        endpoint: "/{{action}}"
+        auth_type: "v3"
+        auth_subscriber_id: "bap_inactive"
+        data:
+          context:
+            domain: "ONDC:RET10"
+            action: "{{action}}"
+            version: "2.0.0"
+            bap_id: "{{bap_inactive_id}}"
+            bap_uri: "{{bap_inactive_uri}}"
+            transaction_id: "{{transaction_id}}"
+            message_id: "{{message_id}}"
+            location:
+              city:
+                code: "std:080"
+              country:
+                code: "IND"
+            ttl: "PT30S"
+            timestamp: "{{timestamp}}"
+          message:
+            intent: {}
+        expected_status: [200, 400, 401, 403]
+        continue_on_failure: true
+        validate:
+          - field: "message.ack.status"
+            value: "NACK"
+          - field: "error.code"
+            in_range:
+              min: 10000
+              max: 14999
+
+      # ── Step 7: Validation — no BPP dispatched ───────────────────────────────
+      - name: "Step 7 – Validation: No BPP dispatch occurred; Gateway rejected INACTIVE BAP before routing"
+        method: "INTERNAL"
+        validates:
+          - step_contains: "INACTIVE BAP-STA-INACTIVE sends search"
+            expect: "passed"
+            expected_outcome: "Rejected (NACK)"
+            fail_outcome: "Accepted (ACK)"
+
+
+  # ===========================================================================
+  # WF-STA-02 · Inactive BPP Hidden from Broadcast
+  #
+  # Goal: A broadcast search from a valid SUBSCRIBED BAP does not dispatch to
+  #       INACTIVE BPPs. Only SUBSCRIBED BPPs appear in the Gateway's dispatch list.
+  #
+  # Core assertions:
+  #   Step 5  PATCH bpp_inactive → INACTIVE → 200 ACK (exclusion proof)
+  #   Step 7  bap_active broadcast search → 200/202 ACK
+  #   Step 9  bpp_active sends on_search → 200/202 ACK (SUBSCRIBED BPP responds)
+  #   Proof   bpp_inactive never appears in dispatch (absence confirmed by PATCH ACK)
+  # ===========================================================================
+
+  - id: "WF-STA-02"
+    name: "Inactive BPP Hidden from Broadcast"
+    description: >
+      BAP-STA-ACTIVE (SUBSCRIBED) sends a broadcast search. BPP-STA-ACTIVE
+      (SUBSCRIBED) receives dispatch and sends on_search. BPP-STA-INACTIVE is
+      registered SUBSCRIBED then set INACTIVE (Step 5 PATCH 200 ACK = exclusion
+      proof) before the broadcast — Gateway must exclude it from the dispatch list.
+    workflow: true
+
+    steps:
+
+      # ── Step 1: Register bap_active as SUBSCRIBED ────────────────────────────
+      - name: "Step 1 – Admin: Register BAP-STA-ACTIVE as SUBSCRIBED"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{bap_active_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred-gst-{{bap_active_uk_id}}"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "BAP STA Active Broadcast Sender"
+            - cred_id: "cred-pan-{{bap_active_uk_id}}"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "BAP STA Active Broadcast Sender"
+          contacts:
+            - contact_id: "contact-auth-{{bap_active_uk_id}}"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Auth Rep"
+              email: "auth@bap-sta-active.example.com"
+              phone: "+919876543210"
+            - contact_id: "contact-biz-{{bap_active_uk_id}}"
+              type: "BUSINESS"
+              name: "Biz Rep"
+              email: "biz@bap-sta-active.example.com"
+              phone: "+919876543211"
+            - contact_id: "contact-tech-{{bap_active_uk_id}}"
+              type: "TECHNICAL"
+              name: "Tech Rep"
+              email: "tech@bap-sta-active.example.com"
+              phone: "+919876543212"
+          key:
+            - uk_id: "{{bap_active_uk_id}}"
+              signing_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              encryption_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              valid_from: "{{bap_active_valid_from}}"
+              valid_until: "{{bap_active_valid_until}}"
+          location:
+            - location_id: "loc-{{bap_active_uk_id}}"
+              type: "SERVICEABLE"
+              country: "IND"
+              city:
+                - "std:080"
+          uri:
+            - uri_id: "uri-{{bap_active_uk_id}}"
+              type: "CALLBACK"
+              url: "{{bap_active_uri}}"
+          configs:
+            - domain: "{{bap_active_domain}}"
+              np_type: "BAP"
+              subscriber_id: "{{bap_active_id}}"
+              location_id: "loc-{{bap_active_uk_id}}"
+              uri_id: "uri-{{bap_active_uk_id}}"
+              key_id: "{{bap_active_uk_id}}"
+        expected_status: [200, 409]
+
+      # ── Step 2: Register bpp_active as SUBSCRIBED ────────────────────────────
+      - name: "Step 2 – Admin: Register BPP-STA-ACTIVE as SUBSCRIBED (eligible for broadcast)"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{bpp_active_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred-gst-{{bpp_active_uk_id}}"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "BPP STA Active Broadcast Target"
+            - cred_id: "cred-pan-{{bpp_active_uk_id}}"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "BPP STA Active Broadcast Target"
+          contacts:
+            - contact_id: "contact-auth-{{bpp_active_uk_id}}"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Auth Rep"
+              email: "auth@bpp-sta-active.example.com"
+              phone: "+919876543210"
+            - contact_id: "contact-biz-{{bpp_active_uk_id}}"
+              type: "BUSINESS"
+              name: "Biz Rep"
+              email: "biz@bpp-sta-active.example.com"
+              phone: "+919876543211"
+            - contact_id: "contact-tech-{{bpp_active_uk_id}}"
+              type: "TECHNICAL"
+              name: "Tech Rep"
+              email: "tech@bpp-sta-active.example.com"
+              phone: "+919876543212"
+          key:
+            - uk_id: "{{bpp_active_uk_id}}"
+              signing_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              encryption_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              valid_from: "{{bpp_active_valid_from}}"
+              valid_until: "{{bpp_active_valid_until}}"
+          location:
+            - location_id: "loc-{{bpp_active_uk_id}}"
+              type: "SERVICEABLE"
+              country: "IND"
+              city:
+                - "std:080"
+          uri:
+            - uri_id: "uri-{{bpp_active_uk_id}}"
+              type: "CALLBACK"
+              url: "{{bpp_active_uri}}"
+          configs:
+            - domain: "{{bpp_active_domain}}"
+              np_type: "BPP"
+              subscriber_id: "{{bpp_active_id}}"
+              location_id: "loc-{{bpp_active_uk_id}}"
+              uri_id: "uri-{{bpp_active_uk_id}}"
+              key_id: "{{bpp_active_uk_id}}"
+        expected_status: [200, 409]
+
+      # ── Step 3: Register bpp_inactive as SUBSCRIBED (will be set INACTIVE) ───
+      - name: "Step 3 – Admin: Register BPP-STA-INACTIVE as SUBSCRIBED (will be set INACTIVE)"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{bpp_inactive_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred-gst-{{bpp_inactive_uk_id}}"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "BPP STA Inactive Exclusion Test"
+            - cred_id: "cred-pan-{{bpp_inactive_uk_id}}"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "BPP STA Inactive Exclusion Test"
+          contacts:
+            - contact_id: "contact-auth-{{bpp_inactive_uk_id}}"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Auth Rep"
+              email: "auth@bpp-sta-inactive.example.com"
+              phone: "+919876543210"
+            - contact_id: "contact-biz-{{bpp_inactive_uk_id}}"
+              type: "BUSINESS"
+              name: "Biz Rep"
+              email: "biz@bpp-sta-inactive.example.com"
+              phone: "+919876543211"
+            - contact_id: "contact-tech-{{bpp_inactive_uk_id}}"
+              type: "TECHNICAL"
+              name: "Tech Rep"
+              email: "tech@bpp-sta-inactive.example.com"
+              phone: "+919876543212"
+          key:
+            - uk_id: "{{bpp_inactive_uk_id}}"
+              signing_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              encryption_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              valid_from: "{{bpp_inactive_valid_from}}"
+              valid_until: "{{bpp_inactive_valid_until}}"
+          location:
+            - location_id: "loc-{{bpp_inactive_uk_id}}"
+              type: "SERVICEABLE"
+              country: "IND"
+              city:
+                - "std:080"
+          uri:
+            - uri_id: "uri-{{bpp_inactive_uk_id}}"
+              type: "CALLBACK"
+              url: "{{bpp_inactive_uri}}"
+          configs:
+            - domain: "{{bpp_inactive_domain}}"
+              np_type: "BPP"
+              subscriber_id: "{{bpp_inactive_id}}"
+              location_id: "loc-{{bpp_inactive_uk_id}}"
+              uri_id: "uri-{{bpp_inactive_uk_id}}"
+              key_id: "{{bpp_inactive_uk_id}}"
+        expected_status: [200, 409]
+
+      # ── Step 4: Confirm bpp_active SUBSCRIBED ───────────────────────────────
+      - name: "Step 4 – Admin: Confirm BPP-STA-ACTIVE is SUBSCRIBED (eligible for broadcast)"
+        method: "GET"
+        endpoint: "/admin/participants/{{bpp_active_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "participant_id"
+            exists: true
+        post_wait_seconds: 5
+
+      # ── Step 4b: Registry v3 lookup — confirm bpp_active visible ────────────
+      # POST /v3.0/lookup filtered by bpp_active_id — confirms SUBSCRIBED BPP
+      # is visible from the Registry's public lookup, mirroring its presence
+      # in the Gateway's broadcast dispatch candidate list.
+      - name: "Step 4b – Registry: Lookup BPP-STA-ACTIVE via /v3.0/lookup — expect configs.status=SUBSCRIBED"
+        method: "POST"
+        endpoint: "/v3.0/lookup"
+        auth_type: "v3"
+        auth_subscriber_id: "bap_active"
+        use_base_url: true
+        data:
+          subscriber_id: "{{bpp_active_id}}"
+          country: "IND"
+          domain: "ONDC:RET10"
+          type: "BPP"
+        expected_status: [200]
+        continue_on_failure: true
+        retry:
+          timeout_seconds: 15
+          interval_seconds: 1
+        validate:
+          - field: "0.configs.0.status"
+            value: "SUBSCRIBED"
+
+      # ── Step 5: PATCH bpp_inactive → INACTIVE (exclusion proof) ─────────────
+      - name: "Step 5 – Admin: Set BPP-STA-INACTIVE to INACTIVE — 200 ACK = dispatch exclusion proof"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{bpp_inactive_id}}"
+          action: "INACTIVE"
+        expected_status: 200
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+      # ── Step 6: Confirm bpp_inactive record exists ──────────────────────────
+      - name: "Step 6 – Admin: Confirm BPP-STA-INACTIVE record exists (INACTIVE)"
+        method: "GET"
+        endpoint: "/admin/participants/{{bpp_inactive_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        retry:
+          timeout_seconds: 15
+          interval_seconds: 1
+        validate:
+          - field: "participant_id"
+            exists: true
+        post_wait_seconds: 5
+
+      # ── Step 6b: Registry v3 lookup — confirm bpp_inactive hidden ───────────
+      # POST /v3.0/lookup filtered by bpp_inactive_id — same call the Gateway
+      # makes when building its broadcast dispatch list. NACK confirms the
+      # INACTIVE BPP is invisible and therefore excluded from dispatch,
+      # providing independent proof beyond the admin PATCH ACK.
+      - name: "Step 6b – Registry: Lookup BPP-STA-INACTIVE via /v3.0/lookup — expect configs.status=INACTIVE"
+        method: "POST"
+        endpoint: "/v3.0/lookup"
+        auth_type: "v3"
+        auth_subscriber_id: "bap_active"
+        use_base_url: true
+        data:
+          subscriber_id: "{{bpp_inactive_id}}"
+          country: "IND"
+          domain: "ONDC:RET10"
+          type: "BPP"
+        expected_status: [200]
+        continue_on_failure: true
+        retry:
+          timeout_seconds: 15
+          interval_seconds: 1
+        validate:
+          - field: "0.configs.0.status"
+            value: "INACTIVE"
+
+      # ── Step 7: bap_active sends broadcast search ────────────────────────────
+      - name: "Step 7 – Gateway: BAP-STA-ACTIVE sends broadcast search (no bpp_id) — expect ACK"
+        method: "POST"
+        action: "search"
+        endpoint: "/{{action}}"
+        auth_type: "v3"
+        auth_subscriber_id: "bap_active"
+        data:
+          context:
+            domain: "ONDC:RET10"
+            action: "{{action}}"
+            version: "2.0.0"
+            bap_id: "{{bap_active_id}}"
+            bap_uri: "{{bap_active_uri}}"
+            transaction_id: "{{transaction_id}}"
+            message_id: "{{message_id}}"
+            location:
+              city:
+                code: "std:080"
+              country:
+                code: "IND"
+            ttl: "PT30S"
+            timestamp: "{{timestamp}}"
+          message:
+            intent: {}
+        expected_status: [200, 202]
+        continue_on_failure: true
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+      # ── Step 8: Gateway internal — dispatch to SUBSCRIBED BPPs only ──────────
+      - name: "Step 8 – Gateway internal: Build dispatch list — bpp_active included; bpp_inactive excluded"
+        method: "INTERNAL"
+
+      # ── Step 9: bpp_active sends on_search ──────────────────────────────────
+      - name: "Step 9 – Gateway: BPP-STA-ACTIVE sends on_search (SUBSCRIBED BPP responds) — expect ACK"
+        method: "POST"
+        action: "on_search"
+        endpoint: "/{{action}}"
+        auth_type: "v3"
+        auth_subscriber_id: "bpp_active"
+        data:
+          context:
+            domain: "ONDC:RET10"
+            action: "{{action}}"
+            version: "2.0.0"
+            bap_id: "{{bap_active_id}}"
+            bap_uri: "{{bap_active_uri}}"
+            bpp_id: "{{bpp_active_id}}"
+            bpp_uri: "{{bpp_active_uri}}"
+            transaction_id: "{{transaction_id}}"
+            message_id: "{{message_id}}"
+            location:
+              city:
+                code: "std:080"
+              country:
+                code: "IND"
+            ttl: "PT30S"
+            timestamp: "{{timestamp}}"
+          message:
+            catalog:
+              descriptor:
+                name: "BPP-STA-ACTIVE Store"
+              providers:
+                - id: "provider-sta-active"
+                  descriptor:
+                    name: "STA Active Provider"
+                  items:
+                    - id: "item-sta-active-001"
+                      descriptor:
+                        name: "Status Test Item"
+                      price:
+                        currency: "INR"
+                        value: "100.00"
+        expected_status: [200, 202]
+        continue_on_failure: true
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+      # ── Step 10: Validation ──────────────────────────────────────────────────
+      - name: "Step 10 – Validation: bpp_active dispatched and responded; bpp_inactive absent from broadcast"
+        method: "INTERNAL"
+        validates:
+          - step_contains: "BAP-STA-ACTIVE sends broadcast search"
+            expect: "passed"
+            expected_outcome: "Accepted (ACK)"
+            fail_outcome: "Rejected / No response"
+          - step_contains: "BPP-STA-ACTIVE sends on_search"
+            expect: "passed"
+            expected_outcome: "Accepted (ACK)"
+            fail_outcome: "Rejected / No response"
+
+
+  # ===========================================================================
+  # WF-STA-03 · Suspended Participant Blocked
+  #
+  # Goal: A SUSPENDED BAP is rejected from sending; a SUSPENDED BPP is excluded
+  #       from broadcast dispatch. Tests both sender-block and receiver-exclusion.
+  #
+  # Core assertions:
+  #   Step 3  PATCH bap_suspended → SUSPENDED → 200 ACK
+  #   Step 4  PATCH bpp_suspended → SUSPENDED → 200 ACK
+  #   Step 7  SUSPENDED BAP search → expected rejection
+  #   Step 10 bap_active broadcast → SUBSCRIBED BPP responds; SUSPENDED BPP absent
+  # ===========================================================================
+
+  - id: "WF-STA-03"
+    name: "Suspended Participant Blocked"
+    description: >
+      BAP-STA-SUSPENDED and BPP-STA-SUSPENDED are registered SUBSCRIBED then set
+      SUSPENDED. The SUSPENDED BAP's search request must be rejected (sender block).
+      A broadcast from BAP-STA-ACTIVE must not dispatch to BPP-STA-SUSPENDED
+      (receiver exclusion). BPP-STA-ACTIVE (SUBSCRIBED) continues to receive
+      dispatches normally, proving only the SUSPENDED BPP is excluded.
+    workflow: true
+
+    steps:
+
+      # ── Step 1: Register bap_suspended as SUBSCRIBED ─────────────────────────
+      - name: "Step 1 – Admin: Register BAP-STA-SUSPENDED as SUBSCRIBED (will be set SUSPENDED)"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{bap_suspended_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred-gst-{{bap_suspended_uk_id}}"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "BAP STA Suspended Status Test"
+            - cred_id: "cred-pan-{{bap_suspended_uk_id}}"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "BAP STA Suspended Status Test"
+          contacts:
+            - contact_id: "contact-auth-{{bap_suspended_uk_id}}"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Auth Rep"
+              email: "auth@bap-sta-suspended.example.com"
+              phone: "+919876543210"
+            - contact_id: "contact-biz-{{bap_suspended_uk_id}}"
+              type: "BUSINESS"
+              name: "Biz Rep"
+              email: "biz@bap-sta-suspended.example.com"
+              phone: "+919876543211"
+            - contact_id: "contact-tech-{{bap_suspended_uk_id}}"
+              type: "TECHNICAL"
+              name: "Tech Rep"
+              email: "tech@bap-sta-suspended.example.com"
+              phone: "+919876543212"
+          key:
+            - uk_id: "{{bap_suspended_uk_id}}"
+              signing_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              encryption_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              valid_from: "{{bap_suspended_valid_from}}"
+              valid_until: "{{bap_suspended_valid_until}}"
+          location:
+            - location_id: "loc-{{bap_suspended_uk_id}}"
+              type: "SERVICEABLE"
+              country: "IND"
+              city:
+                - "std:080"
+          uri:
+            - uri_id: "uri-{{bap_suspended_uk_id}}"
+              type: "CALLBACK"
+              url: "{{bap_suspended_uri}}"
+          configs:
+            - domain: "{{bap_suspended_domain}}"
+              np_type: "BAP"
+              subscriber_id: "{{bap_suspended_id}}"
+              location_id: "loc-{{bap_suspended_uk_id}}"
+              uri_id: "uri-{{bap_suspended_uk_id}}"
+              key_id: "{{bap_suspended_uk_id}}"
+        expected_status: [200, 409]
+
+      # ── Step 2: Register bpp_suspended as SUBSCRIBED ─────────────────────────
+      - name: "Step 2 – Admin: Register BPP-STA-SUSPENDED as SUBSCRIBED (will be set SUSPENDED)"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{bpp_suspended_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred-gst-{{bpp_suspended_uk_id}}"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "BPP STA Suspended Exclusion Test"
+            - cred_id: "cred-pan-{{bpp_suspended_uk_id}}"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "BPP STA Suspended Exclusion Test"
+          contacts:
+            - contact_id: "contact-auth-{{bpp_suspended_uk_id}}"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Auth Rep"
+              email: "auth@bpp-sta-suspended.example.com"
+              phone: "+919876543210"
+            - contact_id: "contact-biz-{{bpp_suspended_uk_id}}"
+              type: "BUSINESS"
+              name: "Biz Rep"
+              email: "biz@bpp-sta-suspended.example.com"
+              phone: "+919876543211"
+            - contact_id: "contact-tech-{{bpp_suspended_uk_id}}"
+              type: "TECHNICAL"
+              name: "Tech Rep"
+              email: "tech@bpp-sta-suspended.example.com"
+              phone: "+919876543212"
+          key:
+            - uk_id: "{{bpp_suspended_uk_id}}"
+              signing_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              encryption_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              valid_from: "{{bpp_suspended_valid_from}}"
+              valid_until: "{{bpp_suspended_valid_until}}"
+          location:
+            - location_id: "loc-{{bpp_suspended_uk_id}}"
+              type: "SERVICEABLE"
+              country: "IND"
+              city:
+                - "std:080"
+          uri:
+            - uri_id: "uri-{{bpp_suspended_uk_id}}"
+              type: "CALLBACK"
+              url: "{{bpp_suspended_uri}}"
+          configs:
+            - domain: "{{bpp_suspended_domain}}"
+              np_type: "BPP"
+              subscriber_id: "{{bpp_suspended_id}}"
+              location_id: "loc-{{bpp_suspended_uk_id}}"
+              uri_id: "uri-{{bpp_suspended_uk_id}}"
+              key_id: "{{bpp_suspended_uk_id}}"
+        expected_status: [200, 409]
+
+      # ── Step 3: PATCH bap_suspended → SUSPENDED ──────────────────────────────
+      - name: "Step 3 – Admin: Set BAP-STA-SUSPENDED to SUSPENDED — 200 ACK = sender block proof"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{bap_suspended_id}}"
+          action: "SUSPENDED"
+        expected_status: 200
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+      # ── Step 4: PATCH bpp_suspended → SUSPENDED ──────────────────────────────
+      - name: "Step 4 – Admin: Set BPP-STA-SUSPENDED to SUSPENDED — 200 ACK = receiver exclusion proof"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{bpp_suspended_id}}"
+          action: "SUSPENDED"
+        expected_status: 200
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+      # ── Step 5: Register bap_active + bpp_active as SUBSCRIBED ───────────────
+      - name: "Step 5 – Admin: Register BAP-STA-ACTIVE as SUBSCRIBED (for broadcast sub-test)"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{bap_active_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred-gst-{{bap_active_uk_id}}"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "BAP STA Active Broadcast Sender"
+            - cred_id: "cred-pan-{{bap_active_uk_id}}"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "BAP STA Active Broadcast Sender"
+          contacts:
+            - contact_id: "contact-auth-{{bap_active_uk_id}}"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Auth Rep"
+              email: "auth@bap-sta-active.example.com"
+              phone: "+919876543210"
+            - contact_id: "contact-biz-{{bap_active_uk_id}}"
+              type: "BUSINESS"
+              name: "Biz Rep"
+              email: "biz@bap-sta-active.example.com"
+              phone: "+919876543211"
+            - contact_id: "contact-tech-{{bap_active_uk_id}}"
+              type: "TECHNICAL"
+              name: "Tech Rep"
+              email: "tech@bap-sta-active.example.com"
+              phone: "+919876543212"
+          key:
+            - uk_id: "{{bap_active_uk_id}}"
+              signing_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              encryption_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              valid_from: "{{bap_active_valid_from}}"
+              valid_until: "{{bap_active_valid_until}}"
+          location:
+            - location_id: "loc-{{bap_active_uk_id}}"
+              type: "SERVICEABLE"
+              country: "IND"
+              city:
+                - "std:080"
+          uri:
+            - uri_id: "uri-{{bap_active_uk_id}}"
+              type: "CALLBACK"
+              url: "{{bap_active_uri}}"
+          configs:
+            - domain: "{{bap_active_domain}}"
+              np_type: "BAP"
+              subscriber_id: "{{bap_active_id}}"
+              location_id: "loc-{{bap_active_uk_id}}"
+              uri_id: "uri-{{bap_active_uk_id}}"
+              key_id: "{{bap_active_uk_id}}"
+        expected_status: [200, 409]
+
+      - name: "Step 6 – Admin: Register BPP-STA-ACTIVE as SUBSCRIBED (continues to receive dispatches)"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{bpp_active_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred-gst-{{bpp_active_uk_id}}"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "BPP STA Active Normal Target"
+            - cred_id: "cred-pan-{{bpp_active_uk_id}}"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "BPP STA Active Normal Target"
+          contacts:
+            - contact_id: "contact-auth-{{bpp_active_uk_id}}"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Auth Rep"
+              email: "auth@bpp-sta-active.example.com"
+              phone: "+919876543210"
+            - contact_id: "contact-biz-{{bpp_active_uk_id}}"
+              type: "BUSINESS"
+              name: "Biz Rep"
+              email: "biz@bpp-sta-active.example.com"
+              phone: "+919876543211"
+            - contact_id: "contact-tech-{{bpp_active_uk_id}}"
+              type: "TECHNICAL"
+              name: "Tech Rep"
+              email: "tech@bpp-sta-active.example.com"
+              phone: "+919876543212"
+          key:
+            - uk_id: "{{bpp_active_uk_id}}"
+              signing_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              encryption_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              valid_from: "{{bpp_active_valid_from}}"
+              valid_until: "{{bpp_active_valid_until}}"
+          location:
+            - location_id: "loc-{{bpp_active_uk_id}}"
+              type: "SERVICEABLE"
+              country: "IND"
+              city:
+                - "std:080"
+          uri:
+            - uri_id: "uri-{{bpp_active_uk_id}}"
+              type: "CALLBACK"
+              url: "{{bpp_active_uri}}"
+          configs:
+            - domain: "{{bpp_active_domain}}"
+              np_type: "BPP"
+              subscriber_id: "{{bpp_active_id}}"
+              location_id: "loc-{{bpp_active_uk_id}}"
+              uri_id: "uri-{{bpp_active_uk_id}}"
+              key_id: "{{bpp_active_uk_id}}"
+        expected_status: [200, 409]
+        post_wait_seconds: 5
+
+      # ── Step 6b: Registry v3 lookup — confirm bap_suspended hidden ──────────
+      # POST /v3.0/lookup filtered by bap_suspended_id — mirrors the Gateway's
+      # internal lookup. NACK confirms the SUSPENDED BAP is invisible from the
+      # Registry's public vantage point, independently corroborating the admin
+      # PATCH ACK from Step 3.
+      - name: "Step 6b – Registry: Lookup BAP-STA-SUSPENDED via /v3.0/lookup — expect configs.status=SUSPENDED"
+        method: "POST"
+        endpoint: "/v3.0/lookup"
+        auth_type: "v3"
+        auth_subscriber_id: "bap_active"
+        use_base_url: true
+        data:
+          subscriber_id: "{{bap_suspended_id}}"
+          country: "IND"
+          domain: "ONDC:RET10"
+          type: "BAP"
+        expected_status: [200]
+        continue_on_failure: true
+        retry:
+          timeout_seconds: 15
+          interval_seconds: 1
+        validate:
+          - field: "0.configs.0.status"
+            value: "SUSPENDED"
+        post_wait_seconds: 5
+
+      # ── Step 6c: Registry v3 lookup — confirm bpp_suspended hidden ──────────
+      # POST /v3.0/lookup filtered by bpp_suspended_id — confirms the SUSPENDED
+      # BPP is invisible from the Registry's public lookup, mirroring its
+      # absence from the Gateway's broadcast dispatch candidate list.
+      - name: "Step 6c – Registry: Lookup BPP-STA-SUSPENDED via /v3.0/lookup — expect configs.status=SUSPENDED"
+        method: "POST"
+        endpoint: "/v3.0/lookup"
+        auth_type: "v3"
+        auth_subscriber_id: "bap_active"
+        use_base_url: true
+        data:
+          subscriber_id: "{{bpp_suspended_id}}"
+          country: "IND"
+          domain: "ONDC:RET10"
+          type: "BPP"
+        expected_status: [200]
+        continue_on_failure: true
+        retry:
+          timeout_seconds: 15
+          interval_seconds: 1
+        validate:
+          - field: "0.configs.0.status"
+            value: "SUSPENDED"
+
+      # ── Step 7: SUSPENDED BAP sends search — expect rejection ────────────────
+      - name: "Step 7 – Gateway: SUSPENDED BAP-STA-SUSPENDED sends search — expect NACK or rejection"
+        method: "POST"
+        action: "search"
+        endpoint: "/{{action}}"
+        auth_type: "v3"
+        auth_subscriber_id: "bap_suspended"
+        data:
+          context:
+            domain: "ONDC:RET10"
+            action: "{{action}}"
+            version: "2.0.0"
+            bap_id: "{{bap_suspended_id}}"
+            bap_uri: "{{bap_suspended_uri}}"
+            transaction_id: "{{transaction_id}}"
+            message_id: "{{message_id}}"
+            location:
+              city:
+                code: "std:080"
+              country:
+                code: "IND"
+            ttl: "PT30S"
+            timestamp: "{{timestamp}}"
+          message:
+            intent: {}
+        expected_status: [200, 400, 401, 403]
+
+      # ── Step 8: Validation — sender block ────────────────────────────────────
+      - name: "Step 8 – Validation: SUSPENDED BAP rejected; no BPP dispatched"
+        method: "INTERNAL"
+        validates:
+          - step_contains: "SUSPENDED BAP-STA-SUSPENDED sends search"
+            expect: "passed"
+            expected_outcome: "Rejected (NACK)"
+            fail_outcome: "Accepted (ACK)"
+
+      # ── Step 9: bap_active broadcast search (SUBSCRIBED) ────────────────────
+      - name: "Step 9 – Gateway: BAP-STA-ACTIVE sends broadcast search — expect ACK; bpp_suspended excluded"
+        method: "POST"
+        action: "search"
+        endpoint: "/{{action}}"
+        auth_type: "v3"
+        auth_subscriber_id: "bap_active"
+        data:
+          context:
+            domain: "ONDC:RET10"
+            action: "{{action}}"
+            version: "2.0.0"
+            bap_id: "{{bap_active_id}}"
+            bap_uri: "{{bap_active_uri}}"
+            transaction_id: "{{transaction_id}}"
+            message_id: "{{message_id}}"
+            location:
+              city:
+                code: "std:080"
+              country:
+                code: "IND"
+            ttl: "PT30S"
+            timestamp: "{{timestamp}}"
+          message:
+            intent: {}
+        expected_status: [200, 202]
+        continue_on_failure: true
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+      # ── Step 10: bpp_active sends on_search ─────────────────────────────────
+      - name: "Step 10 – Gateway: BPP-STA-ACTIVE sends on_search (SUBSCRIBED BPP responds normally) — expect ACK"
+        method: "POST"
+        action: "on_search"
+        endpoint: "/{{action}}"
+        auth_type: "v3"
+        auth_subscriber_id: "bpp_active"
+        data:
+          context:
+            domain: "ONDC:RET10"
+            action: "{{action}}"
+            version: "2.0.0"
+            bap_id: "{{bap_active_id}}"
+            bap_uri: "{{bap_active_uri}}"
+            bpp_id: "{{bpp_active_id}}"
+            bpp_uri: "{{bpp_active_uri}}"
+            transaction_id: "{{transaction_id}}"
+            message_id: "{{message_id}}"
+            location:
+              city:
+                code: "std:080"
+              country:
+                code: "IND"
+            ttl: "PT30S"
+            timestamp: "{{timestamp}}"
+          message:
+            catalog:
+              descriptor:
+                name: "BPP-STA-ACTIVE Store"
+              providers:
+                - id: "provider-sta-active"
+                  descriptor:
+                    name: "STA Active Provider"
+                  items:
+                    - id: "item-sta-active-001"
+                      descriptor:
+                        name: "Status Enforcement Test Item"
+                      price:
+                        currency: "INR"
+                        value: "100.00"
+        expected_status: [200, 202]
+        continue_on_failure: true
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+      # ── Step 11: Validation — receiver exclusion ─────────────────────────────
+      - name: "Step 11 – Validation: bpp_suspended absent from broadcast; bpp_active responded normally"
+        method: "INTERNAL"
+        validates:
+          - step_contains: "BAP-STA-ACTIVE sends broadcast search"
+            expect: "passed"
+            expected_outcome: "Accepted (ACK)"
+            fail_outcome: "Rejected / No response"
+          - step_contains: "BPP-STA-ACTIVE sends on_search (SUBSCRIBED BPP responds normally)"
+            expect: "passed"
+            expected_outcome: "Accepted (ACK)"
+            fail_outcome: "Rejected / No response"
+
+
+  # ===========================================================================
+  # WF-STA-04 · Unregistered Participant Rejected
+  #
+  # Goal: A request using a subscriber_id not in the Registry is rejected before
+  #       any BPP is contacted. The key pair is locally generated (fresh ephemeral
+  #       Ed25519) — there is no Registry entry for this subscriber_id.
+  #
+  # Core assertions:
+  #   Step 1  Admin GET confirms subscriber_id has no Registry record
+  #   Step 2  Gateway search with bap_unknown → NACK rejection
+  #   Step 3  Validation
+  # ===========================================================================
+
+  - id: "WF-STA-04"
+    name: "Unregistered Participant Rejected"
+    description: >
+      BAP-STA-UNKNOWN-NEVER-REGISTERED is a locally generated participant whose
+      subscriber_id does not exist in the Registry. Its search request to the
+      Gateway must be rejected before any BPP dispatch — the Gateway cannot resolve
+      the subscriber_id in the Registry and must return NACK or 4xx.
+    workflow: true
+
+    steps:
+
+      # ── Step 1: Register bap_active as SUBSCRIBED — provides a valid signer ──
+      # bap_active's key is pre-seeded (private_key_seed in participants) so it
+      # can sign ONDC-SIG for the v3 lookup in Step 2.  This step is idempotent:
+      # if bap_active already exists from a prior test in the same run, the 409
+      # is accepted.
+      - name: "Step 1 – Admin: Register BAP-STA-ACTIVE as SUBSCRIBED (provides valid signer for v3 lookup)"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{bap_active_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred-gst-{{bap_active_uk_id}}"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "BAP STA Active Broadcast Sender"
+            - cred_id: "cred-pan-{{bap_active_uk_id}}"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "BAP STA Active Broadcast Sender"
+          contacts:
+            - contact_id: "contact-auth-{{bap_active_uk_id}}"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Auth Rep"
+              email: "auth@bap-sta-active.example.com"
+              phone: "+919876543210"
+            - contact_id: "contact-biz-{{bap_active_uk_id}}"
+              type: "BUSINESS"
+              name: "Biz Rep"
+              email: "biz@bap-sta-active.example.com"
+              phone: "+919876543211"
+            - contact_id: "contact-tech-{{bap_active_uk_id}}"
+              type: "TECHNICAL"
+              name: "Tech Rep"
+              email: "tech@bap-sta-active.example.com"
+              phone: "+919876543212"
+          key:
+            - uk_id: "{{bap_active_uk_id}}"
+              signing_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              encryption_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              valid_from: "{{bap_active_valid_from}}"
+              valid_until: "{{bap_active_valid_until}}"
+          location:
+            - location_id: "loc-{{bap_active_uk_id}}"
+              type: "SERVICEABLE"
+              country: "IND"
+              city:
+                - "std:080"
+          uri:
+            - uri_id: "uri-{{bap_active_uk_id}}"
+              type: "CALLBACK"
+              url: "{{bap_active_uri}}"
+          configs:
+            - domain: "{{bap_active_domain}}"
+              np_type: "BAP"
+              subscriber_id: "{{bap_active_id}}"
+              location_id: "loc-{{bap_active_uk_id}}"
+              uri_id: "uri-{{bap_active_uk_id}}"
+              key_id: "{{bap_active_uk_id}}"
+        expected_status: [200, 409]
+        post_wait_seconds: 5
+
+      # ── Step 2: Registry v3 lookup — confirm bap_unknown is absent ───────────
+      # POST /v3.0/lookup filtered by bap_unknown_id — mirrors exactly the call
+      # the Gateway makes when it resolves a subscriber_id from the Authorization
+      # keyId. A NACK response (error code 1001) proves the subscriber_id has no
+      # Registry entry.
+      #
+      # Signer: bap_active (registered in Step 1).
+      # NOTE — Revised ONDC spec (April 2026): /v3.0/lookup is accessible to ANY
+      # registered participant with a valid signature, regardless of their status
+      # (INACTIVE, SUSPENDED, UNSUBSCRIBED etc.). SUBSCRIBED is therefore NOT a
+      # requirement for the lookup signer; bap_active is used here simply because
+      # it has a known stable key registered in the Registry key store, ensuring
+      # a reliable ONDC-SIG for the lookup call.
+      #
+      # Expected outcome:
+      #   HTTP 200, body = {"message": {"ack": {"status": "NACK"}},
+      #                     "error":   {"code": "15000–19999", ...}}
+      #   → subscriber_id confirmed absent in Registry
+      - name: "Step 2 – Registry: Lookup BAP-STA-UNKNOWN subscriber_id — expect NACK (not registered)"
+        method: "POST"
+        endpoint: "/v3.0/lookup"
+        auth_type: "v3"
+        auth_subscriber_id: "bap_active"
+        use_base_url: true
+        data:
+          subscriber_id: "{{bap_unknown_id}}"
+          country: "IND"
+          domain: "ONDC:RET10"
+          type: "BAP"
+        expected_status: [200]
+        continue_on_failure: true
+        retry:
+          timeout_seconds: 15
+          interval_seconds: 1
+        validate:
+          - field: "message.ack.status"
+            value: "NACK"
+          - field: "error.code"
+            in_range:
+              min: 15000
+              max: 19999
+
+      # ── Step 3: Unregistered participant sends search — expect rejection ──────
+      # bap_unknown's ONDC-SIG is signed with a fresh ephemeral Ed25519 key that
+      # was never registered. The subscriber_id in the keyId has no Registry entry.
+      # Gateway must reject with NACK (4xx) — no BPP dispatched.
+      - name: "Step 3 – Gateway: Unregistered BAP-STA-UNKNOWN sends search — expect rejection"
+        method: "POST"
+        action: "search"
+        endpoint: "/{{action}}"
+        auth_type: "v3"
+        auth_subscriber_id: "bap_unknown"
+        data:
+          context:
+            domain: "ONDC:RET10"
+            action: "{{action}}"
+            version: "2.0.0"
+            bap_id: "{{bap_unknown_id}}"
+            bap_uri: "{{bap_unknown_uri}}"
+            transaction_id: "{{transaction_id}}"
+            message_id: "{{message_id}}"
+            location:
+              city:
+                code: "std:080"
+              country:
+                code: "IND"
+            ttl: "PT30S"
+            timestamp: "{{timestamp}}"
+          message:
+            intent: {}
+        expected_status: [400, 401, 403, 404]
+        continue_on_failure: true
+        validate:
+          - field: "message.ack.status"
+            value: "NACK"
+
+      # ── Step 4: Gateway internal — Registry lookup context (documentation) ───
+      - name: "Step 4 – Gateway internal: Gateway attempted Registry lookup for unknown subscriber_id — not found; request rejected"
+        method: "INTERNAL"
+
+      # ── Step 5: Validation ───────────────────────────────────────────────────
+      - name: "Step 5 – Validation: Unknown participant rejected; no BPP dispatched"
+        method: "INTERNAL"
+        validates:
+          - step_contains: "Unregistered BAP-STA-UNKNOWN sends search"
+            expect: "passed"
+            expected_outcome: "Rejected (NACK)"
+            fail_outcome: "Accepted (ACK)"

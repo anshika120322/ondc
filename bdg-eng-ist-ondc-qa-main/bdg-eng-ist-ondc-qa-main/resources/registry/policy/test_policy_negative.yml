@@ -1,0 +1,567 @@
+################################################################################
+# ONDC Policy Management Negative Test Suite Configuration
+################################################################################
+# File: test_policy_negative.yml
+# Test File: tests/registry/policy/test_policy_negative.py
+# Purpose: Test new policy features - is_expired, version, expiry enforcement
+#
+# New Features Tested:
+#   1. is_expired field validation and behavior
+#   2. version field as user input (string)
+#   3. Expiry enforcement: Updates blocked on expired policies
+#   4. Restricted updates: Only is_active and is_expired can be updated
+#   5 Auto-enforcement: is_active=false when is_expired=true
+#
+# Test ID Naming: N01-N20 (Negative tests)
+################################################################################
+
+test_suite:
+  name: "ONDC Policy Negative Test Suite"
+  description: "Negative tests for policy expiry and version features"
+  total_tests: 20
+  version: "1.0"
+
+config:
+  test_environment: "ondcRegistry"
+  default_wait_time: 1
+  fail_on_error: false
+
+tests:
+  # =============================================================================
+  # Category 1: is_expired Field Validation (N01-N05)
+  # =============================================================================
+  
+  - id: N01
+    name: "Create policy with is_expired=true"
+    description: "Verify creating a policy with is_expired=true sets is_active=false automatically"
+    method: POST
+    endpoint: /admin/policies
+    auth_type: admin
+    expected_status: 200
+    data:
+      subscriber_id: "{{participant_id}}"
+      version: "1.0"
+      is_expired: true
+      is_active: true  # Should be auto-overridden to false
+      rule_definition:
+        rule_type: "rate_limit"
+        rate_limit: 100
+        time_window: "1m"
+      priority: 10
+    validate:
+      - field: "is_active"
+        value: false
+      - field: "is_expired"
+        value: true
+  
+  - id: N02
+    name: "Create policy with is_expired=false"
+    description: "Verify creating a non-expired policy with explicit is_expired=false"
+    method: POST
+    endpoint: /admin/policies
+    auth_type: admin
+    expected_status: 200
+    data:
+      subscriber_id: "{{participant_id}}"
+      version: "1.0"
+      is_expired: false
+      is_active: true
+      rule_definition:
+        rule_type: "throttle"
+        throttle_limit: 50
+      priority: 5
+    validate:
+      - field: "is_active"
+        value: true
+      - field: "is_expired"
+        value: false
+  
+  - id: N03
+    name: "Create policy without is_expired field"
+    description: "Verify default behavior when is_expired not provided (should default to false)"
+    method: POST
+    endpoint: /admin/policies
+    auth_type: admin
+    expected_status: 200
+    data:
+      subscriber_id: "{{participant_id}}"
+      version: "1.0"
+      is_active: true
+      rule_definition:
+        rule_type: "access_control"
+        allowed_ips:
+          - "10.0.0.1"
+      priority: 3
+    validate:
+      - field: "is_active"
+        value: true
+  
+  - id: N04
+    name: "Create policy with invalid is_expired type"
+    description: "Verify rejection of non-boolean is_expired value"
+    method: POST
+    endpoint: /admin/policies
+    auth_type: admin
+    expected_status: [400, 422]
+    data:
+      subscriber_id: "{{participant_id}}"
+      version: "1.0"
+      is_expired: "invalid_string"
+      is_active: true
+      rule_definition:
+        rule_type: "throttle"
+        throttle_limit: 30
+      priority: 2
+  
+  - id: N05
+    name: "Create policy with is_expired=null"
+    description: "Verify rejection of null is_expired value"
+    method: POST
+    endpoint: /admin/policies
+    auth_type: admin
+    expected_status: [400, 422]
+    data:
+      subscriber_id: "{{participant_id}}"
+      version: "1.0"
+      is_expired: null
+      is_active: true
+      rule_definition:
+        rule_type: "rate_limit"
+        rate_limit: 80
+        time_window: "1h"
+      priority: 6
+
+  # =============================================================================
+  # Category 2: Expiry Enforcement - Updates Blocked on Expired Policies (N06-N10)
+  # =============================================================================
+  
+  - id: N06
+    name: "Update expired policy → Reject"
+    description: "Verify updates are blocked on expired policy (403/400)"
+    workflow: true
+    steps:
+      - name: "Create policy with is_expired=true"
+        method: POST
+        endpoint: /admin/policies
+        auth_type: admin
+        expected_status: 200
+        data:
+          subscriber_id: "{{participant_id}}"
+          version: "1.0"
+          is_expired: true
+          is_active: false
+          rule_definition:
+            rule_type: "rate_limit"
+            rate_limit: 50
+          priority: 8
+        validate:
+          - field: "is_expired"
+            value: true
+      
+      - name: "Attempt to update priority (should fail)"
+        method: PATCH
+        expected_status: [400, 403]
+        data:
+          subscriber_id: "{{participant_id}}"
+          priority: 15
+  
+  - id: N07
+    name: "Expire policy then attempt update → Reject"
+    description: "Create active policy, mark as expired, verify update blocked"
+    workflow: true
+    steps:
+      - name: "Create active policy"
+        method: POST
+        endpoint: /admin/policies
+        auth_type: admin
+        expected_status: 200
+        data:
+          subscriber_id: "{{participant_id}}"
+          version: "1.0"
+          is_expired: false
+          is_active: true
+          rule_definition:
+            rule_type: "throttle"
+            throttle_limit: 40
+          priority: 7
+      
+      - name: "Mark policy as expired"
+        method: PATCH
+        expected_status: 200
+        data:
+          subscriber_id: "{{participant_id}}"
+          is_expired: true
+      
+      - name: "Attempt to update rule (should fail)"
+        method: PATCH
+        expected_status: [400, 403]
+        data:
+          subscriber_id: "{{participant_id}}"
+          rule_definition:
+            rule_type: "throttle"
+            throttle_limit: 100
+  
+  - id: N08
+    name: "Cannot reactivate expired policy"
+    description: "Verify cannot set is_active=true on expired policy"
+    workflow: true
+    steps:
+      - name: "Create expired policy"
+        method: POST
+        endpoint: /admin/policies
+        auth_type: admin
+        expected_status: 200
+        data:
+          subscriber_id: "{{participant_id}}"
+          version: "1.0"
+          is_expired: true
+          is_active: false
+          rule_definition:
+            rule_type: "access_control"
+            allowed_domains:
+              - "example.com"
+          priority: 4
+      
+      - name: "Attempt to activate expired policy (should fail)"
+        method: PATCH
+        expected_status: [400, 403]
+        data:
+          subscriber_id: "{{participant_id}}"
+          is_active: true
+  
+  - id: N09
+    name: "Expired policy blocks rule updates"
+    description: "Verify rule_definition updates blocked on expired policy"
+    workflow: true
+    steps:
+      - name: "Create expired policy"
+        method: POST
+        endpoint: /admin/policies
+        auth_type: admin
+        expected_status: 200
+        data:
+          subscriber_id: "{{participant_id}}"
+          version: "2.0"
+          is_expired: true
+          is_active: false
+          rule_definition:
+            rule_type: "rate_limit"
+            rate_limit: 60
+            time_window: "5m"
+          priority: 9
+      
+      - name: "Attempt rule_definition update (should fail)"
+        method: PATCH
+        expected_status: [400, 403]
+        data:
+          subscriber_id: "{{participant_id}}"
+          rule_definition:
+            rule_type: "rate_limit"
+            rate_limit: 200
+            time_window: "10m"
+  
+  - id: N10
+    name: "Expired policy blocks priority updates"
+    description: "Verify priority updates blocked on expired policy"
+    workflow: true
+    steps:
+      - name: "Create expired policy"
+        method: POST
+        endpoint: /admin/policies
+        auth_type: admin
+        expected_status: 200
+        data:
+          subscriber_id: "{{participant_id}}"
+          version: "1.5"
+          is_expired: true
+          is_active: false
+          rule_definition:
+            rule_type: "throttle"
+            throttle_limit: 25
+          priority: 3
+      
+      - name: "Attempt priority update (should fail)"
+        method: PATCH
+        expected_status: [400, 403]
+        data:
+          subscriber_id: "{{participant_id}}"
+          priority: 12
+
+  # =============================================================================
+  # Category 3: Restricted Updates - Only is_active/is_expired Allowed (N11-N15)
+  # =============================================================================
+  
+  - id: N11
+    name: "Update rule_definition on active policy → Reject"
+    description: "Verify rule_definition updates rejected (only is_active/is_expired allowed)"
+    workflow: true
+    steps:
+      - name: "Create active policy"
+        method: POST
+        endpoint: /admin/policies
+        auth_type: admin
+        expected_status: 200
+        data:
+          subscriber_id: "{{participant_id}}"
+          version: "1.0"
+          is_expired: false
+          is_active: true
+          rule_definition:
+            rule_type: "rate_limit"
+            rate_limit: 75
+          priority: 6
+      
+      - name: "Attempt rule update (should fail)"
+        method: PATCH
+        expected_status: [400, 403]
+        data:
+          subscriber_id: "{{participant_id}}"
+          rule_definition:
+            rule_type: "throttle"
+            throttle_limit: 150
+  
+  - id: N12
+    name: "Update priority on active policy → Reject"
+    description: "Verify priority updates rejected (only is_active/is_expired allowed)"
+    workflow: true
+    steps:
+      - name: "Create active policy"
+        method: POST
+        endpoint: /admin/policies
+        auth_type: admin
+        expected_status: 200
+        data:
+          subscriber_id: "{{participant_id}}"
+          version: "2.1"
+          is_expired: false
+          is_active: true
+          rule_definition:
+            rule_type: "access_control"
+            blocked_ips:
+              - "192.168.1.100"
+          priority: 8
+      
+      - name: "Attempt priority update (should fail)"
+        method: PATCH
+        expected_status: [400, 403]
+        data:
+          subscriber_id: "{{participant_id}}"
+          priority: 20
+  
+  - id: N13
+    name: "Update version on active policy → Reject"
+    description: "Verify version updates rejected (immutable field)"
+    workflow: true
+    steps:
+      - name: "Create active policy"
+        method: POST
+        endpoint: /admin/policies
+        auth_type: admin
+        expected_status: 200
+        data:
+          subscriber_id: "{{participant_id}}"
+          version: "1.0"
+          is_expired: false
+          is_active: true
+          rule_definition:
+            rule_type: "throttle"
+            throttle_limit: 45
+          priority: 4
+      
+      - name: "Attempt version update (should fail)"
+        method: PATCH
+        expected_status: [400, 403]
+        data:
+          subscriber_id: "{{participant_id}}"
+          version: "2.0"
+  
+  - id: N14
+    name: "Update subscriber_id → Reject"
+    description: "Verify subscriber_id updates rejected (immutable identifier)"
+    workflow: true
+    steps:
+      - name: "Create active policy"
+        method: POST
+        endpoint: /admin/policies
+        auth_type: admin
+        expected_status: 200
+        data:
+          subscriber_id: "{{participant_id}}"
+          version: "1.0"
+          is_expired: false
+          is_active: true
+          rule_definition:
+            rule_type: "rate_limit"
+            rate_limit: 90
+          priority: 7
+      
+      - name: "Attempt subscriber_id update (should fail)"
+        method: PATCH
+        expected_status: [400, 403]
+        data:
+          subscriber_id: "different_participant_id"
+          is_active: false
+  
+  - id: N15
+    name: "Update only is_active → Allow"
+    description: "Verify is_active updates allowed on non-expired policy"
+    workflow: true
+    steps:
+      - name: "Create active policy"
+        method: POST
+        endpoint: /admin/policies
+        auth_type: admin
+        expected_status: 200
+        data:
+          subscriber_id: "{{participant_id}}"
+          version: "1.0"
+          is_expired: false
+          is_active: true
+          rule_definition:
+            rule_type: "throttle"
+            throttle_limit: 55
+          priority: 5
+        validate:
+          - field: "is_active"
+            value: true
+      
+      - name: "Update is_active to false (should succeed)"
+        method: PATCH
+        expected_status: 200
+        data:
+          subscriber_id: "{{participant_id}}"
+          is_active: false
+        validate:
+          - field: "is_active"
+            value: false
+
+  # =============================================================================
+  # Category 4: Version Field Validation (N16-N18)
+  # =============================================================================
+  
+  - id: N16
+    name: "Create policy without version field"
+    description: "Verify version field required or has default behavior"
+    method: POST
+    endpoint: /admin/policies
+    auth_type: admin
+    expected_status: [200, 400]
+    data:
+      subscriber_id: "{{participant_id}}"
+      is_expired: false
+      is_active: true
+      rule_definition:
+        rule_type: "rate_limit"
+        rate_limit: 85
+      priority: 6
+  
+  - id: N17
+    name: "Create policy with empty version string"
+    description: "Verify rejection of empty version string"
+    method: POST
+    endpoint: /admin/policies
+    auth_type: admin
+    expected_status: [400, 422]
+    data:
+      subscriber_id: "{{participant_id}}"
+      version: ""
+      is_expired: false
+      is_active: true
+      rule_definition:
+        rule_type: "throttle"
+        throttle_limit: 35
+      priority: 4
+  
+  - id: N18
+    name: "Create policy with version as number instead of string"
+    description: "Verify version field type enforcement (should be string)"
+    method: POST
+    endpoint: /admin/policies
+    auth_type: admin
+    expected_status: [200, 400]
+    data:
+      subscriber_id: "{{participant_id}}"
+      version: 1.0
+      is_expired: false
+      is_active: true
+      rule_definition:
+        rule_type: "access_control"
+        allowed_endpoints:
+          - "/search"
+          - "/select"
+      priority: 7
+
+  # =============================================================================
+  # Category 5: Auto-Enforcement and Edge Cases (N19-N20)
+  # =============================================================================
+  
+  - id: N19
+    name: "Set is_expired=true auto-deactivates policy"
+    description: "Verify marking policy as expired automatically sets is_active=false"
+    workflow: true
+    steps:
+      - name: "Create active non-expired policy"
+        method: POST
+        endpoint: /admin/policies
+        auth_type: admin
+        expected_status: 200
+        data:
+          subscriber_id: "{{participant_id}}"
+          version: "3.0"
+          is_expired: false
+          is_active: true
+          rule_definition:
+            rule_type: "rate_limit"
+            rate_limit: 120
+            time_window: "2m"
+          priority: 10
+        validate:
+          - field: "is_active"
+            value: true
+          - field: "is_expired"
+            value: false
+      
+      - name: "Mark policy as expired (should auto-deactivate)"
+        method: PATCH
+        expected_status: 200
+        data:
+          subscriber_id: "{{participant_id}}"
+          is_expired: true
+        validate:
+          - field: "is_expired"
+            value: true
+          - field: "is_active"
+            value: false
+  
+  - id: N20
+    name: "Update only is_expired field → Allow"
+    description: "Verify is_expired updates allowed (only is_active/is_expired updatable)"
+    workflow: true
+    steps:
+      - name: "Create active non-expired policy"
+        method: POST
+        endpoint: /admin/policies
+        auth_type: admin
+        expected_status: 200
+        data:
+          subscriber_id: "{{participant_id}}"
+          version: "1.0"
+          is_expired: false
+          is_active: true
+          rule_definition:
+            rule_type: "throttle"
+            throttle_limit: 65
+          priority: 8
+        validate:
+          - field: "is_expired"
+            value: false
+      
+      - name: "Update is_expired to true (should succeed)"
+        method: PATCH
+        expected_status: 200
+        data:
+          subscriber_id: "{{participant_id}}"
+          is_expired: true
+        validate:
+          - field: "is_expired"
+            value: true

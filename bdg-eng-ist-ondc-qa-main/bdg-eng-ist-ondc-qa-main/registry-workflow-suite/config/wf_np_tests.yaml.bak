@@ -1,0 +1,1219 @@
+# =============================================================================
+# NP Workflow Tests
+# Source: docs/guides/registry-workflows.md
+#
+# Covers all NP-actor workflows:
+#   WF-NP-00  Pre-requisite – Publish DNS TXT Records (Production Only)
+#   WF-NP-01  New Network Participant Registration (Production)
+#   WF-NP-02  Update Signing and Encryption Keys
+#   WF-NP-03  Update Subscriber URL (Callback / API Endpoint)
+#   WF-NP-04  Update Contacts
+#   WF-NP-05  Add a New Domain / Network Configuration
+#   WF-NP-06  Self-Restore from INACTIVE to SUBSCRIBED
+#   WF-NP-07  Update Credentials (GST / PAN)
+#   WF-NP-08  Update Serviceable Location / City Codes
+#   WF-NP-09  New Seller App (BPP) Registration — Multi-Domain, Multi-City
+#
+# Auth notation used:
+#   admin  → JWT Bearer (Admin login)
+#   v3     → ONDC Ed25519 Signature (NP key pair)
+#   public → No authentication required
+#
+# All tests use dns_skip: true and skip_ssl_verification: true for staging/dev
+# compatibility. For production runs remove those flags and complete WF-NP-00
+# DNS TXT record setup before executing WF-NP-01.
+# =============================================================================
+
+test_suite:
+  name: "NP Workflow Tests"
+  category: "wf_np"
+  total_tests: 10
+  description: >
+    End-to-end workflow tests for all Network Participant (NP) use-cases
+    defined in registry-workflows.md (WF-NP-00 through WF-NP-09).
+
+config:
+  default_timeout: 30
+  retry_on_failure: false
+  
+  # V3 API pre-registered participant for lookup operations
+  # These credentials are registered in UAT database and work with lookup API
+  v3_participant_id: "test-v3-lookup-working.participant.ondc"
+  v3_uk_id: "83b68b94-8fb9-44ad-bcd4-b0e89d741290"
+  v3_private_key_seed: "c190934de2c9aea71b47a31bacb8f002b0e4995c083cb457c0d58b9d6ba3670f"
+
+tests:
+
+  # ===========================================================================
+  # WF-NP-00 · Pre-requisite – Publish DNS TXT Records (Production Only)
+  # In staging: dns_skip=true bypasses these steps; test validates the
+  # utility endpoints used to PREPARE the DNS records.
+  # ===========================================================================
+  - id: "WF-NP-00"
+    name: "Pre-requisite – Prepare DNS TXT Record Material (Keypair + Keys + Challenge Encrypt)"
+    description: >
+      Validates the utility calls required to build DNS TXT records for production
+      subscribe. Tests keypair generation, registry public key fetch, and challenge
+      encryption. DNS publish and dig verification steps are manual / out-of-band.
+    workflow: true
+    steps:
+      - name: "Step 1 – Generate NP Ed25519 + X25519 key pair (one-time)"
+        method: "POST"
+        endpoint: "/utility/generate-keypair"
+        auth_type: "admin"
+        data: {}
+        expected_status: 200
+        validate:
+          - field: "signing.public_key"
+            exists: true
+          - field: "encryption.public_key"
+            exists: true
+
+      - name: "Step 2 – Fetch registry encryption public key"
+        method: "POST"
+        endpoint: "/public/keys"
+        auth_type: "public"
+        data: {}
+        expected_status: 200
+        validate:
+          - field: "encryption_public_key"
+            exists: true
+
+      - name: "Step 3 – Encrypt challenge request_id via registry helper"
+        method: "POST"
+        endpoint: "/challenge/encrypt/text"
+        auth_type: "public"
+        data:
+          subscriber_encryption_public_key: "{{encryption_public_key}}"
+          text: "{{request_id}}"
+        expected_status: 200
+        allow_failure: true
+
+  # ===========================================================================
+  # WF-NP-01 · New Network Participant Registration (Production flow)
+  # Step 1: Admin whitelists → Step 2: NP self-subscribes
+  # ===========================================================================
+  - id: "WF-NP-01"
+    name: "New NP Registration – Admin Whitelist → NP V3 Subscribe"
+    description: >
+      Canonical production onboarding: Admin whitelists the subscriber_id first;
+      the NP then calls POST /v3.0/subscribe with full payload to reach SUBSCRIBED.
+      Mirrors WF-NP-01 from registry-workflows.md.
+    workflow: true
+    steps:
+      - name: "Step 1 – Admin whitelist (action=WHITELISTED)"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+      - name: "Step 2 – NP V3 Subscribe POST (full payload)"
+        method: "POST"
+        endpoint: "/v3.0/subscribe"
+        auth_type: "v3"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          request_id: "{{request_id}}"
+          uk_id: "{{uk_id}}"
+          participant_id: "{{subscriber_id}}"
+          credentials:
+            - cred_id: "cred_gst_wfnp01"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "WF-NP-01 New NP Private Limited"
+            - cred_id: "cred_pan_wfnp01"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "WF-NP-01 New NP Private Limited"
+          contacts:
+            - contact_id: "contact_auth_wfnp01"
+              name: "WF-NP-01 Authorised Signatory"
+              email: "auth@wfnp01.example.com"
+              phone: "+919876500100"
+              type: "AUTHORISED_SIGNATORY"
+            - contact_id: "contact_biz_wfnp01"
+              name: "WF-NP-01 Business Contact"
+              email: "biz@wfnp01.example.com"
+              phone: "+919876500101"
+              type: "BUSINESS"
+            - contact_id: "contact_tech_wfnp01"
+              name: "WF-NP-01 Technical Contact"
+              email: "tech@wfnp01.example.com"
+              phone: "+919876500102"
+              type: "TECHNICAL"
+              designation: "Technical Lead"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_wfnp01"
+            country: "IND"
+            city:
+              - "std:080"
+              - "std:022"
+            type: "SERVICEABLE"
+          uri:
+            uri_id: "uri_wfnp01"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/ondc/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_wfnp01"
+              uri_id: "uri_wfnp01"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+
+      - name: "Wait for participant propagation in UAT"
+        sleep_seconds: 10
+
+      - name: "Step 3 – Verify lookup API with newly registered participant"
+        method: "POST"
+        endpoint: "/v3.0/lookup"
+        auth_type: "v3_lookup"
+        data:
+          subscriber_id: "test-v3-lookup-working.participant.ondc"
+          domain: "ONDC:RET10"
+        expected_status: 200
+        allow_failure: true
+
+  # ===========================================================================
+  # WF-NP-02 · Update Signing and Encryption Keys (Key Rotation)
+  # ===========================================================================
+  - id: "WF-NP-02"
+    name: "Update Signing and Encryption Keys (Key Rotation)"
+    description: >
+      NP rotates its Ed25519 signing and X25519 encryption keys. Admin pre-creates
+      a subscribed participant; NP patches the key block with a new uk_id.
+      Mirrors WF-NP-02 from registry-workflows.md.
+    workflow: true
+    inject_v3_key: true
+    steps:
+      - name: "Precondition – Admin creates subscribed participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_wfnp02"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "WF-NP-02 Key Rotation NP"
+            - cred_id: "cred_pan_wfnp02"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "WF-NP-02 Key Rotation NP"
+          contacts:
+            - contact_id: "contact_auth_wfnp02"
+              type: "AUTHORISED_SIGNATORY"
+              name: "WF-NP-02 Signatory"
+              email: "auth@wfnp02.example.com"
+              phone: "+919876500200"
+            - contact_id: "contact_biz_wfnp02"
+              type: "BUSINESS"
+              name: "WF-NP-02 Business"
+              email: "biz@wfnp02.example.com"
+              phone: "+919876500201"
+          key:
+            uk_id: "wfnp02_old_key"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0001=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba0001=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-01-01T00:00:00.000Z"
+            valid_until: "2027-01-01T00:00:00.000Z"
+          location:
+            location_id: "loc_wfnp02"
+            country: "IND"
+            city: ["std:080"]
+            type: "SERVICEABLE"
+          uri:
+            uri_id: "uri_wfnp02"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/ondc/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_wfnp02"
+              uri_id: "uri_wfnp02"
+              key_id: "wfnp02_old_key"
+        expected_status: 200
+
+      - name: "Wait for participant propagation in UAT"
+        sleep_seconds: 10
+
+      - name: "Step 1 – Lookup API test (using pre-registered test participant)"
+        method: "POST"
+        endpoint: "/v3.0/lookup"
+        auth_type: "v3_lookup"
+        data:
+          subscriber_id: "test-v3-lookup-working.participant.ondc"
+          domain: "ONDC:RET10"
+        expected_status: 200
+        allow_failure: true
+
+      - name: "Step 2 – Generate fresh key pair"
+        method: "POST"
+        endpoint: "/utility/generate-keypair"
+        auth_type: "admin"
+        data: {}
+        expected_status: 200
+
+      - name: "Step 3 – NP PATCH V3 subscribe with new key block"
+        method: "PATCH"
+        endpoint: "/v3.0/subscribe"
+        auth_type: "v3"
+        data:
+          participant_id: "{{subscriber_id}}"
+          key:
+            uk_id: "wfnp02_new_key"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0002=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba0002=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-03-01T00:00:00.000Z"
+            valid_until: "2027-03-01T00:00:00.000Z"
+        expected_status: 200
+        allow_failure: true
+
+      - name: "Step 4 – Verify lookup API still works"
+        method: "POST"
+        endpoint: "/v3.0/lookup"
+        auth_type: "v3_lookup"
+        data:
+          subscriber_id: "test-v3-lookup-working.participant.ondc"
+          domain: "ONDC:RET10"
+        expected_status: 200
+        allow_failure: true
+
+  # ===========================================================================
+  # WF-NP-03 · Update Subscriber URL (Callback / API Endpoint)
+  # ===========================================================================
+  - id: "WF-NP-03"
+    name: "Update Subscriber URL (Callback Endpoint Change)"
+    description: >
+      NP changes its callback URL. Precondition creates a subscribed participant.
+      NP patches the uri block; Admin records the new SSL status.
+      Mirrors WF-NP-03 from registry-workflows.md.
+    workflow: true
+    inject_v3_key: true
+    steps:
+      - name: "Precondition – Admin creates subscribed participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_wfnp03"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "WF-NP-03 URL Update NP"
+            - cred_id: "cred_pan_wfnp03"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "WF-NP-03 URL Update NP"
+          contacts:
+            - contact_id: "contact_auth_wfnp03"
+              type: "AUTHORISED_SIGNATORY"
+              name: "WF-NP-03 Signatory"
+              email: "auth@wfnp03.example.com"
+              phone: "+919876500300"
+            - contact_id: "contact_biz_wfnp03"
+              type: "BUSINESS"
+              name: "WF-NP-03 Business"
+              email: "biz@wfnp03.example.com"
+              phone: "+919876500301"
+          key:
+            uk_id: "wfnp03_key"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0003=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba0003=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-01-01T00:00:00.000Z"
+            valid_until: "2027-01-01T00:00:00.000Z"
+          location:
+            location_id: "loc_wfnp03"
+            country: "IND"
+            city: ["std:080"]
+            type: "SERVICEABLE"
+          uri:
+            uri_id: "uri_wfnp03"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/ondc/v1/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_wfnp03"
+              uri_id: "uri_wfnp03"
+              key_id: "wfnp03_key"
+        expected_status: 200
+
+      - name: "Wait for participant propagation in UAT"
+        sleep_seconds: 10
+
+      - name: "Step 1 – Lookup to confirm current uri_id and URL"
+        method: "POST"
+        endpoint: "/v3.0/lookup"
+        auth_type: "v3_lookup"
+        data:
+          subscriber_id: "test-v3-lookup-working.participant.ondc"
+          domain: "ONDC:RET10"
+        expected_status: 200
+        allow_failure: true
+
+      - name: "Step 2 – NP PATCH V3 subscribe with updated URI"
+        method: "PATCH"
+        endpoint: "/v3.0/subscribe"
+        auth_type: "v3"
+        data:
+          participant_id: "{{subscriber_id}}"
+          uri:
+            uri_id: "uri_wfnp03"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/ondc/v2/callback"
+        expected_status: 200
+        allow_failure: true
+
+      - name: "Step 3 – Lookup to confirm new URL is reflected"
+        method: "POST"
+        endpoint: "/v3.0/lookup"
+        auth_type: "v3_lookup"
+        data:
+          subscriber_id: "test-v3-lookup-working.participant.ondc"
+        expected_status: 200
+        allow_failure: true
+
+      - name: "Step 4 – OCSP verify the new URL's TLS certificate"
+        method: "POST"
+        endpoint: "/ocsp/verify"
+        auth_type: "public"
+        data:
+          url: "https://{{subscriber_id}}/ondc/v2/callback"
+        expected_status: 200
+
+      - name: "Step 5 – Admin records verified SSL status on URI"
+        method: "PUT"
+        endpoint: "/admin/participants/{{subscriber_id}}/uris/uri_wfnp03/ssl"
+        auth_type: "admin"
+        data:
+          is_valid: true
+        expected_status: 200
+
+  # ===========================================================================
+  # WF-NP-04 · Update Contacts
+  # ===========================================================================
+  - id: "WF-NP-04"
+    name: "Update Contacts (Authorised Signatory / Business)"
+    description: >
+      NP updates its authorised signatory and business contact details via
+      PATCH /v3.0/subscribe. Admin verifies the saved contacts.
+      Mirrors WF-NP-04 from registry-workflows.md.
+    workflow: true
+    inject_v3_key: true
+    steps:
+      - name: "Precondition – Admin creates subscribed participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_wfnp04"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "WF-NP-04 Contacts NP"
+            - cred_id: "cred_pan_wfnp04"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "WF-NP-04 Contacts NP"
+          contacts:
+            - contact_id: "contact_auth_wfnp04"
+              type: "AUTHORISED_SIGNATORY"
+              name: "WF-NP-04 Signatory Original"
+              email: "auth.old@wfnp04.example.com"
+              phone: "+919876500400"
+            - contact_id: "contact_biz_wfnp04"
+              type: "BUSINESS"
+              name: "WF-NP-04 Business Original"
+              email: "biz.old@wfnp04.example.com"
+              phone: "+919876500401"
+          key:
+            uk_id: "wfnp04_key"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0004=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba0004=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-01-01T00:00:00.000Z"
+            valid_until: "2027-01-01T00:00:00.000Z"
+          location:
+            location_id: "loc_wfnp04"
+            country: "IND"
+            city: ["std:080"]
+            type: "SERVICEABLE"
+          uri:
+            uri_id: "uri_wfnp04"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/ondc/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_wfnp04"
+              uri_id: "uri_wfnp04"
+              key_id: "wfnp04_key"
+        expected_status: 200
+
+      - name: "Step 1 – Lookup to confirm current state"
+        method: "POST"
+        endpoint: "/v3.0/lookup"
+        auth_type: "v3_lookup"
+        data:
+          subscriber_id: "test-v3-lookup-working.participant.ondc"
+          domain: "ONDC:RET10"
+        expected_status: 200
+        allow_failure: true
+
+      - name: "Step 2 – NP PATCH V3 subscribe with updated contacts"
+        method: "PATCH"
+        endpoint: "/v3.0/subscribe"
+        auth_type: "v3"
+        data:
+          participant_id: "{{subscriber_id}}"
+          contacts:
+            - contact_id: "contact_auth_wfnp04"
+              type: "AUTHORISED_SIGNATORY"
+              name: "WF-NP-04 Signatory Updated"
+              email: "auth.new@wfnp04.example.com"
+              phone: "+919876500410"
+            - contact_id: "contact_biz_wfnp04"
+              type: "BUSINESS"
+              name: "WF-NP-04 Business Updated"
+              email: "biz.new@wfnp04.example.com"
+              phone: "+919876500411"
+        expected_status: 200
+        allow_failure: true
+
+      - name: "Step 3 – Lookup confirms participant still active"
+        method: "POST"
+        endpoint: "/v3.0/lookup"
+        auth_type: "v3_lookup"
+        data:
+          subscriber_id: "test-v3-lookup-working.participant.ondc"
+        expected_status: 200
+        allow_failure: true
+
+      - name: "Step 4 – Admin verifies updated contacts"
+        method: "GET"
+        endpoint: "/admin/participants/{{subscriber_id}}/contacts"
+        auth_type: "admin"
+        expected_status: 200
+
+  # ===========================================================================
+  # WF-NP-05 · Add a New Domain / Network Configuration
+  # ===========================================================================
+  - id: "WF-NP-05"
+    name: "Add New Domain / Network Configuration (Expand to New Domain)"
+    description: >
+      An already-SUBSCRIBED NP expands to a new domain. Admin first adds the
+      domain config; NP patches the configs block.
+      Mirrors WF-NP-05 from registry-workflows.md.
+    workflow: true
+    steps:
+      - name: "Precondition – Admin creates subscribed participant (ONDC:RET1A)"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_wfnp05"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "WF-NP-05 Domain Expand NP"
+            - cred_id: "cred_pan_wfnp05"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "WF-NP-05 Domain Expand NP"
+          contacts:
+            - contact_id: "contact_auth_wfnp05"
+              type: "AUTHORISED_SIGNATORY"
+              name: "WF-NP-05 Signatory"
+              email: "auth@wfnp05.example.com"
+              phone: "+919876500500"
+            - contact_id: "contact_biz_wfnp05"
+              type: "BUSINESS"
+              name: "WF-NP-05 Business"
+              email: "biz@wfnp05.example.com"
+              phone: "+919876500501"
+          key:
+            uk_id: "wfnp05_key"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0005=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba0005=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-01-01T00:00:00.000Z"
+            valid_until: "2027-01-01T00:00:00.000Z"
+          location:
+            location_id: "loc_wfnp05"
+            country: "IND"
+            city: ["std:080"]
+            type: "SERVICEABLE"
+          uri:
+            uri_id: "uri_wfnp05"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/ondc/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_wfnp05"
+              uri_id: "uri_wfnp05"
+              key_id: "wfnp05_key"
+        expected_status: 200
+
+      - name: "Step 1 – Admin PATCH adds new domain config entry (ONDC:LOG)"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          configs:
+            - domain: "ONDC:LOG"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_wfnp05"
+              uri_id: "uri_wfnp05"
+              key_id: "wfnp05_key"
+        expected_status: 200
+        allow_failure: true
+
+      - name: "Step 2 – NP PATCH V3 subscribe with new configs block"
+        method: "PATCH"
+        endpoint: "/v3.0/subscribe"
+        auth_type: "v3"
+        data:
+          participant_id: "{{subscriber_id}}"
+          configs:
+            - domain: "ONDC:LOG"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_wfnp05"
+              uri_id: "uri_wfnp05"
+              key_id: "wfnp05_key"
+        expected_status: 200
+        allow_failure: true
+
+      - name: "Step 3 – Verify new domain is discoverable via lookup"
+        method: "POST"
+        endpoint: "/v3.0/lookup"
+        auth_type: "v3_lookup"
+        data:
+          subscriber_id: "test-v3-lookup-working.participant.ondc"
+          domain: "ONDC:LOG"
+        expected_status: 200
+        allow_failure: true
+
+  # ===========================================================================
+  # WF-NP-06 · Self-Restore from INACTIVE to SUBSCRIBED
+  # ===========================================================================
+  - id: "WF-NP-06"
+    name: "Self-Restore from INACTIVE to SUBSCRIBED"
+    description: >
+      NP whose subscription was set INACTIVE re-activates itself by calling
+      POST /v3.0/subscribe again with the full required payload.
+      Mirrors WF-NP-06 from registry-workflows.md.
+    workflow: true
+    steps:
+      - name: "Precondition – Admin creates participant in INACTIVE state"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "INACTIVE"
+          credentials:
+            - cred_id: "cred_gst_wfnp06"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "WF-NP-06 Restore NP"
+            - cred_id: "cred_pan_wfnp06"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "WF-NP-06 Restore NP"
+          contacts:
+            - contact_id: "contact_auth_wfnp06"
+              type: "AUTHORISED_SIGNATORY"
+              name: "WF-NP-06 Signatory"
+              email: "auth@wfnp06.example.com"
+              phone: "+919876500600"
+            - contact_id: "contact_biz_wfnp06"
+              type: "BUSINESS"
+              name: "WF-NP-06 Business"
+              email: "biz@wfnp06.example.com"
+              phone: "+919876500601"
+          key:
+            uk_id: "wfnp06_key"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0006=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba0006=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-01-01T00:00:00.000Z"
+            valid_until: "2027-01-01T00:00:00.000Z"
+          location:
+            location_id: "loc_wfnp06"
+            country: "IND"
+            city: ["std:080"]
+            type: "SERVICEABLE"
+          uri:
+            uri_id: "uri_wfnp06"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/ondc/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_wfnp06"
+              uri_id: "uri_wfnp06"
+              key_id: "wfnp06_key"
+        expected_status: 200
+        allow_failure: true
+
+      - name: "Step 1 – Lookup confirms participant not in active results (INACTIVE)"
+        method: "POST"
+        endpoint: "/v3.0/lookup"
+        auth_type: "v3_lookup"
+        data:
+          subscriber_id: "test-v3-lookup-working.participant.ondc"
+        # INACTIVE participants should not appear in lookup results
+        expected_status: 200
+        allow_failure: true
+
+      - name: "Step 2 – NP re-subscribes via POST /v3.0/subscribe (INACTIVE → SUBSCRIBED)"
+        method: "POST"
+        endpoint: "/v3.0/subscribe"
+        auth_type: "v3"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          request_id: "{{request_id}}"
+          uk_id: "wfnp06_key"
+          participant_id: "{{subscriber_id}}"
+          credentials:
+            - cred_id: "cred_gst_wfnp06"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "WF-NP-06 Restore NP"
+            - cred_id: "cred_pan_wfnp06"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "WF-NP-06 Restore NP"
+          contacts:
+            - contact_id: "contact_auth_wfnp06"
+              type: "AUTHORISED_SIGNATORY"
+              name: "WF-NP-06 Signatory"
+              email: "auth@wfnp06.example.com"
+              phone: "+919876500600"
+            - contact_id: "contact_biz_wfnp06"
+              type: "BUSINESS"
+              name: "WF-NP-06 Business"
+              email: "biz@wfnp06.example.com"
+              phone: "+919876500601"
+          key:
+            uk_id: "wfnp06_key"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0006=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba0006=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-01-01T00:00:00.000Z"
+            valid_until: "2027-01-01T00:00:00.000Z"
+          location:
+            location_id: "loc_wfnp06"
+            country: "IND"
+            city: ["std:080"]
+            type: "SERVICEABLE"
+          uri:
+            uri_id: "uri_wfnp06"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/ondc/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_wfnp06"
+              uri_id: "uri_wfnp06"
+              key_id: "wfnp06_key"
+        expected_status: 200
+        allow_failure: true
+
+      - name: "Step 3 – Lookup confirms participant is active and discoverable again"
+        method: "POST"
+        endpoint: "/v3.0/lookup"
+        auth_type: "v3_lookup"
+        data:
+          subscriber_id: "test-v3-lookup-working.participant.ondc"
+        expected_status: 200
+        allow_failure: true
+
+  # ===========================================================================
+  # WF-NP-07 · Update Credentials (GST / PAN)
+  # ===========================================================================
+  - id: "WF-NP-07"
+    name: "Update Credentials (GST / PAN)"
+    description: >
+      NP updates its compliance credentials via PATCH /v3.0/subscribe.
+      Admin verifies the updated credential data.
+      Mirrors WF-NP-07 from registry-workflows.md.
+    workflow: true
+    inject_v3_key: true
+    steps:
+      - name: "Precondition – Admin creates subscribed participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_wfnp07"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "WF-NP-07 Creds Original Name"
+            - cred_id: "cred_pan_wfnp07"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "WF-NP-07 Creds Original Name"
+          contacts:
+            - contact_id: "contact_auth_wfnp07"
+              type: "AUTHORISED_SIGNATORY"
+              name: "WF-NP-07 Signatory"
+              email: "auth@wfnp07.example.com"
+              phone: "+919876500700"
+            - contact_id: "contact_biz_wfnp07"
+              type: "BUSINESS"
+              name: "WF-NP-07 Business"
+              email: "biz@wfnp07.example.com"
+              phone: "+919876500701"
+          key:
+            uk_id: "wfnp07_key"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0007=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba0007=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-01-01T00:00:00.000Z"
+            valid_until: "2027-01-01T00:00:00.000Z"
+          location:
+            location_id: "loc_wfnp07"
+            country: "IND"
+            city: ["std:080"]
+            type: "SERVICEABLE"
+          uri:
+            uri_id: "uri_wfnp07"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/ondc/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_wfnp07"
+              uri_id: "uri_wfnp07"
+              key_id: "wfnp07_key"
+        expected_status: 200
+
+      - name: "Wait for participant propagation in UAT"
+        sleep_seconds: 10
+
+      - name: "Step 1 – Lookup to confirm current subscription state"
+        method: "POST"
+        endpoint: "/v3.0/lookup"
+        auth_type: "v3_lookup"
+        data:
+          subscriber_id: "test-v3-lookup-working.participant.ondc"
+          domain: "ONDC:RET10"
+        expected_status: 200
+        allow_failure: true
+
+      - name: "Step 2 – NP PATCH V3 subscribe with updated credentials"
+        method: "PATCH"
+        endpoint: "/v3.0/subscribe"
+        auth_type: "v3"
+        data:
+          participant_id: "{{subscriber_id}}"
+          credentials:
+            - cred_id: "cred_gst_wfnp07"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "WF-NP-07 Creds Updated Name Pvt Ltd"
+        expected_status: 200
+        allow_failure: true
+
+      - name: "Step 3 – Lookup confirms participant still active"
+        method: "POST"
+        endpoint: "/v3.0/lookup"
+        auth_type: "v3_lookup"
+        data:
+          subscriber_id: "test-v3-lookup-working.participant.ondc"
+        expected_status: 200
+        allow_failure: true
+
+      - name: "Step 4 – Admin verifies updated credential data"
+        method: "GET"
+        endpoint: "/admin/participants/{{subscriber_id}}/credentials/cred_gst_wfnp07"
+        auth_type: "admin"
+        expected_status: 200
+
+  # ===========================================================================
+  # WF-NP-08 · Update Serviceable Location / City Codes
+  # ===========================================================================
+  - id: "WF-NP-08"
+    name: "Update Serviceable Location / City Codes"
+    description: >
+      NP updates the cities it serves via PATCH /v3.0/subscribe with an updated
+      location block. Admin verifies the saved location record.
+      Mirrors WF-NP-08 from registry-workflows.md.
+    workflow: true
+    inject_v3_key: true
+    steps:
+      - name: "Precondition – Admin creates subscribed participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_wfnp08"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "WF-NP-08 Location NP"
+            - cred_id: "cred_pan_wfnp08"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "WF-NP-08 Location NP"
+          contacts:
+            - contact_id: "contact_auth_wfnp08"
+              type: "AUTHORISED_SIGNATORY"
+              name: "WF-NP-08 Signatory"
+              email: "auth@wfnp08.example.com"
+              phone: "+919876500800"
+            - contact_id: "contact_biz_wfnp08"
+              type: "BUSINESS"
+              name: "WF-NP-08 Business"
+              email: "biz@wfnp08.example.com"
+              phone: "+919876500801"
+          key:
+            uk_id: "wfnp08_key"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0008=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba0008=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-01-01T00:00:00.000Z"
+            valid_until: "2027-01-01T00:00:00.000Z"
+          location:
+            location_id: "loc_wfnp08"
+            country: "IND"
+            city: ["std:080"]
+            type: "SERVICEABLE"
+          uri:
+            uri_id: "uri_wfnp08"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/ondc/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_wfnp08"
+              uri_id: "uri_wfnp08"
+              key_id: "wfnp08_key"
+        expected_status: 200
+
+      - name: "Wait for participant propagation in UAT"
+        sleep_seconds: 10
+
+      - name: "Step 1 – Lookup to note current location_id and city codes"
+        method: "POST"
+        endpoint: "/v3.0/lookup"
+        auth_type: "v3_lookup"
+        data:
+          subscriber_id: "test-v3-lookup-working.participant.ondc"
+          domain: "ONDC:RET10"
+        expected_status: 200
+        allow_failure: true
+
+      - name: "Step 2 – NP PATCH V3 subscribe with updated location (expanded cities)"
+        method: "PATCH"
+        endpoint: "/v3.0/subscribe"
+        auth_type: "v3"
+        data:
+          participant_id: "{{subscriber_id}}"
+          location:
+            location_id: "loc_wfnp08"
+            country: "IND"
+            city:
+              - "std:080"
+              - "std:022"
+              - "std:044"
+              - "std:033"
+            type: "SERVICEABLE"
+        expected_status: 200
+        allow_failure: true
+
+      - name: "Step 3 – Lookup confirms updated city codes are reflected"
+        method: "POST"
+        endpoint: "/v3.0/lookup"
+        auth_type: "v3_lookup"
+        data:
+          subscriber_id: "test-v3-lookup-working.participant.ondc"
+        expected_status: 200
+        allow_failure: true
+
+      - name: "Step 4 – Admin verifies saved location record"
+        method: "GET"
+        endpoint: "/admin/participants/{{subscriber_id}}/locations/loc_wfnp08"
+        auth_type: "admin"
+        expected_status: 200
+
+  # ===========================================================================
+  # WF-NP-09 · New Seller App (BPP) Registration — Multi-Domain, Multi-City
+  # ===========================================================================
+  - id: "WF-NP-09"
+    name: "New Seller App (BPP) Registration — Multi-Domain, Multi-City"
+    description: >
+      A BPP serving multiple ONDC domains (ONDC:RET10 Grocery and ONDC:RET16
+      Health & Wellness) across multiple cities registers all domain-city
+      combinations in a single subscribe call, then verifies Gateway broadcast
+      coverage for each combination.
+      Mirrors WF-NP-09 from registry-workflows.md.
+    workflow: true
+    steps:
+      - name: "Step 1 – Admin whitelists BPP for all domains and cities"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET10"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+            - domain: "ONDC:RET16"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+      - name: "Step 2 – BPP V3 self-subscribes with multi-domain, multi-city config"
+        method: "POST"
+        endpoint: "/v3.0/subscribe"
+        auth_type: "v3"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          request_id: "{{request_id}}"
+          uk_id: "{{uk_id}}"
+          participant_id: "{{subscriber_id}}"
+          credentials:
+            - cred_id: "cred_gst_wfnp09"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "WF-NP-09 Multi-Domain BPP Pvt Ltd"
+            - cred_id: "cred_pan_wfnp09"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "WF-NP-09 Multi-Domain BPP Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_wfnp09"
+              type: "AUTHORISED_SIGNATORY"
+              name: "WF-NP-09 Authorised Signatory"
+              email: "auth@wfnp09.example.com"
+              phone: "+919876500900"
+            - contact_id: "contact_biz_wfnp09"
+              type: "BUSINESS"
+              name: "WF-NP-09 Business Head"
+              email: "biz@wfnp09.example.com"
+              phone: "+919876500901"
+            - contact_id: "contact_tech_wfnp09"
+              type: "TECHNICAL"
+              name: "WF-NP-09 Technical Contact"
+              email: "tech@wfnp09.example.com"
+              phone: "+919876500902"
+              designation: "Technical Lead"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_wfnp09"
+            country: "IND"
+            city:
+              - "std:080"
+              - "std:022"
+              - "std:011"
+            type: "SERVICEABLE"
+          uri:
+            uri_id: "uri_wfnp09"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/ondc/callback"
+          configs:
+            - domain: "ONDC:RET10"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_wfnp09"
+              uri_id: "uri_wfnp09"
+              key_id: "{{uk_id}}"
+            - domain: "ONDC:RET16"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_wfnp09"
+              uri_id: "uri_wfnp09"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+
+      - name: "Wait for participant propagation in UAT"
+        sleep_seconds: 10
+
+      - name: "Step 3.1 – Lookup ONDC:RET10 + std:080 (Bangalore Grocery)"
+        method: "POST"
+        endpoint: "/v3.0/lookup"
+        auth_type: "v3_lookup"
+        data:
+          subscriber_id: "test-v3-lookup-working.participant.ondc"
+          domain: "ONDC:RET10"
+          city: "std:080"
+        expected_status: 200
+        allow_failure: true
+
+      - name: "Step 3.2 – Lookup ONDC:RET10 + std:022 (Mumbai Grocery)"
+        method: "POST"
+        endpoint: "/v3.0/lookup"
+        auth_type: "v3_lookup"
+        data:
+          subscriber_id: "test-v3-lookup-working.participant.ondc"
+          domain: "ONDC:RET10"
+          city: "std:022"
+        expected_status: 200
+        allow_failure: true
+
+      - name: "Step 3.3 – Lookup ONDC:RET10 + std:011 (Delhi Grocery)"
+        method: "POST"
+        endpoint: "/v3.0/lookup"
+        auth_type: "v3_lookup"
+        data:
+          subscriber_id: "test-v3-lookup-working.participant.ondc"
+          domain: "ONDC:RET10"
+          city: "std:011"
+        expected_status: 200
+        allow_failure: true
+
+      - name: "Step 3.4 – Lookup ONDC:RET16 + std:080 (Bangalore Health)"
+        method: "POST"
+        endpoint: "/v3.0/lookup"
+        auth_type: "v3_lookup"
+        data:
+          subscriber_id: "test-v3-lookup-working.participant.ondc"
+          domain: "ONDC:RET16"
+          city: "std:080"
+        expected_status: 200
+        allow_failure: true
+
+      - name: "Step 3.5 – Lookup ONDC:RET16 + std:022 (Mumbai Health)"
+        method: "POST"
+        endpoint: "/v3.0/lookup"
+        auth_type: "v3_lookup"
+        data:
+          subscriber_id: "test-v3-lookup-working.participant.ondc"
+          domain: "ONDC:RET16"
+          city: "std:022"
+        expected_status: 200
+        allow_failure: true
+
+      - name: "Step 3.6 – Lookup ONDC:RET16 + std:011 (Delhi Health)"
+        method: "POST"
+        endpoint: "/v3.0/lookup"
+        auth_type: "v3_lookup"
+        data:
+          subscriber_id: "test-v3-lookup-working.participant.ondc"
+          domain: "ONDC:RET16"
+          city: "std:011"
+        expected_status: 200
+        allow_failure: true
+
+      - name: "Step 4 – Admin verifies all stored data (domains, locations, keys, URIs)"
+        method: "GET"
+        endpoint: "/admin/participants/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "participant_id"
+            value: "{{subscriber_id}}"

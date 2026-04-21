@@ -1,0 +1,52 @@
+# ONDC Registry Subscribe API - Negative Test Configuration
+# Used for TC-24 to TC-54: Error scenarios
+
+ondcRegistry:
+  # Base URL for Registry API - UAT Environment
+  host: "https://registry-uat.kynondc.net"
+  
+  # Admin API Authentication (dynamic token generation)
+  admin_username: "admin@ondc.org"
+  admin_password: "Admin@123"
+  admin_auth_url: "https://admin-auth-uat.kynondc.net/api/auth/login"
+  
+  # UAT Admin Token (refreshed dynamically at runtime)
+  admin_token: ""
+  
+  # Invalid credentials for negative testing
+  invalid_admin_username: "invalid_user"
+  invalid_admin_password: "invalid_pass"
+  invalid_admin_token: "INVALID_TOKEN_123"
+  
+  # V3 API ED25519 Signature Authentication
+  participant_id: "participant-1.participant.ondc"
+  uk_id: "f4c50520-23e2-4f73-acc6-c026d47e7420"
+  
+  # ED25519 Keys
+  private_key_seed: "f1adec7bfabf2da168ad388a98816e0534a26a3f2068ecfa19ae184fa35e46df"
+  signing_public_key: "MCowBQYDK2VwAyEAWFPOBUw0p3xqNGZLF9VPBxPvGOXcPIZcKNf7vHKQ6mI="
+  encryption_public_key: "MCowBQYDK2VwAyEAWFPOBUw0p3xqNGZLF9VPBxPvGOXcPIZcKNf7vHKQ6mI="
+  
+  # Invalid test data for negative scenarios
+  invalid_data:
+    invalid_email: "not-an-email"
+    invalid_url: "not-a-valid-url"
+    invalid_gst: "INVALID_GST"
+    invalid_city: "invalid_city_format"
+    invalid_domain: "INVALID:DOMAIN:FORMAT"
+    invalid_action: "INVALID_ACTION"
+    invalid_np_type: "invalid_type"
+  
+  # Test data (same as functional for context)
+  domains:
+    - "ONDC:RET10"
+    - "ONDC:RET11"
+  
+  cities:
+    - "std:080"
+    - "std:011"
+  
+  np_types:
+    - "seller"
+    - "buyer"
+    - "logistics"

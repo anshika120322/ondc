@@ -1,0 +1,743 @@
+test_suite:
+  name: Admin Audit Log Comprehensive Tests
+  category: admin_audit
+  total_tests: 12
+  description: Complete audit logging tests covering entry creation, filtering, and entity-specific record types
+
+config:
+  auth_type: admin
+  default_timeout: 30
+  base_url: https://registry-uat.kynondc.net
+  audit_endpoint: /admin/audit/logs
+
+  # Admin authentication
+  admin_token_env: ADMIN_BEARER_TOKEN
+  
+  # Audit log field expectations
+  expected_audit_fields:
+    - action_kind
+    - record_type
+    - performed_by
+    - existing_record
+    - request_record
+    - performed_at
+
+  # Record types to test
+  record_types:
+    - PARTICIPANT
+    - KEY
+    - CONTACT
+    - CREDENTIAL
+    - URI
+    - LOCATION
+    - NETWORK_PARTICIPANT
+
+  # Action kinds
+  action_kinds:
+    - CREATE
+    - UPDATE
+    - UPDATE_STATUS
+    - DELETE
+
+tests:
+  # ==========================================
+  # AUDIT ENTRY CREATION TESTS
+  # ==========================================
+  
+  - id: AUDIT-01
+    name: "Subscribe operation creates audit log entry"
+    description: "Verify POST /admin/subscribe creates audit entry with action_kind=CREATE and record_type=PARTICIPANT"
+    steps:
+      - name: "Step 1: Create participant via admin subscribe"
+        type: api
+        method: POST
+        endpoint: /admin/subscribe
+        auth_type: admin
+        data:
+          participant_id: "audit-test-subscribe-{{timestamp}}.participant.ondc"
+          action: WHITELISTED
+          credentials:
+            - cred_id: cred_gst_audit_01
+              type: GST
+              cred_data:
+                gstin: 29AUDIT01234F1Z5
+                legal_name: Audit Test Company Ltd
+          contacts:
+            - contact_id: contact_audit_01
+              type: AUTHORISED_SIGNATORY
+              name: Audit Test Contact
+              email: audit@test.ondc.org
+              phone: "+919876543210"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: ED25519
+            encryption_algorithm: X25519
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: loc_audit_01
+            type: SERVICEABLE
+            country: IND
+            city:
+              - "std:080"
+          uri:
+            uri_id: uri_audit_01
+            type: CALLBACK
+            url: "https://audit-test-subscribe-{{timestamp}}.participant.ondc/callback"
+          configs:
+            - domain: ONDC:RET10
+              np_type: BPP
+              subscriber_id: "audit-test-subscribe-{{timestamp}}.participant.ondc"
+              location_id: loc_audit_01
+              uri_id: uri_audit_01
+              key_id: "{{uk_id}}"
+          dns_skip: true
+          skip_ssl_verification: true
+        expected_status: [200, 201]
+        store_response:
+          participant_id: "audit-test-subscribe-{{timestamp}}.participant.ondc"
+      
+      - name: "Step 2: Query audit logs for the subscribe operation"
+        type: api
+        method: GET
+        endpoint: /admin/audit/logs
+        auth_type: admin
+        params:
+          record_type: PARTICIPANT
+          limit: 50
+        expected_status: 200
+        validate:
+          - type: audit_entry_exists
+            action_kind: CREATE
+            record_type: PARTICIPANT
+            contains_participant_id: "audit-test-subscribe-{{timestamp}}.participant.ondc"
+          - type: field_exists
+            fields:
+              - action_kind
+              - record_type
+              - performed_by
+              - performed_at
+
+  - id: AUDIT-02
+    name: "Admin status change creates audit entry"
+    description: "Verify admin PATCH with action=INACTIVE creates audit entry with action_kind=UPDATE_STATUS"
+    steps:
+      - name: "Step 1: Create participant"
+        type: api
+        method: POST
+        endpoint: /admin/subscribe
+        auth_type: admin
+        data:
+          participant_id: "audit-test-status-{{timestamp}}.participant.ondc"
+          action: SUBSCRIBED
+          credentials:
+            - cred_id: cred_gst_audit_02
+              type: GST
+              cred_data:
+                gstin: 29AUDIT02234F1Z5
+                legal_name: Status Test Company
+            - cred_id: cred_pan_audit_02
+              type: PAN
+              cred_data:
+                pan: AUDIT1234F
+                name: Status Test Company
+          contacts:
+            - contact_id: contact_auth_audit_02
+              type: AUTHORISED_SIGNATORY
+              name: Status Test Contact
+              email: status@test.ondc.org
+              phone: "+919876543211"
+            - contact_id: contact_biz_audit_02
+              type: BUSINESS
+              name: Status Business Contact
+              email: business@status-test.ondc.org
+              phone: "+919876543212"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: ED25519
+            encryption_algorithm: X25519
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: loc_audit_02
+            type: SERVICEABLE
+            country: IND
+            city: ["std:080"]
+          uri:
+            uri_id: uri_audit_02
+            type: CALLBACK
+            url: "https://audit-test-status-{{timestamp}}.participant.ondc/callback"
+          configs:
+            - domain: ONDC:RET10
+              np_type: BPP
+              subscriber_id: "audit-test-status-{{timestamp}}.participant.ondc"
+              location_id: loc_audit_02
+              uri_id: uri_audit_02
+              key_id: "{{uk_id}}"
+          dns_skip: true
+          skip_ssl_verification: true
+        expected_status: [200, 201]
+      
+      - name: "Step 2: Change participant status to INACTIVE"
+        type: api
+        method: PATCH
+        endpoint: /admin/subscribe
+        auth_type: admin
+        data:
+          participant_id: "audit-test-status-{{timestamp}}.participant.ondc"
+          action: INACTIVE
+          dns_skip: true
+          skip_ssl_verification: true
+        expected_status: 200
+      
+      - name: "Step 3: Query audit logs for status change"
+        type: api
+        method: GET
+        endpoint: /admin/audit/logs
+        auth_type: admin
+        params:
+          action_kind: UPDATE_STATUS
+          limit: 50
+        expected_status: 200
+        validate:
+          - type: audit_entry_exists
+            action_kind: UPDATE_STATUS
+            record_type: PARTICIPANT
+            contains_participant_id: "audit-test-status-{{timestamp}}.participant.ondc"
+          - type: audit_fields_present
+            fields:
+              - performed_by
+              - existing_record
+              - request_record
+              - performed_at
+
+  # ==========================================
+  # AUDIT QUERY FILTER TESTS
+  # ==========================================
+  
+  - id: AUDIT-03
+    name: "Query audit log with record_type filter"
+    description: "Verify GET /admin/audit/logs?record_type=PARTICIPANT returns only participant records"
+    steps:
+      - name: "Step 1: Query audit logs filtered by record_type=PARTICIPANT"
+        type: api
+        method: GET
+        endpoint: /admin/audit/logs
+        auth_type: admin
+        params:
+          record_type: PARTICIPANT
+          limit: 50
+        expected_status: 200
+        validate:
+          - type: all_records_match_type
+            record_type: PARTICIPANT
+          - type: response_structure
+            has_pagination: true
+            has_data_array: true
+
+  - id: AUDIT-04
+    name: "Query audit log with time range filter"
+    description: "Verify audit logs can be filtered by start_time and end_time"
+    steps:
+      - name: "Step 1: Create participant to generate audit entry"
+        type: api
+        method: POST
+        endpoint: /admin/subscribe
+        auth_type: admin
+        data:
+          participant_id: "audit-test-timerange-{{timestamp}}.participant.ondc"
+          action: WHITELISTED
+          credentials:
+            - cred_id: cred_gst_audit_04
+              type: GST
+              cred_data:
+                gstin: 29AUDIT04234F1Z5
+                legal_name: Time Range Test Co
+          contacts:
+            - contact_id: contact_audit_04
+              type: AUTHORISED_SIGNATORY
+              name: Time Test Contact
+              email: timetest@test.ondc.org
+              phone: "+919876543213"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: ED25519
+            encryption_algorithm: X25519
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: loc_audit_04
+            type: SERVICEABLE
+            country: IND
+            city: ["std:080"]
+          uri:
+            uri_id: uri_audit_04
+            type: CALLBACK
+            url: "https://audit-test-timerange-{{timestamp}}.participant.ondc/callback"
+          configs:
+            - domain: ONDC:RET10
+              np_type: BPP
+              subscriber_id: "audit-test-timerange-{{timestamp}}.participant.ondc"
+              location_id: loc_audit_04
+              uri_id: uri_audit_04
+              key_id: "{{uk_id}}"
+          dns_skip: true
+          skip_ssl_verification: true
+        expected_status: [200, 201]
+        store_timestamp: operation_time
+      
+      - name: "Step 2: Query audit logs with time range"
+        type: api
+        method: GET
+        endpoint: /admin/audit/logs
+        auth_type: admin
+        params:
+          start_time: "{{start_time_minus_5min}}"
+          end_time: "{{end_time_plus_5min}}"
+          record_type: PARTICIPANT
+          limit: 100
+        expected_status: 200
+        validate:
+          - type: entries_within_time_range
+            start_time: "{{start_time_minus_5min}}"
+            end_time: "{{end_time_plus_5min}}"
+          - type: chronological_order
+            field: performed_at
+
+  - id: AUDIT-05
+    name: "Query audit log with multiple filters"
+    description: "Verify audit logs support multiple filter combinations (record_type + action_kind + time)"
+    steps:
+      - name: "Step 1: Query with combined filters"
+        type: api
+        method: GET
+        endpoint: /admin/audit/logs
+        auth_type: admin
+        params:
+          record_type: PARTICIPANT
+          action_kind: CREATE
+          limit: 50
+        expected_status: 200
+        validate:
+          - type: all_records_match_filters
+            record_type: PARTICIPANT
+            action_kind: CREATE
+
+  # ==========================================
+  # ENTITY-SPECIFIC AUDIT TESTS
+  # ==========================================
+  
+  - id: AUDIT-06
+    name: "Key creation generates audit entry"
+    description: "Verify creating a key generates audit entry with record_type=KEY and action_kind=CREATE"
+    steps:
+      - name: "Step 1: Create participant with key"
+        type: api
+        method: POST
+        endpoint: /admin/subscribe
+        auth_type: admin
+        data:
+          participant_id: "audit-test-key-{{timestamp}}.participant.ondc"
+          action: WHITELISTED
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: ED25519
+            encryption_algorithm: X25519
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          configs:
+            - domain: ONDC:RET10
+              np_type: BPP
+              subscriber_id: "audit-test-key-{{timestamp}}.participant.ondc"
+              key_id: "{{uk_id}}"
+          dns_skip: true
+          skip_ssl_verification: true
+        expected_status: [200, 201]
+      
+      - name: "Step 2: Verify KEY audit entry"
+        type: api
+        method: GET
+        endpoint: /admin/audit/logs
+        auth_type: admin
+        params:
+          record_type: KEY
+          limit: 50
+        expected_status: [200, 404]
+        validate:
+          - type: audit_entry_may_exist
+            record_type: KEY
+            action_kind: CREATE
+
+  - id: AUDIT-07
+    name: "Contact creation generates audit entry"
+    description: "Verify creating contact generates audit entry with record_type=CONTACT"
+    steps:
+      - name: "Step 1: Create participant with contact"
+        type: api
+        method: POST
+        endpoint: /admin/subscribe
+        auth_type: admin
+        data:
+          participant_id: "audit-test-contact-{{timestamp}}.participant.ondc"
+          action: WHITELISTED
+          contacts:
+            - contact_id: contact_audit_07
+              type: AUTHORISED_SIGNATORY
+              name: Contact Audit Test
+              email: contactaudit@test.ondc.org
+              phone: "+919876543214"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: ED25519
+            encryption_algorithm: X25519
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          configs:
+            - domain: ONDC:RET10
+              np_type: BPP
+              subscriber_id: "audit-test-contact-{{timestamp}}.participant.ondc"
+              key_id: "{{uk_id}}"
+          dns_skip: true
+          skip_ssl_verification: true
+        expected_status: [200, 201]
+      
+      - name: "Step 2: Verify CONTACT audit entry"
+        type: api
+        method: GET
+        endpoint: /admin/audit/logs
+        auth_type: admin
+        params:
+          record_type: CONTACT
+          limit: 50
+        expected_status: [200, 404]
+        validate:
+          - type: audit_entry_may_exist
+            record_type: CONTACT
+            action_kind: CREATE
+
+  - id: AUDIT-08
+    name: "Credential creation generates audit entry"
+    description: "Verify creating credential generates audit entry with record_type=CREDENTIAL"
+    steps:
+      - name: "Step 1: Create participant with credential"
+        type: api
+        method: POST
+        endpoint: /admin/subscribe
+        auth_type: admin
+        data:
+          participant_id: "audit-test-cred-{{timestamp}}.participant.ondc"
+          action: WHITELISTED
+          credentials:
+            - cred_id: cred_gst_audit_08
+              type: GST
+              cred_data:
+                gstin: 29AUDIT08234F1Z5
+                legal_name: Credential Audit Test Ltd
+            - cred_id: cred_pan_audit_08
+              type: PAN
+              cred_data:
+                pan: AUDIT1234F
+                name: Credential Audit Test Ltd
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: ED25519
+            encryption_algorithm: X25519
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          configs:
+            - domain: ONDC:RET10
+              np_type: BPP
+              subscriber_id: "audit-test-cred-{{timestamp}}.participant.ondc"
+              key_id: "{{uk_id}}"
+          dns_skip: true
+          skip_ssl_verification: true
+        expected_status: [200, 201]
+      
+      - name: "Step 2: Verify CREDENTIAL audit entry"
+        type: api
+        method: GET
+        endpoint: /admin/audit/logs
+        auth_type: admin
+        params:
+          record_type: CREDENTIAL
+          limit: 50
+        expected_status: [200, 404]
+        validate:
+          - type: audit_entry_may_exist
+            record_type: CREDENTIAL
+            action_kind: CREATE
+
+  - id: AUDIT-09
+    name: "URI creation generates audit entry"
+    description: "Verify creating URI generates audit entry with record_type=URI"
+    steps:
+      - name: "Step 1: Create participant with URI"
+        type: api
+        method: POST
+        endpoint: /admin/subscribe
+        auth_type: admin
+        data:
+          participant_id: "audit-test-uri-{{timestamp}}.participant.ondc"
+          action: WHITELISTED
+          uri:
+            uri_id: uri_audit_09
+            type: CALLBACK
+            url: "https://audit-test-uri-{{timestamp}}.participant.ondc/callback"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: ED25519
+            encryption_algorithm: X25519
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          configs:
+            - domain: ONDC:RET10
+              np_type: BPP
+              subscriber_id: "audit-test-uri-{{timestamp}}.participant.ondc"
+              uri_id: uri_audit_09
+              key_id: "{{uk_id}}"
+          dns_skip: true
+          skip_ssl_verification: true
+        expected_status: [200, 201]
+      
+      - name: "Step 2: Verify URI audit entry"
+        type: api
+        method: GET
+        endpoint: /admin/audit/logs
+        auth_type: admin
+        params:
+          record_type: URI
+          limit: 50
+        expected_status: [200, 404]
+        validate:
+          - type: audit_entry_may_exist
+            record_type: URI
+            action_kind: CREATE
+
+  - id: AUDIT-10
+    name: "Location creation generates audit entry"
+    description: "Verify creating location generates audit entry with record_type=LOCATION"
+    steps:
+      - name: "Step 1: Create participant with location"
+        type: api
+        method: POST
+        endpoint: /admin/subscribe
+        auth_type: admin
+        data:
+          participant_id: "audit-test-location-{{timestamp}}.participant.ondc"
+          action: WHITELISTED
+          location:
+            location_id: loc_audit_10
+            type: SERVICEABLE
+            country: IND
+            city:
+              - "std:080"
+              - "std:011"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: ED25519
+            encryption_algorithm: X25519
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          configs:
+            - domain: ONDC:RET10
+              np_type: BPP
+              subscriber_id: "audit-test-location-{{timestamp}}.participant.ondc"
+              location_id: loc_audit_10
+              key_id: "{{uk_id}}"
+          dns_skip: true
+          skip_ssl_verification: true
+        expected_status: [200, 201]
+      
+      - name: "Step 2: Verify LOCATION audit entry"
+        type: api
+        method: GET
+        endpoint: /admin/audit/logs
+        auth_type: admin
+        params:
+          record_type: LOCATION
+          limit: 50
+        expected_status: [200, 404]
+        validate:
+          - type: audit_entry_may_exist
+            record_type: LOCATION
+            action_kind: CREATE
+
+  # ==========================================
+  # FAILED OPERATION AUDIT TEST
+  # ==========================================
+  
+  - id: AUDIT-11
+    name: "Failed operations generate audit entries"
+    description: "Verify failed API calls (400/403/404) also create audit log entries"
+    steps:
+      - name: "Step 1: Attempt invalid participant creation (missing required fields)"
+        type: api
+        method: POST
+        endpoint: /admin/subscribe
+        auth_type: admin
+        data:
+          participant_id: "audit-test-failed-{{timestamp}}.participant.ondc"
+          action: WHITELISTED
+          # Missing required key and configs - should fail
+          dns_skip: true
+          skip_ssl_verification: true
+        expected_status: [400, 422]
+      
+      - name: "Step 2: Query audit logs for failed operation"
+        type: api
+        method: GET
+        endpoint: /admin/audit/logs
+        auth_type: admin
+        params:
+          limit: 50
+        expected_status: 200
+        validate:
+          - type: may_contain_failed_operation
+            contains_participant_id: "audit-test-failed-{{timestamp}}.participant.ondc"
+            expected_error_code: [400, 422]
+
+  - id: AUDIT-12
+    name: "Audit log return chronological order"
+    description: "Verify audit logs are returned in chronological order"
+    steps:
+      - name: "Step 1: Create multiple operations"
+        type: batch
+        operations:
+          - method: POST
+            endpoint: /admin/subscribe
+            auth_type: admin
+            data:
+              participant_id: "audit-chrono-1-{{timestamp}}.participant.ondc"
+              action: WHITELISTED
+              credentials:
+                - cred_id: cred_gst_chrono_1
+                  type: GST
+                  cred_data:
+                    gstin: 29CHRONO1234F1Z5
+                    legal_name: Chrono Test Company 1
+                - cred_id: cred_pan_chrono_1
+                  type: PAN
+                  cred_data:
+                    pan: CHRON1234F
+                    name: Chrono Test Company 1
+              contacts:
+                - contact_id: contact_auth_chrono_1
+                  type: AUTHORISED_SIGNATORY
+                  name: Chrono Contact 1
+                  email: chrono1@test.ondc.org
+                  phone: "+919876543221"
+                - contact_id: contact_biz_chrono_1
+                  type: BUSINESS
+                  name: Chrono Business 1
+                  email: biz1@chrono-test.ondc.org
+                  phone: "+919876543222"
+              key:
+                uk_id: "{{uk_id}}"
+                signing_public_key: "{{signing_public_key}}"
+                encryption_public_key: "{{encryption_public_key}}"
+                signed_algorithm: ED25519
+                encryption_algorithm: X25519
+                valid_from: "{{valid_from}}"
+                valid_until: "{{valid_until}}"
+              location:
+                location_id: loc_chrono_1
+                type: SERVICEABLE
+                country: IND
+                city: ["std:080"]
+              uri:
+                uri_id: uri_chrono_1
+                type: CALLBACK
+                url: "https://audit-chrono-1-{{timestamp}}.participant.ondc/callback"
+              configs:
+                - domain: ONDC:RET10
+                  np_type: BPP
+                  subscriber_id: "audit-chrono-1-{{timestamp}}.participant.ondc"
+                  location_id: loc_chrono_1
+                  uri_id: uri_chrono_1
+                  key_id: "{{uk_id}}"
+              dns_skip: true
+              skip_ssl_verification: true
+          - method: POST
+            endpoint: /admin/subscribe
+            auth_type: admin
+            data:
+              participant_id: "audit-chrono-2-{{timestamp}}.participant.ondc"
+              action: WHITELISTED
+              credentials:
+                - cred_id: cred_gst_chrono_2
+                  type: GST
+                  cred_data:
+                    gstin: 29CHRONO2234F1Z5
+                    legal_name: Chrono Test Company 2
+                - cred_id: cred_pan_chrono_2
+                  type: PAN
+                  cred_data:
+                    pan: CHRON2234F
+                    name: Chrono Test Company 2
+              contacts:
+                - contact_id: contact_auth_chrono_2
+                  type: AUTHORISED_SIGNATORY
+                  name: Chrono Contact 2
+                  email: chrono2@test.ondc.org
+                  phone: "+919876543223"
+                - contact_id: contact_biz_chrono_2
+                  type: BUSINESS
+                  name: Chrono Business 2
+                  email: biz2@chrono-test.ondc.org
+                  phone: "+919876543224"
+              key:
+                uk_id: "{{uk_id_2}}"
+                signing_public_key: "{{signing_public_key_2}}"
+                encryption_public_key: "{{encryption_public_key_2}}"
+                signed_algorithm: ED25519
+                encryption_algorithm: X25519
+                valid_from: "{{valid_from}}"
+                valid_until: "{{valid_until}}"
+              location:
+                location_id: loc_chrono_2
+                type: SERVICEABLE
+                country: IND
+                city: ["std:011"]
+              uri:
+                uri_id: uri_chrono_2
+                type: CALLBACK
+                url: "https://audit-chrono-2-{{timestamp}}.participant.ondc/callback"
+              configs:
+                - domain: ONDC:RET10
+                  np_type: BPP
+                  subscriber_id: "audit-chrono-2-{{timestamp}}.participant.ondc"
+                  location_id: loc_chrono_2
+                  uri_id: uri_chrono_2
+                  key_id: "{{uk_id_2}}"
+              dns_skip: true
+              skip_ssl_verification: true
+      
+      - name: "Step 2: Verify chronological ordering"
+        type: api
+        method: GET
+        endpoint: /admin/audit/logs
+        auth_type: admin
+        params:
+          record_type: PARTICIPANT
+          limit: 100
+        expected_status: 200
+        validate:
+          - type: chronological_order
+            field: performed_at
+            order: desc

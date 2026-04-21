@@ -1,0 +1,144 @@
+# =============================================================================
+# ONDC Gateway Workflow Test Suite — Master Configuration
+# =============================================================================
+
+suite_info:
+  name: "ONDC Gateway Workflow Test Suite"
+  version: "1.0.0"
+  description: >
+    End-to-end Gateway workflow tests covering security, routing, participant
+    status enforcement, policy enforcement, domain isolation, and cache
+    propagation. Derived from:
+    design_docs/Workflow Scenarios Docs/ONDC-Gateway-Workflows V0.1.docx
+  total_tests: 28             # SEC(2) + RTE(4) + STA(4) + POL(15) + DOM(2) + PROP(5)
+
+# ---------------------------------------------------------------------------
+# Test categories
+# ---------------------------------------------------------------------------
+categories:
+  - name: "security"
+    description: "Security Workflows (WF-SEC-01 – WF-SEC-02)"
+    config_file: "wf_sec_tests.yaml"
+    test_count: 2             # WF-SEC-01 and WF-SEC-02 implemented
+    enabled: true
+
+  - name: "routing"
+    description: "Routing Workflows (WF-RTE-01 – WF-RTE-04)"
+    config_file: "wf_rte_tests.yaml"
+    test_count: 4             # WF-RTE-01..04 implemented
+    enabled: true
+
+  - name: "status"
+    description: "Participant Status Enforcement (WF-STA-01 – WF-STA-04)"
+    config_file: "wf_sta_tests.yaml"
+    test_count: 4             # WF-STA-01..04 implemented
+    enabled: true
+
+  - name: "policy"
+    description: "Policy Enforcement (WF-POL-01 – WF-POL-15)"
+    config_file: "wf_pol_tests.yaml"
+    test_count: 15            # WF-POL-01..15 implemented
+    enabled: true
+
+  - name: "domain"
+    description: "Domain Isolation (WF-DOM-01 – WF-DOM-02)"
+    config_file: "wf_dom_tests.yaml"
+    test_count: 2             # WF-DOM-01..02 implemented
+    enabled: true
+
+  - name: "propagation"
+    description: "Cache Propagation (WF-PROP-01 – WF-PROP-05)"
+    config_file: "wf_prop_tests.yaml"
+    test_count: 5             # WF-PROP-01..05 implemented
+    enabled: true
+
+# ---------------------------------------------------------------------------
+# Execution order (used by run --all)
+# ---------------------------------------------------------------------------
+execution_order:
+  - security
+  - routing
+  - status
+  - policy
+  - domain
+  - propagation
+
+# ---------------------------------------------------------------------------
+# Global configuration
+# ---------------------------------------------------------------------------
+config:
+  # Registry Admin API base URL (used for JWT admin setup/verification steps)
+  base_url: "https://registry-uat.kynondc.net"
+
+  # Gateway API base URL (used for /search, /on_search, /v2.0/lookup etc.)
+  # Leave commented out to default to base_url (when Gateway and Registry share a host)
+  gateway_url: "https://gateway-uat.kynondc.net"
+
+  # Registry internal UUID for the gateway participant (used in NETWORK policy steps).
+  # Override per environment in comparison_targets below.
+  gateway_participant_id: ""  # Set per environment via comparison_targets
+
+  # BG lookup parameters — used by NETWORK policy tests to resolve the gateway's
+  # Registry participant_id at runtime via POST /v3.0/lookup.
+  # Override per environment in comparison_targets below.
+  bg_lookup_subscriber_id: "preprod.gateway.ondc.org"
+  bg_lookup_country: "IND"
+  bg_lookup_type: "BG"
+
+  # Seller/BPP mock service URL — used by X-Gateway-Authorization verification
+  # steps (WF-RTE-01 Step 10b). The mock must expose an inspection endpoint that
+  # returns the headers of the last inbound request it received from the Gateway.
+  # Override per environment in comparison_targets below.
+  seller_mock_url: "https://seller-mock.kynondc.net"
+
+  # External admin auth service
+  auth_url: "https://admin-auth-uat.kynondc.net/api/auth/login"
+  admin_username: "admin@ondc.org"
+  admin_password: "Admin@123"
+
+  ssl_verify: false
+
+  # Auth field names (match the admin login API contract)
+  auth_username_field: "email"
+  auth_password_field: "password"
+  auth_token_field: "accessToken"
+
+  # -----------------------------------------------------------------------
+  # Multi-environment targets (used by: python run_tests.py run --env <name>)
+  # Each entry needs a unique label, url (Registry), and gateway_url.
+  # -----------------------------------------------------------------------
+  comparison_targets:
+    - label: "UAT"
+      url: "https://registry-uat.kynondc.net"
+      gateway_url: "https://gateway-uat.kynondc.net"
+      auth_url: "https://admin-auth-uat.kynondc.net/api/auth/login"
+      ssl_verify: false
+      gateway_participant_id: ""  # resolved at runtime via Pre-req BG lookup (bg_lookup_subscriber_id)
+      # BG lookup parameters — used by NETWORK policy tests to resolve
+      # the gateway's Registry participant_id at runtime via /v3.0/lookup.
+      bg_lookup_subscriber_id: "preprod.gateway.ondc.org"
+      bg_lookup_country: "IND"
+      bg_lookup_type: "BG"
+      seller_mock_url: "https://seller-mock.kynondc.net"
+    - label: "preprod"
+      url: "https://registry-preprod.ondc.org"
+      gateway_url: "https://gateway-preprod.ondc.org"
+      auth_url: "https://admin-auth-preprod.ondc.org/api/auth/login"
+      gateway_participant_id: ""  # resolved at runtime via Pre-req BG lookup (bg_lookup_subscriber_id)
+      # BG lookup parameters — used by NETWORK policy tests to resolve
+      # the gateway's Registry participant_id at runtime via /v3.0/lookup.
+      bg_lookup_subscriber_id: "preprod.gateway.ondc.org"
+      bg_lookup_country: "IND"
+      bg_lookup_type: "BG"
+      seller_mock_url: "https://seller-mock.kynondc.net"
+
+  default_timeout: 30
+
+# ---------------------------------------------------------------------------
+# Output configuration
+# ---------------------------------------------------------------------------
+output:
+  directory: "output"
+  formats:
+    - json
+    - html

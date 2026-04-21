@@ -1,0 +1,59 @@
+{\rtf1\ansi\deff0
+{\fonttbl{\f0 Calibri;}{\f1 Consolas;}}
+\paperw12240\paperh15840\margl720\margr720\margt720\margb720
+\viewkind4\uc1
+\pard\sa160\sl276\slmult1\f0\fs22\b Subject:\b0  Consolidated QA Coverage Summary - Registry, Admin, and Gateway\par
+
+\pard\sa160\f0\fs22 Hi Team,\par
+
+\pard\sa160\f0\fs22 Please find below the consolidated QA coverage summary for \b Registry\b0 , \b Admin\b0 , and \b Gateway\b0  services. This summary covers both \b happy-path / functional\b0  scenarios and \b defensive / negative\b0  scenarios across the major APIs and callback flows.\par
+
+\pard\sa200\f0\fs22\b Executive comments\b0\par
+\pard\li360\sa120\f0\fs22 - Coverage now spans \b 908 total scenarios\b0  across Registry, Admin, and Gateway services.\par
+\pard\li360\sa120\f0\fs22 - \b 474 happy-path / functional\b0  scenarios validate primary business journeys and callback flows.\par
+\pard\li360\sa120\f0\fs22 - \b 434 defensive / negative\b0  scenarios validate robustness against invalid, incomplete, malformed, and edge-case inputs.\par
+\pard\li360\sa120\f0\fs22 - Registry coverage spans \b V1, V2, and V3 lookup\b0  flows plus \b V3 subscribe\b0 , strengthening backward-compatibility assurance.\par
+\pard\li360\sa120\f0\fs22 - Gateway coverage spans \b 11 workflows\b0  and their callback APIs, giving broad validation across search-to-post-order interactions.\par
+
+\pard\sa200\f0\fs22\b Consolidated coverage by component\b0\par
+\pard\sa120\f1\fs18 Component | Happy-path / Functional | Negative / Defensive | Total\par
+\pard\sa60\f1\fs18 ---------------------------------------------------------------\par
+\pard\sa60\f1\fs18 Registry  | 109                       | 132                  | 241\par
+\pard\sa60\f1\fs18 Admin     | 25                        | 28                   | 53\par
+\pard\sa60\f1\fs18 Gateway   | 340                       | 274                  | 614\par
+\pard\sa60\f1\fs18 Overall   | 474                       | 434                  | 908\par
+
+\pard\sa200\f0\fs22\b Detailed workflow coverage\b0\par
+\pard\sa120\f1\fs18 Comp     | Flow             | Endpoint breakup              | Happy | Def | Total\par
+\pard\sa60\f1\fs18 --------------------------------------------------------------------------------\par
+\pard\sa60\f1\fs18 Registry | V1 Lookup        | /lookup                       | 25    | 32  | 57\par
+\pard\sa60\f1\fs18 Registry | V2 Lookup        | /v2.0/lookup                  | 22    | 40  | 62\par
+\pard\sa60\f1\fs18 Registry | V3 Lookup        | /v3.0/lookup                  | 46    | 44  | 90\par
+\pard\sa60\f1\fs18 Registry | V3 Subscribe     | /v3.0/subscribe               | 16    | 16  | 32\par
+\pard\sa60\f1\fs18 Admin    | Admin Subscribe  | /admin/subscribe              | 25    | 28  | 53\par
+\pard\sa60\f1\fs18 Gateway  | Search           | /search, /on_search           | 37    | 26  | 63\par
+\pard\sa60\f1\fs18 Gateway  | Select           | /select, /on_select           | 32    | 26  | 58\par
+\pard\sa60\f1\fs18 Gateway  | Confirm          | /confirm, /on_confirm         | 40    | 32  | 72\par
+\pard\sa60\f1\fs18 Gateway  | Init             | /init, /on_init               | 32    | 26  | 58\par
+\pard\sa60\f1\fs18 Gateway  | Update           | /update, /on_update           | 30    | 26  | 56\par
+\pard\sa60\f1\fs18 Gateway  | Cancel           | /cancel, /on_cancel           | 30    | 26  | 56\par
+\pard\sa60\f1\fs18 Gateway  | Track            | /track, /on_track             | 30    | 26  | 56\par
+\pard\sa60\f1\fs18 Gateway  | Status           | /status, /on_status           | 29    | 25  | 54\par
+\pard\sa60\f1\fs18 Gateway  | Rating           | /rating, /on_rating           | 31    | 18  | 49\par
+\pard\sa60\f1\fs18 Gateway  | Support          | /support, /on_support         | 23    | 25  | 48\par
+\pard\sa60\f1\fs18 Gateway  | Issue            | /issue, /on_issue_status      | 26    | 18  | 44\par
+
+\pard\sa200\f0\fs22\b Happy-path vs Defensive insights\b0\par
+\pard\sa120\f1\fs18 Component | Happy-path / Functional focus              | Negative / Defensive focus                    | Executive insight\par
+\pard\sa60\f1\fs18 -----------------------------------------------------------------------------------------------------------------------\par
+\pard\sa60\f1\fs18 Registry  | Successful V1-V3 lookup and V3 subscribe   | Version, boundary, filter, and invalid cases | Strong backward compatibility and protocol validation\par
+\pard\sa60\f1\fs18 Admin     | Successful admin subscribe flows           | Request validation and resilience scenarios  | Balanced control-plane coverage\par
+\pard\sa60\f1\fs18 Gateway   | Successful forward and callback workflows  | Auth, routing, malformed, and edge cases     | Broadest workflow depth and strongest transaction-flow coverage\par
+\pard\sa60\f1\fs18 Overall   | Core business readiness validation         | Robustness and predictable error handling    | Good balance between feature readiness and defensive testing\par
+
+\pard\sa200\f0\fs22\b Closing note\b0\par
+\pard\sa120\f0\fs22 Overall, the consolidated coverage demonstrates strong breadth across core APIs and callback flows, good version-depth for Registry, and a balanced emphasis on both production readiness and defensive robustness.\par
+
+\pard\sa160\f0\fs22 Regards,\par
+\pard\sa160\f0\fs22 [Your Name]\par
+}

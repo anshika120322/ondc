@@ -1,0 +1,709 @@
+# =============================================================================
+# Gateway Security Workflow Tests
+# Source: design_docs/Workflow Scenarios Docs/ONDC-Gateway-Workflows V0.1.docx
+#         Section 3 — Security Workflows
+#
+# Implemented:
+#   WF-SEC-01  Invalid Signature Rejected             [implemented]
+#   WF-SEC-02  Expired Key Rejected                   [implemented]
+#
+# ── AUTHORING STANDARD ────────────────────────────────────────────────────────
+#
+# 1. Participant IDs — ALWAYS generated, NEVER hardcoded
+#    Use `generate_unique_id: true` + `subscriber_id_prefix`.
+#    Runner appends per-run timestamp (YYYYMMDDHHmmss) → unique subscriber_id
+#    e.g. "bap-sec-001-20260330120000.ondc.org". Guarantees test isolation.
+#
+# 2. Authentication model:
+#    [ONDC-SIG]  — Ed25519 ONDC signature; tamper controlled via
+#                  `invalid_signature: true` on the step YAML key.
+#    [JWT]       — Admin JWT Bearer token (Registry admin setup/verification).
+#    OCSP, TLS, DNS TXT — NOT applicable in pre-prod test environment.
+#    Always set `dns_skip: true` and `skip_ssl_verification: true` on admin POSTs.
+#
+# 3. Key registration for security tests:
+#    Admin POST with action=SUBSCRIBED + full credentials/contacts/key/location/uri
+#    payload registers the key in the Registry. The Gateway fetches this key
+#    during ONDC-SIG verification.
+#    NOTE — Revised ONDC spec (April 2026):
+#      /v3.0/lookup  — accessible to ANY registered participant with a valid
+#                      signature, regardless of status (INACTIVE, SUSPENDED etc.).
+#      Gateway routing (search / select / init / confirm / on_* etc.) — still
+#                      requires SUBSCRIBED status; INACTIVE/SUSPENDED are rejected.
+#    For WF-SEC-01/02 the BAP is registered as SUBSCRIBED so the Gateway reaches
+#    the signature verification step (the test is about signature validity, not
+#    status enforcement).
+#
+# 4. Template variables (auto-populated by runner for every participant alias):
+#    {{<alias>_id}}  {{<alias>_uri}}  {{<alias>_domain}}  {{<alias>_uk_id}}
+#    MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789==   MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba==
+#    {{<alias>_valid_from}}           {{<alias>_valid_until}}
+#    {{transaction_id}}  {{message_id}}  {{timestamp}}
+#
+# 5. Idempotency: POST → [200, 409]; PATCH same-state → [200, 400]; strict → 200
+# 6. Gateway-internal / documentation steps → skip: true (omitted from report)
+# 7. Update total_tests here AND config/test_suite.yaml whenever a test is added.
+#
+# Full authoring guide: gateway-workflow-suite/README.md
+# =============================================================================
+
+test_suite:
+  name: "Gateway Security Workflow Tests"
+  category: "security"
+  total_tests: 2          # WF-SEC-01 and WF-SEC-02 implemented
+  description: >
+    Verifies that the Gateway enforces cryptographic security — rejecting
+    requests with a tampered ONDC-SIG signature, and requests signed with an
+    expired key, before routing to any BPP.
+
+config:
+  default_timeout: 30
+  retry_on_failure: false
+
+# ---------------------------------------------------------------------------
+# Participants
+#
+# bap_sec — Generated BAP registered as SUBSCRIBED in the Registry.
+#   The key is pushed via admin POST with full credentials + key + uri blocks.
+#   SUBSCRIBED status ensures the Gateway proceeds past the status check and
+#   reaches the signature verification step. We then send with
+#   `invalid_signature: true` to trigger the "Signature verification failed" NACK.
+#
+#   generate_unique_id: true — fresh subscriber_id per run (no state bleed).
+#   private_key_seed — DER-base64 Ed25519 seed; decoded to PEM by the runner.
+#
+# bap_sec_signer — Generated BAP, registered fresh each test run (Step 0 of each
+#   test). Used solely as the /v3.0/lookup signer. Registered BEFORE bap_sec /
+#   bap_sec2 so its key has ~10 s to propagate before Step 2b executes the lookup.
+# ---------------------------------------------------------------------------
+participants:
+
+  - alias: "bap_sec"
+    subscriber_id_prefix: "bap-sec-001"
+    generate_unique_id: true
+    domain: "ONDC:RET10"
+    # callback_uri is auto-derived: https://<subscriber_id>/callback
+    private_key_seed: "MC4CAQAwBQYDK2VwBCIEIPGt7Hv6vy2haK04ipiBbgU0omo/IGjs+hmuGE+jXkbf"
+
+  # bap_sec2 — Generated BAP used in WF-SEC-02 (Expired Key Rejected).
+  # Registered as SUBSCRIBED but its key record in the Registry is intentionally
+  # set with valid_until in the past (hardcoded to "2024-12-31T23:59:59.999Z").
+  # The ONDC-SIG Authorization header is cryptographically valid (not tampered),
+  # but the Gateway checks valid_until on the key record and rejects the request.
+  # Separated from bap_sec so WF-SEC-01 and WF-SEC-02 do not share state.
+  - alias: "bap_sec2"
+    subscriber_id_prefix: "bap-sec-002"
+    generate_unique_id: true
+    domain: "ONDC:RET10"
+    private_key_seed: "MC4CAQAwBQYDK2VwBCIEIPGt7Hv6vy2haK04ipiBbgU0omo/IGjs+hmuGE+jXkbf"
+
+  # bap_sec_signer — Dedicated lookup signer. Registered in Step 0 of each test
+  # so it has ~10 s propagation time before Step 2b. Same seed as other participants.
+  - alias: "bap_sec_signer"
+    subscriber_id_prefix: "bap-sec-signer"
+    generate_unique_id: true
+    domain: "ONDC:RET10"
+    private_key_seed: "MC4CAQAwBQYDK2VwBCIEIPGt7Hv6vy2haK04ipiBbgU0omo/IGjs+hmuGE+jXkbf"
+
+tests:
+
+  # ===========================================================================
+  # WF-SEC-01 · Invalid Signature Rejected
+  #
+  # Goal: A request whose Authorization signature does not match the body is
+  #       rejected by the Gateway before routing to any BPP.
+  #
+  # ── Source document steps (Section 3, WF-SEC-01) ─────────────────────────
+  #   1  POST /v2.0/lookup [ONDC-SIG]  Confirm BAP is SUBSCRIBED and key registered
+  #   2  (local)             Construct valid payload; tamper last 2 chars of sig
+  #   3  POST /gateway/action [tampered ONDC-SIG]   Send search with bad signature
+  #   4  (Gateway internal)  Fetch public key; BLAKE2b-512 digest; mismatch detected
+  #   5  (validation)        NACK — "Signature verification failed"; no BPPs dispatched
+  #
+  # ── Why SUBSCRIBED state is required ─────────────────────────────────────
+  # Gateway check order:
+  #   (1) Parse Authorization header, resolve subscriber_id → Registry lookup
+  #   (2) Check participant status — INACTIVE / SUSPENDED → reject immediately
+  #   (3) Verify ONDC-SIG against registered public key
+  # bap_sec must clear (1) and (2) so the test exercises (3).
+  # SUBSCRIBED status ensures the Gateway reaches the signature check.
+  # The tampered signature then triggers the definitive check (3) failure.
+  #
+  # ── Tamper mechanism ──────────────────────────────────────────────────────
+  # `invalid_signature: true` on Step 4 instructs the runner to build a
+  # structurally correct ONDC-SIG Authorization header but corrupt the
+  # signature bytes (equivalent to "flip last two chars of base64 sig" in doc).
+  # The subscriber_id and uk_id in keyId are genuine — the Gateway CAN look up
+  # the public key — but signature verification will fail.
+  #
+  # ── What is NOT tested here ───────────────────────────────────────────────
+  # OCSP validation        — not applicable in pre-prod
+  # TLS certificate check  — not applicable; dns_skip / skip_ssl_verification used
+  # DNS TXT record lookup  — not applicable; bypassed via dns_skip: true
+  # ===========================================================================
+
+  - id: "WF-SEC-01"
+    name: "Invalid Signature Rejected"
+    description: >
+      BAP-SEC-001 is registered as SUBSCRIBED in the Registry with its generated
+      Ed25519 public key. The runner then sends a /search request to the Gateway
+      with an intentionally tampered ONDC-SIG Authorization header
+      (invalid_signature: true — signature bytes are corrupted).
+      Gateway check order: (1) resolve subscriber_id → found; (2) status check →
+      SUBSCRIBED, passes; (3) signature verification → MISMATCH → NACK returned.
+      No BPP receives any dispatch.
+      OCSP / TLS / DNS TXT are not applicable and are skipped throughout.
+    workflow: true
+
+    steps:
+
+      # ── Step 0: Register bap_sec_signer as SUBSCRIBED ────────────────────────
+      # Registered FIRST so its key propagates to the Registry lookup cache
+      # before Step 2b runs. Timeline: Step 0 + 5 s wait + Step 1 + Step 2 GET
+      # + 5 s wait ≈ 10+ s elapsed by the time bap_sec_signer signs the lookup.
+      # Expected 409 when WF-SEC-02 Step 0 re-registers the same run-scoped ID.
+      - name: "Step 0 – Admin: Register BAP-SEC-SIGNER as SUBSCRIBED (lookup signer)"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{bap_sec_signer_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred-gst-{{bap_sec_signer_uk_id}}"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "BAP SEC Signer"
+            - cred_id: "cred-pan-{{bap_sec_signer_uk_id}}"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "BAP SEC Signer"
+          contacts:
+            - contact_id: "contact-auth-{{bap_sec_signer_uk_id}}"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Auth Rep"
+              email: "auth@bap-sec-signer.example.com"
+              phone: "+919876543210"
+            - contact_id: "contact-biz-{{bap_sec_signer_uk_id}}"
+              type: "BUSINESS"
+              name: "Biz Rep"
+              email: "biz@bap-sec-signer.example.com"
+              phone: "+919876543211"
+            - contact_id: "contact-tech-{{bap_sec_signer_uk_id}}"
+              type: "TECHNICAL"
+              name: "Tech Rep"
+              email: "tech@bap-sec-signer.example.com"
+              phone: "+919876543212"
+          key:
+            - uk_id: "{{bap_sec_signer_uk_id}}"
+              signing_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              encryption_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              valid_from: "{{bap_sec_signer_valid_from}}"
+              valid_until: "{{bap_sec_signer_valid_until}}"
+          location:
+            - location_id: "loc-{{bap_sec_signer_uk_id}}"
+              type: "SERVICEABLE"
+              country: "IND"
+              city:
+                - "std:080"
+          uri:
+            - uri_id: "uri-{{bap_sec_signer_uk_id}}"
+              type: "CALLBACK"
+              url: "{{bap_sec_signer_uri}}"
+          configs:
+            - domain: "{{bap_sec_signer_domain}}"
+              np_type: "BAP"
+              subscriber_id: "{{bap_sec_signer_id}}"
+              location_id: "loc-{{bap_sec_signer_uk_id}}"
+              uri_id: "uri-{{bap_sec_signer_uk_id}}"
+              key_id: "{{bap_sec_signer_uk_id}}"
+        expected_status: [200, 409]
+        post_wait_seconds: 5
+
+      # ── Step 1: Register bap_sec as SUBSCRIBED with its generated public key ─
+      # Admin POST with full payload: credentials + contacts + key + location + uri.
+      # This stores bap_sec's public key in the Registry. The Gateway fetches
+      # this key in Step 4 when it attempts to verify the (tampered) signature.
+      #
+      # dns_skip: true              — bypasses DNS TXT record validation (n/a)
+      # skip_ssl_verification: true — bypasses TLS certificate check (n/a)
+      - name: "Step 1 – Admin: Register BAP-SEC-001 as SUBSCRIBED with generated public key"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{bap_sec_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred-gst-{{bap_sec_uk_id}}"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "BAP SEC Invalid Signature Test"
+            - cred_id: "cred-pan-{{bap_sec_uk_id}}"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "BAP SEC Invalid Signature Test"
+          contacts:
+            - contact_id: "contact-auth-{{bap_sec_uk_id}}"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Auth Rep"
+              email: "auth@bap-sec.example.com"
+              phone: "+919876543210"
+            - contact_id: "contact-biz-{{bap_sec_uk_id}}"
+              type: "BUSINESS"
+              name: "Biz Rep"
+              email: "biz@bap-sec.example.com"
+              phone: "+919876543211"
+            - contact_id: "contact-tech-{{bap_sec_uk_id}}"
+              type: "TECHNICAL"
+              name: "Tech Rep"
+              email: "tech@bap-sec.example.com"
+              phone: "+919876543212"
+          key:
+            - uk_id: "{{bap_sec_uk_id}}"
+              signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+              encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              valid_from: "{{bap_sec_valid_from}}"
+              valid_until: "{{bap_sec_valid_until}}"
+          location:
+            - location_id: "loc-{{bap_sec_uk_id}}"
+              type: "SERVICEABLE"
+              country: "IND"
+              city:
+                - "std:080"
+          uri:
+            - uri_id: "uri-{{bap_sec_uk_id}}"
+              type: "CALLBACK"
+              url: "{{bap_sec_uri}}"
+          configs:
+            - domain: "{{bap_sec_domain}}"
+              np_type: "BAP"
+              subscriber_id: "{{bap_sec_id}}"
+              location_id: "loc-{{bap_sec_uk_id}}"
+              uri_id: "uri-{{bap_sec_uk_id}}"
+              key_id: "{{bap_sec_uk_id}}"
+        # 200 — fresh participant (generate_unique_id: true ensures no reuse).
+        # 409 — if participant already exists (should not happen with unique IDs).
+        expected_status: [200, 409]
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+      # ── Step 2: Confirm bap_sec is registered and key is persisted ────────
+      # GET /admin/participants/{id} proves the participant and key record exist
+      # in the Registry before we attempt the Gateway call.
+      - name: "Step 2 – Admin: Confirm BAP-SEC-001 exists in Registry"
+        method: "GET"
+        endpoint: "/admin/participants/{{bap_sec_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "participant_id"
+            exists: true
+        post_wait_seconds: 5
+
+      # ── Step 2b: Registry v3 lookup — confirm bap_sec SUBSCRIBED ─────────────
+      # Proves bap_sec is SUBSCRIBED in the Registry before the tampered-sig
+      # test in Step 3. Any rejection in Step 3 is therefore definitively due
+      # to signature failure, not participant status.
+      # Signer: bap_sec_signer — registered in Step 0 with post_wait_seconds: 5,
+      # giving ~10 s propagation time before this lookup executes.
+      - name: "Step 2b – Registry: Lookup BAP-SEC-001 via /v3.0/lookup — expect configs.status=SUBSCRIBED"
+        method: "POST"
+        endpoint: "/v3.0/lookup"
+        auth_type: "v3"
+        auth_subscriber_id: "bap_sec_signer"
+        use_base_url: true
+        data:
+          subscriber_id: "{{bap_sec_id}}"
+          country: "IND"
+          domain: "ONDC:RET10"
+          type: "BAP"
+        expected_status: [200]
+        continue_on_failure: true
+        retry:
+          timeout_seconds: 15
+          interval_seconds: 1
+        validate:
+          - field: "0.configs.0.status"
+            value: "SUBSCRIBED"
+      # ── Step 3: [Internal] Construct payload and tamper ONDC-SIG ──────────
+      # The `invalid_signature: true` key on Step 4 handles the tamper in code.
+      # This step is kept as documentation matching the source doc step table.
+      - name: "[Internal] Construct valid search payload and tamper ONDC-SIG"
+        skip: true
+
+      # ── Step 4: Send search with tampered ONDC-SIG header → expect NACK ──
+      # invalid_signature: true — runner generates a structurally valid ONDC-SIG
+      # Authorization header but corrupts the signature bytes before sending.
+      # This mirrors "flip last two characters of the base64 signature" from doc.
+      #
+      # Expected Gateway behaviour:
+      #   (1) Parse keyId → subscriber_id = bap_sec_id, uk_id = bap_sec_uk_id
+      #   (2) Registry lookup → participant found, status = SUBSCRIBED (passes)
+      #   (3) Fetch registered public key → bap_sec_signing_public_key
+      #   (4) Verify BLAKE2b-512(body) with signature → MISMATCH → reject
+      #
+      # Expected HTTP responses:
+      #   200  — Gateway returns ONDC NACK envelope (message.ack.status = "NACK")
+      #   400  — Bad request (Authorization header rejected at parse level)
+      #   401  — HTTP-level authentication failure (signature mismatch)
+      # An infrastructure-level HTML 403 (WAF / load balancer) indicates the
+      # participant's key was not yet propagated to the Gateway cache — verify
+      # Step 1 returned ACK before investigating further.
+      - name: "Step 3 – Gateway: BAP-SEC-001 sends search with tampered ONDC-SIG (expect NACK)"
+        method: "POST"
+        action: "search"
+        endpoint: "/{{action}}"
+        auth_type: "v3"
+        auth_subscriber_id: "bap_sec"
+        invalid_signature: true
+        data:
+          context:
+            domain: "ONDC:RET10"
+            action: "{{action}}"
+            version: "2.0.0"
+            bap_id: "{{bap_sec_id}}"
+            bap_uri: "{{bap_sec_uri}}"
+            transaction_id: "{{transaction_id}}"
+            message_id: "{{message_id}}"
+            location:
+              city:
+                code: "std:080"
+              country:
+                code: "IND"
+            ttl: "PT30S"
+            timestamp: "{{timestamp}}"
+          message:
+            intent: {}
+        expected_status: [200, 400, 401]
+        validate:
+          - field: "message.ack.status"
+            value: "NACK"
+
+      # ── Step 5: [Internal] Gateway validation ─────────────────────────────
+      # The validate block on Step 4 (message.ack.status = "NACK") covers this.
+      # Kept as documentation matching the source doc step table.
+      - name: "[Internal] Confirm NACK: Signature verification failed; no BPP dispatched"
+        skip: true
+
+  # ===========================================================================
+  # WF-SEC-02 · Expired Key Rejected
+  #
+  # Goal: A request signed with a key whose valid_until is in the past is
+  #       rejected by the Gateway before routing to any BPP.
+  #
+  # ── Source document steps (Section 3, WF-SEC-02) ───────────────────────────
+  #   1  GET /admin/participants/{id}/keys [JWT]   Confirm expired key exists;
+  #                                                record its uk_id
+  #   2  (local)  Sign payload with expired private key; build Authorization
+  #               header referencing the expired uk_id
+  #   3  POST /gateway/action (expired [ONDC-SIG])  Send request
+  #   4  (Gateway internal)  Fetch key record; check valid_until < now → expired
+  #   5  (validation)  NACK — "Key expired"; no BPP dispatched
+  #
+  # ── Implementation strategy ─────────────────────────────────────────────────
+  # We cannot rely on a pre-existing expired key, so we create one:
+  #   Step 1: Admin POST — register bap_sec2 as SUBSCRIBED with a key whose
+  #           valid_from / valid_until are hardcoded to past dates:
+  #             valid_from:  "2020-01-01T00:00:00.000Z"
+  #             valid_until: "2024-12-31T23:59:59.999Z"
+  #           The public key bytes are genuine (from bap_sec2's generated pair);
+  #           only the validity window is expired.
+  #   Step 2: Admin GET — confirm the participant and the expired key exist.
+  #   Step 3: [skip] — local key-id selection, documented from source doc.
+  #   Step 4: Gateway POST /search — signed with bap_sec2's private key;
+  #           Authorization keyId = bap_sec2_id | bap_sec2_uk_id | ed25519.
+  #           The signature is cryptographically VALID (not tampered).
+  #           Gateway fetches the key record, sees valid_until < 2026-03-30,
+  #           and must reject with NACK.
+  #   Step 5: [skip] — Gateway internal validation step.
+  #
+  # ── Why the signature is valid (NOT tampered) ───────────────────────────────
+  # This test isolates key EXPIRY from signature TAMPERING (WF-SEC-01).
+  # A valid signature proves the private key holder is authentic; expiry is a
+  # separate key-lifecycle check. Both must be enforced independently.
+  #
+  # ── What is NOT tested here ─────────────────────────────────────────────────
+  # OCSP / TLS / DNS TXT — not applicable; dns_skip / skip_ssl_verification.
+  # Signature tampering     — covered by WF-SEC-01.
+  # ===========================================================================
+
+  - id: "WF-SEC-02"
+    name: "Expired Key Rejected"
+    description: >
+      BAP-SEC-002 is registered as SUBSCRIBED in the Registry with a key whose
+      valid_until is hardcoded to 2024-12-31 (expired relative to the test date
+      of 2026-03-30). The ONDC-SIG Authorization header is cryptographically valid
+      (not tampered) — the private key is genuine — but the Gateway checks the
+      key record's valid_until from the Registry and finds it is in the past.
+      Gateway must return NACK with a key-expired error. No BPP is dispatched.
+      OCSP / TLS / DNS TXT are not applicable and are skipped throughout.
+    workflow: true
+
+    steps:
+
+      # ── Step 0: Register bap_sec_signer as SUBSCRIBED ────────────────────────
+      # Same participant as WF-SEC-01 Step 0 (same run-scoped ID). Expected 409
+      # on this second registration — that is fine and handled by [200, 409].
+      # post_wait_seconds: 5 is included for safety in case tests run in isolation.
+      - name: "Step 0 – Admin: Register BAP-SEC-SIGNER as SUBSCRIBED (lookup signer)"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{bap_sec_signer_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred-gst-{{bap_sec_signer_uk_id}}"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "BAP SEC Signer"
+            - cred_id: "cred-pan-{{bap_sec_signer_uk_id}}"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "BAP SEC Signer"
+          contacts:
+            - contact_id: "contact-auth-{{bap_sec_signer_uk_id}}"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Auth Rep"
+              email: "auth@bap-sec-signer.example.com"
+              phone: "+919876543210"
+            - contact_id: "contact-biz-{{bap_sec_signer_uk_id}}"
+              type: "BUSINESS"
+              name: "Biz Rep"
+              email: "biz@bap-sec-signer.example.com"
+              phone: "+919876543211"
+            - contact_id: "contact-tech-{{bap_sec_signer_uk_id}}"
+              type: "TECHNICAL"
+              name: "Tech Rep"
+              email: "tech@bap-sec-signer.example.com"
+              phone: "+919876543212"
+          key:
+            - uk_id: "{{bap_sec_signer_uk_id}}"
+              signing_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              encryption_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              valid_from: "{{bap_sec_signer_valid_from}}"
+              valid_until: "{{bap_sec_signer_valid_until}}"
+          location:
+            - location_id: "loc-{{bap_sec_signer_uk_id}}"
+              type: "SERVICEABLE"
+              country: "IND"
+              city:
+                - "std:080"
+          uri:
+            - uri_id: "uri-{{bap_sec_signer_uk_id}}"
+              type: "CALLBACK"
+              url: "{{bap_sec_signer_uri}}"
+          configs:
+            - domain: "{{bap_sec_signer_domain}}"
+              np_type: "BAP"
+              subscriber_id: "{{bap_sec_signer_id}}"
+              location_id: "loc-{{bap_sec_signer_uk_id}}"
+              uri_id: "uri-{{bap_sec_signer_uk_id}}"
+              key_id: "{{bap_sec_signer_uk_id}}"
+        expected_status: [200, 409]
+        post_wait_seconds: 5
+
+      # ── Step 1: Register bap_sec2 as SUBSCRIBED with an expired key ─────────
+      # The key's public bytes are genuine (generated from bap_sec2's private_key_seed)
+      # but valid_from and valid_until are hardcoded to dates in the past:
+      #   valid_from:  2020-01-01 (6 years ago)
+      #   valid_until: 2024-12-31 (~15 months ago relative to 2026-03-30)
+      # The Registry stores this as the key record for uk_id = bap_sec2_uk_id.
+      # When the Gateway fetches this record it will find valid_until < now.
+      #
+      # dns_skip: true              — bypasses DNS TXT validation (n/a)
+      # skip_ssl_verification: true — bypasses TLS certificate check (n/a)
+      - name: "Step 1 – Admin: Register BAP-SEC-002 as SUBSCRIBED with intentionally expired key"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{bap_sec2_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred-gst-{{bap_sec2_uk_id}}"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "BAP SEC Expired Key Test"
+            - cred_id: "cred-pan-{{bap_sec2_uk_id}}"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "BAP SEC Expired Key Test"
+          contacts:
+            - contact_id: "contact-auth-{{bap_sec2_uk_id}}"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Auth Rep"
+              email: "auth@bap-sec2.example.com"
+              phone: "+919876543210"
+            - contact_id: "contact-biz-{{bap_sec2_uk_id}}"
+              type: "BUSINESS"
+              name: "Biz Rep"
+              email: "biz@bap-sec2.example.com"
+              phone: "+919876543211"
+            - contact_id: "contact-tech-{{bap_sec2_uk_id}}"
+              type: "TECHNICAL"
+              name: "Tech Rep"
+              email: "tech@bap-sec2.example.com"
+              phone: "+919876543212"
+          key:
+            - uk_id: "{{bap_sec2_uk_id}}"
+              signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+              encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              # Hardcoded PAST dates — this is intentional; the key is expired.
+              # The Registry stores exactly these dates in the key record.
+              # Gateway checks valid_until < current timestamp → key expired.
+              valid_from: "2020-01-01T00:00:00.000Z"
+              valid_until: "2024-12-31T23:59:59.999Z"
+          location:
+            - location_id: "loc-{{bap_sec2_uk_id}}"
+              type: "SERVICEABLE"
+              country: "IND"
+              city:
+                - "std:080"
+          uri:
+            - uri_id: "uri-{{bap_sec2_uk_id}}"
+              type: "CALLBACK"
+              url: "{{bap_sec2_uri}}"
+          configs:
+            - domain: "{{bap_sec2_domain}}"
+              np_type: "BAP"
+              subscriber_id: "{{bap_sec2_id}}"
+              location_id: "loc-{{bap_sec2_uk_id}}"
+              uri_id: "uri-{{bap_sec2_uk_id}}"
+              key_id: "{{bap_sec2_uk_id}}"
+        # 200 — fresh participant (generate_unique_id: true ensures unique ID per run).
+        expected_status: [200, 409]
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+      # ── Step 2: Confirm bap_sec2 and the expired key record exist ────────────
+      - name: "Step 2 – Admin: Confirm BAP-SEC-002 and expired key record exist in Registry"
+        method: "GET"
+        endpoint: "/admin/participants/{{bap_sec2_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "participant_id"
+            exists: true
+        post_wait_seconds: 5
+
+      # ── Step 2b: Registry v3 lookup — confirm bap_sec2 SUBSCRIBED ────────────
+      # Proves bap_sec2 participant status is SUBSCRIBED (valid) before the
+      # expired-key test in Step 3. Any rejection is therefore due to key
+      # expiry, not participant status.
+      # Signer: bap_sec_signer — registered in Step 0 with post_wait_seconds: 5,
+      # giving ~10 s propagation time before this lookup executes.
+      - name: "Step 2b – Registry: Lookup BAP-SEC-002 via /v3.0/lookup — expect configs.status=SUBSCRIBED"
+        method: "POST"
+        endpoint: "/v3.0/lookup"
+        auth_type: "v3"
+        auth_subscriber_id: "bap_sec_signer"
+        use_base_url: true
+        data:
+          subscriber_id: "{{bap_sec2_id}}"
+          country: "IND"
+          domain: "ONDC:RET10"
+          type: "BAP"
+        expected_status: [200]
+        continue_on_failure: true
+        retry:
+          timeout_seconds: 15
+          interval_seconds: 1
+        validate:
+          - field: "0.configs.0.status"
+            value: "SUBSCRIBED"
+
+      # ── Step 3: [Internal] Build Authorization header with expired uk_id ─────
+      - name: "[Internal] Sign payload with expired key; build Authorization keyId referencing expired uk_id"
+        skip: true
+
+      # ── Step 4: Send search with valid sig but expired key → expect NACK ─────
+      # No invalid_signature flag — the signature is cryptographically correct.
+      # Authorization keyId = bap_sec2_id | bap_sec2_uk_id | ed25519.
+      # Gateway check order:
+      #   (1) Parse keyId → subscriber_id = bap_sec2_id (found in Registry)
+      #   (2) Status check → SUBSCRIBED (passes)
+      #   (3) Fetch key record for bap_sec2_uk_id → valid_until = 2024-12-31
+      #   (4) Check valid_until < now (2026-03-30) → key expired → reject
+      #
+      # Expected Gateway response (verified against preprod, 2026-03-30):
+      #   HTTP 401
+      #   message.ack.status   = "NACK"
+      #   error.type           = "Gateway"
+      #   error.code           = "10001"
+      #   error.message        = "Authentication Failed: Signing key has expired"
+      #
+      # NOTE — spec vs. implementation:
+      #   The ONDC Gateway Workflow document (WF-SEC-02) states the expected
+      #   NACK message is "Key expired". The actual Gateway returns the message
+      #   "Authentication Failed: Signing key has expired" (code 10001).
+      #   A `contains` check is used so the assertion is robust against minor
+      #   reformatting of the error prefix by the Gateway.
+      - name: "Step 3 – Gateway: BAP-SEC-002 sends search with expired ONDC-SIG key (expect NACK)"
+        method: "POST"
+        action: "search"
+        endpoint: "/{{action}}"
+        auth_type: "v3"
+        auth_subscriber_id: "bap_sec2"
+        data:
+          context:
+            domain: "ONDC:RET10"
+            action: "{{action}}"
+            version: "2.0.0"
+            bap_id: "{{bap_sec2_id}}"
+            bap_uri: "{{bap_sec2_uri}}"
+            transaction_id: "{{transaction_id}}"
+            message_id: "{{message_id}}"
+            location:
+              city:
+                code: "std:080"
+              country:
+                code: "IND"
+            ttl: "PT30S"
+            timestamp: "{{timestamp}}"
+          message:
+            intent: {}
+        expected_status: [200, 400, 401]
+        validate:
+          - field: "message.ack.status"
+            value: "NACK"
+          - field: "error.type"
+            value: "Gateway"
+          - field: "error.code"
+            value: "10001"
+          # Gateway returns "Authentication Failed: Signing key has expired" (code 10001).
+          # Using `contains` to match the key part and stay robust against prefix changes.
+          - field: "error.message"
+            contains: "Signing key has expired"
+
+      # ── Step 5: [Internal] Confirm NACK ─────────────────────────────────────
+      # Covered by the validate block on Step 4.
+      - name: "[Internal] Confirm NACK: Key expired (valid_until < now); no BPP dispatched"
+        skip: true

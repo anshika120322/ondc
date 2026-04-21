@@ -1,0 +1,1347 @@
+test_suite:
+  name: Advanced Scenarios
+  category: advanced
+  total_tests: 15
+  description: Advanced testing including multi-domain operations, concurrency, performance, and edge cases
+config:
+  default_timeout: 60
+  retry_on_failure: false
+tests:
+- id: D01
+  name: Participant with 5+ domains, update each independently
+  description: Test granular per-domain configuration management
+  workflow: true
+  steps:
+  - name: Admin creates with 5 domains
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUBSCRIBED
+      credentials:
+      - cred_id: cred_gst_001
+        type: GST
+        cred_data:
+          gstin: 29ABCDE1234F1Z5
+          legal_name: MultiDomain Test Pvt Ltd
+      - cred_id: cred_pan_001
+        type: PAN
+        cred_data:
+          pan: ABCDE1234F
+          name: MultiDomain Test Pvt Ltd
+      contacts:
+      - contact_id: contact_auth_001
+        type: AUTHORISED_SIGNATORY
+        name: Admin User
+        email: admin@{{subscriber_id}}
+        phone: '+919876543211'
+      - contact_id: contact_biz_001
+        type: BUSINESS
+        name: Business Manager
+        email: business@{{subscriber_id}}
+        phone: '+919876543213'
+      - contact_id: contact_tech_001
+        type: TECHNICAL
+        name: Tech Support
+        email: tech@{{subscriber_id}}
+        phone: '+919876543210'
+      key:
+        uk_id: '{{uk_id}}'
+        signing_public_key: '{{signing_public_key}}'
+        encryption_public_key: '{{encryption_public_key}}'
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '2026-02-01T00:00:00.000Z'
+        valid_until: '2027-02-01T00:00:00.000Z'
+      location:
+        location_id: loc001
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri001
+        type: CALLBACK
+        url: https://{{subscriber_id}}/callback
+      configs:
+      - domain: ONDC:RET10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri001
+        key_id: '{{uk_id}}'
+      - domain: ONDC:RET11
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri001
+        key_id: '{{uk_id}}'
+      - domain: ONDC:RET12
+        np_type: BAP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri001
+        key_id: '{{uk_id}}'
+      - domain: ONDC:LOG10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri001
+        key_id: '{{uk_id}}'
+      - domain: ONDC:FIS10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri001
+        key_id: '{{uk_id}}'
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+    save_subscriber_id: true
+  - name: Update domain 1 np_type
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      configs:
+      - domain: ONDC:RET10
+        np_type: BAP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri001
+        key_id: '{{uk_id}}'
+      - domain: ONDC:RET11
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri001
+        key_id: '{{uk_id}}'
+      - domain: ONDC:RET12
+        np_type: BAP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri001
+        key_id: '{{uk_id}}'
+      - domain: ONDC:LOG10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri001
+        key_id: '{{uk_id}}'
+      - domain: ONDC:FIS10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri001
+        key_id: '{{uk_id}}'
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Update domain 3 np_type
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      configs:
+      - domain: ONDC:RET10
+        np_type: BAP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri001
+        key_id: '{{uk_id}}'
+      - domain: ONDC:RET11
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri001
+        key_id: '{{uk_id}}'
+      - domain: ONDC:RET12
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri001
+        key_id: '{{uk_id}}'
+      - domain: ONDC:LOG10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri001
+        key_id: '{{uk_id}}'
+      - domain: ONDC:FIS10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri001
+        key_id: '{{uk_id}}'
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+- id: D02
+  name: Add/remove domains dynamically
+  description: Test dynamic domain list modification
+  workflow: true
+  steps:
+  - name: Create with 2 domains
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUBSCRIBED
+      credentials:
+      - cred_id: cred_gst_002
+        type: GST
+        cred_data:
+          gstin: 29GHIJK5678L1M9
+          legal_name: Dynamic Domain Test Ltd
+      - cred_id: cred_pan_002
+        type: PAN
+        cred_data:
+          pan: GHIJK5678L
+          name: Dynamic Domain Test Ltd
+      contacts:
+      - contact_id: contact_auth_002
+        type: AUTHORISED_SIGNATORY
+        name: Domain Admin
+        email: admin@{{subscriber_id}}
+        phone: '+919876543211'
+      - contact_id: contact_biz_002
+        type: BUSINESS
+        name: Business Head
+        email: business@{{subscriber_id}}
+        phone: '+919876543213'
+      - contact_id: contact_tech_002
+        type: TECHNICAL
+        name: Tech Lead
+        email: tech@{{subscriber_id}}
+        phone: '+919876543210'
+      key:
+        uk_id: '{{uk_id}}'
+        signing_public_key: '{{signing_public_key}}'
+        encryption_public_key: '{{encryption_public_key}}'
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '2026-02-01T00:00:00.000Z'
+        valid_until: '2027-02-01T00:00:00.000Z'
+      location:
+        location_id: loc002
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri002
+        type: CALLBACK
+        url: https://{{subscriber_id}}/callback
+      configs:
+      - domain: ONDC:RET10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc002
+        uri_id: uri002
+        key_id: '{{uk_id}}'
+      - domain: ONDC:RET11
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc002
+        uri_id: uri002
+        key_id: '{{uk_id}}'
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+    save_subscriber_id: true
+  - name: Add 3 more domains
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      configs:
+      - domain: ONDC:RET10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc002
+        uri_id: uri002
+        key_id: '{{uk_id}}'
+      - domain: ONDC:RET11
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc002
+        uri_id: uri002
+        key_id: '{{uk_id}}'
+      - domain: ONDC:RET12
+        np_type: BAP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc002
+        uri_id: uri002
+        key_id: '{{uk_id}}'
+      - domain: ONDC:LOG10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc002
+        uri_id: uri002
+        key_id: '{{uk_id}}'
+      - domain: ONDC:FIS10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc002
+        uri_id: uri002
+        key_id: '{{uk_id}}'
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Remove 2 domains
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      configs:
+      - domain: ONDC:RET10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc002
+        uri_id: uri002
+        key_id: '{{uk_id}}'
+      - domain: ONDC:LOG10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc002
+        uri_id: uri002
+        key_id: '{{uk_id}}'
+      - domain: ONDC:FIS10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc002
+        uri_id: uri002
+        key_id: '{{uk_id}}'
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+- id: D03
+  name: Domain-specific credential rotations
+  description: Test credential management across multiple domains
+  workflow: true
+  steps:
+  - name: Create multi-domain participant
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUBSCRIBED
+      credentials:
+      - cred_id: cred_gst_003
+        type: GST
+        cred_data:
+          gstin: 29NOPQR9012S1T3
+          legal_name: Credential Rotate Pvt Ltd
+      - cred_id: cred_pan_003
+        type: PAN
+        cred_data:
+          pan: NOPQR9012S
+          name: Credential Rotate Pvt Ltd
+      contacts:
+      - contact_id: contact_auth_003
+        type: AUTHORISED_SIGNATORY
+        name: Auth Person
+        email: admin@{{subscriber_id}}
+        phone: '+919876543211'
+      - contact_id: contact_biz_003
+        type: BUSINESS
+        name: Biz Contact
+        email: business@{{subscriber_id}}
+        phone: '+919876543213'
+      - contact_id: contact_tech_003
+        type: TECHNICAL
+        name: Tech Contact
+        email: tech@{{subscriber_id}}
+        phone: '+919876543210'
+      key:
+        uk_id: '{{uk_id}}'
+        signing_public_key: '{{signing_public_key}}'
+        encryption_public_key: '{{encryption_public_key}}'
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '2026-02-01T00:00:00.000Z'
+        valid_until: '2027-02-01T00:00:00.000Z'
+      location:
+        location_id: loc003
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri003
+        type: CALLBACK
+        url: https://{{subscriber_id}}/callback
+      configs:
+      - domain: ONDC:RET10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc003
+        uri_id: uri003
+        key_id: '{{uk_id}}'
+      - domain: ONDC:RET11
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc003
+        uri_id: uri003
+        key_id: '{{uk_id}}'
+      - domain: ONDC:LOG10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc003
+        uri_id: uri003
+        key_id: '{{uk_id}}'
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+    save_subscriber_id: true
+  - name: Rotate credentials (all domains affected)
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      credentials:
+      - cred_id: cred_gst_003_new
+        type: GST
+        cred_data:
+          gstin: 29UVWXY3456Z1A7
+          legal_name: Credential Rotate Pvt Ltd Updated
+      - cred_id: cred_pan_003_new
+        type: PAN
+        cred_data:
+          pan: UVWXY3456Z
+          name: Credential Rotate Pvt Ltd Updated
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+- id: D04
+  name: Cross-domain config inheritance
+  description: Test shared settings across domains
+  method: POST
+  endpoint: /admin/subscribe
+  auth_type: admin
+  data:
+    participant_id: '{{subscriber_id}}'
+    action: SUBSCRIBED
+    credentials:
+    - cred_id: cred_gst_004
+      type: GST
+      cred_data:
+        gstin: 29BCDEF2345G1H6
+        legal_name: Cross Domain Config Ltd
+    - cred_id: cred_pan_004
+      type: PAN
+      cred_data:
+        pan: BCDEF2345G
+        name: Cross Domain Config Ltd
+    contacts:
+    - contact_id: contact_auth_004
+      type: AUTHORISED_SIGNATORY
+      name: Cross Auth
+      email: admin@{{subscriber_id}}
+      phone: '+919876543211'
+    - contact_id: contact_biz_004
+      type: BUSINESS
+      name: Cross Business
+      email: business@{{subscriber_id}}
+      phone: '+919876543213'
+    - contact_id: contact_tech_004
+      type: TECHNICAL
+      name: Cross Tech
+      email: shared@example.com
+      phone: '+919876543210'
+    key:
+      uk_id: '{{uk_id}}'
+      signing_public_key: '{{signing_public_key}}'
+      encryption_public_key: '{{encryption_public_key}}'
+      signed_algorithm: ED25519
+      encryption_algorithm: X25519
+      valid_from: '2026-02-01T00:00:00.000Z'
+      valid_until: '2027-02-01T00:00:00.000Z'
+    location:
+      location_id: loc004
+      type: SERVICEABLE
+      country: IND
+      city:
+      - std:080
+    uri:
+      uri_id: uri004
+      type: CALLBACK
+      url: https://{{subscriber_id}}/callback
+    configs:
+    - domain: ONDC:RET10
+      np_type: BPP
+      subscriber_id: '{{subscriber_id}}'
+      location_id: loc004
+      uri_id: uri004
+      key_id: '{{uk_id}}'
+    - domain: ONDC:RET11
+      np_type: BPP
+      subscriber_id: '{{subscriber_id}}'
+      location_id: loc004
+      uri_id: uri004
+      key_id: '{{uk_id}}'
+    - domain: ONDC:RET12
+      np_type: BPP
+      subscriber_id: '{{subscriber_id}}'
+      location_id: loc004
+      uri_id: uri004
+      key_id: '{{uk_id}}'
+    dns_skip: true
+    skip_ssl_verification: true
+  expected_status: 200
+- id: D05
+  name: Partial domain subscription (mixed statuses)
+  description: Test participant with some domains active, others inactive
+  workflow: true
+  steps:
+  - name: Admin creates WHITELISTED for 3 domains
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: WHITELISTED
+      credentials:
+      - cred_id: cred_gst_005
+        type: GST
+        cred_data:
+          gstin: 29IJKLM6789N1O2
+          legal_name: Partial Domain Sub Ltd
+      - cred_id: cred_pan_005
+        type: PAN
+        cred_data:
+          pan: IJKLM6789N
+          name: Partial Domain Sub Ltd
+      contacts:
+      - contact_id: contact_auth_005
+        type: AUTHORISED_SIGNATORY
+        name: Partial Auth
+        email: admin@{{subscriber_id}}
+        phone: '+919876543211'
+      - contact_id: contact_biz_005
+        type: BUSINESS
+        name: Partial Biz
+        email: business@{{subscriber_id}}
+        phone: '+919876543213'
+      - contact_id: contact_tech_005
+        type: TECHNICAL
+        name: Partial Tech
+        email: tech@{{subscriber_id}}
+        phone: '+919876543210'
+      key:
+        uk_id: '{{uk_id}}'
+        signing_public_key: '{{signing_public_key}}'
+        encryption_public_key: '{{encryption_public_key}}'
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '2026-02-01T00:00:00.000Z'
+        valid_until: '2027-02-01T00:00:00.000Z'
+      location:
+        location_id: loc005
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri005
+        type: CALLBACK
+        url: https://{{subscriber_id}}/callback
+      configs:
+      - domain: ONDC:RET10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc005
+        uri_id: uri005
+        key_id: '{{uk_id}}'
+      - domain: ONDC:RET11
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc005
+        uri_id: uri005
+        key_id: '{{uk_id}}'
+      - domain: ONDC:LOG10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc005
+        uri_id: uri005
+        key_id: '{{uk_id}}'
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+    save_subscriber_id: true
+  - name: Admin transitions to SUBSCRIBED
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUBSCRIBED
+      credentials:
+      - cred_id: cred_gst_005
+        type: GST
+        cred_data:
+          gstin: 29IJKLM6789N1O2
+          legal_name: Partial Domain Sub Ltd
+      - cred_id: cred_pan_005
+        type: PAN
+        cred_data:
+          pan: IJKLM6789N
+          name: Partial Domain Sub Ltd
+      contacts:
+      - contact_id: contact_auth_005
+        type: AUTHORISED_SIGNATORY
+        name: Partial Auth
+        email: admin@{{subscriber_id}}
+        phone: '+919876543211'
+      - contact_id: contact_biz_005
+        type: BUSINESS
+        name: Partial Biz
+        email: business@{{subscriber_id}}
+        phone: '+919876543213'
+      - contact_id: contact_tech_005
+        type: TECHNICAL
+        name: Partial Tech
+        email: tech@{{subscriber_id}}
+        phone: '+919876543210'
+      key:
+        uk_id: '{{uk_id}}'
+        signing_public_key: '{{signing_public_key}}'
+        encryption_public_key: '{{encryption_public_key}}'
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '2026-02-01T00:00:00.000Z'
+        valid_until: '2027-02-01T00:00:00.000Z'
+      location:
+        location_id: loc005
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri005
+        type: CALLBACK
+        url: https://{{subscriber_id}}/callback
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+- id: D06
+  name: Concurrent Admin + V3 updates on same participant
+  description: Test race condition handling
+  workflow: true
+  steps:
+  - name: Setup participant
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUBSCRIBED
+      credentials:
+      - cred_id: cred_gst_006
+        type: GST
+        cred_data:
+          gstin: 29PQRST0123U1V4
+          legal_name: Concurrent Test Pvt Ltd
+      - cred_id: cred_pan_006
+        type: PAN
+        cred_data:
+          pan: PQRST0123U
+          name: Concurrent Test Pvt Ltd
+      contacts:
+      - contact_id: contact_auth_006
+        type: AUTHORISED_SIGNATORY
+        name: Concurrent Auth
+        email: admin@{{subscriber_id}}
+        phone: '+919876543211'
+      - contact_id: contact_biz_006
+        type: BUSINESS
+        name: Concurrent Biz
+        email: business@{{subscriber_id}}
+        phone: '+919876543213'
+      - contact_id: contact_tech_006
+        type: TECHNICAL
+        name: Concurrent Tech
+        email: tech@{{subscriber_id}}
+        phone: '+919876543210'
+      key:
+        uk_id: '{{uk_id}}'
+        signing_public_key: '{{signing_public_key}}'
+        encryption_public_key: '{{encryption_public_key}}'
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '2026-02-01T00:00:00.000Z'
+        valid_until: '2027-02-01T00:00:00.000Z'
+      location:
+        location_id: loc006
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri006
+        type: CALLBACK
+        url: https://{{subscriber_id}}/callback
+      configs:
+      - domain: ONDC:RET10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc006
+        uri_id: uri006
+        key_id: '{{uk_id}}'
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+    save_subscriber_id: true
+  - name: Admin updates location
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      location:
+        location_id: loc001
+        type: WAREHOUSE
+        country: IND
+        city:
+        - std:080
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+- id: D07
+  name: Rapid status transitions (stress test)
+  description: Test system stability under rapid state changes
+  workflow: true
+  steps:
+  - name: Create WHITELISTED
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: WHITELISTED
+      credentials:
+      - cred_id: cred_gst_007
+        type: GST
+        cred_data:
+          gstin: 29WXYZ45678A1B9
+          legal_name: Rapid Transition Ltd
+      - cred_id: cred_pan_007
+        type: PAN
+        cred_data:
+          pan: WXYZ45678A
+          name: Rapid Transition Ltd
+      contacts:
+      - contact_id: contact_auth_007
+        type: AUTHORISED_SIGNATORY
+        name: Rapid Auth
+        email: admin@{{subscriber_id}}
+        phone: '+919876543211'
+      - contact_id: contact_biz_007
+        type: BUSINESS
+        name: Rapid Biz
+        email: business@{{subscriber_id}}
+        phone: '+919876543213'
+      - contact_id: contact_tech_007
+        type: TECHNICAL
+        name: Rapid Tech
+        email: tech@{{subscriber_id}}
+        phone: '+919876543210'
+      key:
+        uk_id: '{{uk_id}}'
+        signing_public_key: '{{signing_public_key}}'
+        encryption_public_key: '{{encryption_public_key}}'
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '2026-02-01T00:00:00.000Z'
+        valid_until: '2027-02-01T00:00:00.000Z'
+      location:
+        location_id: loc007
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri007
+        type: CALLBACK
+        url: https://{{subscriber_id}}/callback
+      configs:
+      - domain: ONDC:RET11
+        np_type: BAP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc007
+        uri_id: uri007
+        key_id: '{{uk_id}}'
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+    save_subscriber_id: true
+  - name: Rapid transition to SUBSCRIBED
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUBSCRIBED
+      credentials:
+      - cred_id: cred_gst_007
+        type: GST
+        cred_data:
+          gstin: 29WXYZ45678A1B9
+          legal_name: Rapid Transition Ltd
+      - cred_id: cred_pan_007
+        type: PAN
+        cred_data:
+          pan: WXYZ45678A
+          name: Rapid Transition Ltd
+      contacts:
+      - contact_id: contact_auth_007
+        type: AUTHORISED_SIGNATORY
+        name: Rapid Auth
+        email: admin@{{subscriber_id}}
+        phone: '+919876543211'
+      - contact_id: contact_biz_007
+        type: BUSINESS
+        name: Rapid Biz
+        email: business@{{subscriber_id}}
+        phone: '+919876543213'
+      - contact_id: contact_tech_007
+        type: TECHNICAL
+        name: Rapid Tech
+        email: tech@{{subscriber_id}}
+        phone: '+919876543210'
+      key:
+        uk_id: '{{uk_id}}'
+        signing_public_key: '{{signing_public_key}}'
+        encryption_public_key: '{{encryption_public_key}}'
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '2026-02-01T00:00:00.000Z'
+        valid_until: '2027-02-01T00:00:00.000Z'
+      location:
+        location_id: loc007
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri007
+        type: CALLBACK
+        url: https://{{subscriber_id}}/callback
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Rapid transition to SUSPENDED
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUSPENDED
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Rapid transition to INACTIVE
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: INACTIVE
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Rapid transition back to SUBSCRIBED
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUBSCRIBED
+      credentials:
+      - cred_id: cred_gst_007
+        type: GST
+        cred_data:
+          gstin: 29WXYZ45678A1B9
+          legal_name: Rapid Transition Ltd
+      - cred_id: cred_pan_007
+        type: PAN
+        cred_data:
+          pan: WXYZ45678A
+          name: Rapid Transition Ltd
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Rapid transition to UNSUBSCRIBED
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: UNSUBSCRIBED
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+- id: D08
+  name: Batch create 10 participants
+  description: Performance test for bulk participant creation
+  method: POST
+  endpoint: /admin/subscribe
+  auth_type: admin
+  batch_size: 10
+  data:
+    participant_id: '{{subscriber_id}}'
+    action: WHITELISTED
+    configs:
+    - domain: ONDC:RET10
+      np_type: BPP
+      subscriber_id: '{{subscriber_id}}'
+    dns_skip: true
+    skip_ssl_verification: true
+  expected_status: 200
+  performance_threshold_ms: 10000
+- id: D09
+  name: Batch create and update 10 participants
+  description: Performance test for bulk operations
+  workflow: true
+  steps:
+  - name: Batch create 10
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    batch_size: 10
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUBSCRIBED
+      credentials:
+      - cred_id: cred_gst_009
+        type: GST
+        cred_data:
+          gstin: 29CDEFG7890H1I2
+          legal_name: Batch Update Test Ltd
+      - cred_id: cred_pan_009
+        type: PAN
+        cred_data:
+          pan: CDEFG7890H
+          name: Batch Update Test Ltd
+      contacts:
+      - contact_id: contact_auth_009
+        type: AUTHORISED_SIGNATORY
+        name: Batch Auth
+        email: admin@{{subscriber_id}}
+        phone: '+919876543211'
+      - contact_id: contact_biz_009
+        type: BUSINESS
+        name: Batch Biz
+        email: business@{{subscriber_id}}
+        phone: '+919876543213'
+      - contact_id: contact_tech_009
+        type: TECHNICAL
+        name: Batch Tech
+        email: tech@{{subscriber_id}}
+        phone: '+919876543210'
+      key:
+        uk_id: '{{uk_id}}'
+        signing_public_key: '{{signing_public_key}}'
+        encryption_public_key: '{{encryption_public_key}}'
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '2026-02-01T00:00:00.000Z'
+        valid_until: '2027-02-01T00:00:00.000Z'
+      location:
+        location_id: loc009
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri009
+        type: CALLBACK
+        url: https://{{subscriber_id}}/callback
+      configs:
+      - domain: ONDC:RET12
+        np_type: BAP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc009
+        uri_id: uri009
+        key_id: '{{uk_id}}'
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+- id: D10
+  name: Sequential status transitions
+  description: Test handling of sequential updates
+  workflow: true
+  steps:
+  - name: Setup participant
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUBSCRIBED
+      credentials:
+      - cred_id: cred_gst_010
+        type: GST
+        cred_data:
+          gstin: 29JKLMN1234O1P5
+          legal_name: Sequential Test Pvt Ltd
+      - cred_id: cred_pan_010
+        type: PAN
+        cred_data:
+          pan: JKLMN1234O
+          name: Sequential Test Pvt Ltd
+      contacts:
+      - contact_id: contact_auth_010
+        type: AUTHORISED_SIGNATORY
+        name: Sequential Auth
+        email: admin@{{subscriber_id}}
+        phone: '+919876543211'
+      - contact_id: contact_biz_010
+        type: BUSINESS
+        name: Sequential Biz
+        email: business@{{subscriber_id}}
+        phone: '+919876543213'
+      - contact_id: contact_tech_010
+        type: TECHNICAL
+        name: Sequential Tech
+        email: tech@{{subscriber_id}}
+        phone: '+919876543210'
+      key:
+        uk_id: '{{uk_id}}'
+        signing_public_key: '{{signing_public_key}}'
+        encryption_public_key: '{{encryption_public_key}}'
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '2026-02-01T00:00:00.000Z'
+        valid_until: '2027-02-01T00:00:00.000Z'
+      location:
+        location_id: loc010
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri010
+        type: CALLBACK
+        url: https://{{subscriber_id}}/callback
+      configs:
+      - domain: ONDC:LOG10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc010
+        uri_id: uri010
+        key_id: '{{uk_id}}'
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+    save_subscriber_id: true
+  - name: Update contacts
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      contacts:
+      - contact_id: contact_001
+        type: TECHNICAL
+        email: update@example.com
+        phone: '+919111111111'
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+- id: D11
+  name: Maximum field lengths
+  description: Test with maximum allowed string lengths
+  method: POST
+  endpoint: /admin/subscribe
+  auth_type: admin
+  data:
+    participant_id: '{{subscriber_id}}'
+    action: WHITELISTED
+    credentials:
+    - cred_id: cred_gst_011
+      type: GST
+      cred_data:
+        gstin: 29QRSTU5678V1W0
+        legal_name: VeryLongLegalNameThatExceedsNormalLengthAndTestsTheBoundaryConditionsOfTheSystemPvtLtd
+    contacts:
+    - contact_id: contact_long_001
+      type: TECHNICAL
+      email: very-long-email-address-that-tests-maximum-field-length@extremely-long-domain-name-for-testing-purposes.example.com
+      phone: '+919876543210'
+    key:
+      uk_id: '{{uk_id}}'
+      signing_public_key: '{{signing_public_key}}'
+      encryption_public_key: '{{encryption_public_key}}'
+      signed_algorithm: ED25519
+      encryption_algorithm: X25519
+      valid_from: '2026-02-01T00:00:00.000Z'
+      valid_until: '2027-02-01T00:00:00.000Z'
+    location:
+      location_id: loc011
+      type: SERVICEABLE
+      country: IND
+      city:
+      - std:080
+    uri:
+      uri_id: uri011
+      type: CALLBACK
+      url: https://{{subscriber_id}}/callback
+    configs:
+    - domain: ONDC:RET10
+      np_type: BPP
+      subscriber_id: '{{subscriber_id}}'
+      location_id: loc011
+      uri_id: uri011
+      key_id: '{{uk_id}}'
+    dns_skip: true
+    skip_ssl_verification: true
+  expected_status:
+  - 200
+  - 400
+- id: D12
+  name: Minimum required fields
+  description: Test with absolute minimum data
+  method: POST
+  endpoint: /admin/subscribe
+  auth_type: admin
+  data:
+    participant_id: '{{subscriber_id}}'
+    action: WHITELISTED
+    configs:
+    - domain: ONDC:RET11
+      np_type: BPP
+      subscriber_id: '{{subscriber_id}}'
+    dns_skip: true
+    skip_ssl_verification: true
+  expected_status: 200
+- id: D13
+  name: Special characters in fields
+  description: Test handling of special characters
+  method: POST
+  endpoint: /admin/subscribe
+  auth_type: admin
+  data:
+    participant_id: '{{subscriber_id}}'
+    action: SUBSCRIBED
+    credentials:
+    - cred_id: cred_gst_013
+      type: GST
+      cred_data:
+        gstin: 29YZABC9012D1E3
+        legal_name: Special-Chars & Symbols Pvt. Ltd.
+    - cred_id: cred_pan_013
+      type: PAN
+      cred_data:
+        pan: YZABC9012D
+        name: Special-Chars & Symbols Pvt. Ltd.
+    contacts:
+    - contact_id: contact_auth_013
+      type: AUTHORISED_SIGNATORY
+      name: Special Auth
+      email: admin@{{subscriber_id}}
+      phone: '+919876543211'
+    - contact_id: contact_biz_013
+      type: BUSINESS
+      name: Special Biz
+      email: business@{{subscriber_id}}
+      phone: '+919876543213'
+    - contact_id: contact_special_001
+      type: TECHNICAL
+      email: test+special_chars.123@example-domain.co.in
+      phone: +91-9876-543-210
+    key:
+      uk_id: '{{uk_id}}'
+      signing_public_key: '{{signing_public_key}}'
+      encryption_public_key: '{{encryption_public_key}}'
+      signed_algorithm: ED25519
+      encryption_algorithm: X25519
+      valid_from: '2026-02-01T00:00:00.000Z'
+      valid_until: '2027-02-01T00:00:00.000Z'
+    location:
+      location_id: loc013
+      type: SERVICEABLE
+      country: IND
+      city:
+      - std:080
+    uri:
+      uri_id: uri013
+      type: CALLBACK
+      url: https://{{subscriber_id}}/callback
+    configs:
+    - domain: ONDC:RET12
+      np_type: BAP
+      subscriber_id: '{{subscriber_id}}'
+      location_id: loc013
+      uri_id: uri013
+      key_id: '{{uk_id}}'
+    dns_skip: true
+    skip_ssl_verification: true
+  expected_status:
+  - 400
+- id: D14
+  name: Empty arrays vs null values
+  description: Test difference between empty arrays and omitted fields
+  workflow: true
+  steps:
+  - name: Create with empty credentials array
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: WHITELISTED
+      configs:
+      - domain: ONDC:RET12
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+      credentials: []
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+    save_subscriber_id: true
+  - name: Update with contacts (omitting credentials)
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      contacts:
+      - contact_id: contact_001
+        type: TECHNICAL
+        email: test@example.com
+        phone: '+919876543210'
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+- id: D15
+  name: Schema version compatibility
+  description: Test handling of different API schemas
+  workflow: true
+  steps:
+  - name: Admin creates (admin schema)
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: WHITELISTED
+      credentials:
+      - cred_id: cred_gst_015
+        type: GST
+        cred_data:
+          gstin: 29FGHIJ3456K1L7
+          legal_name: Schema Compatibility Ltd
+      - cred_id: cred_pan_015
+        type: PAN
+        cred_data:
+          pan: FGHIJ3456K
+          name: Schema Compatibility Ltd
+      contacts:
+      - contact_id: contact_auth_015
+        type: AUTHORISED_SIGNATORY
+        name: Schema Auth
+        email: admin@{{subscriber_id}}
+        phone: '+919876543211'
+      - contact_id: contact_biz_015
+        type: BUSINESS
+        name: Schema Biz
+        email: business@{{subscriber_id}}
+        phone: '+919876543213'
+      - contact_id: contact_tech_015
+        type: TECHNICAL
+        name: Schema Tech
+        email: tech@{{subscriber_id}}
+        phone: '+919876543210'
+      key:
+        uk_id: '{{uk_id}}'
+        signing_public_key: '{{signing_public_key}}'
+        encryption_public_key: '{{encryption_public_key}}'
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '2026-02-01T00:00:00.000Z'
+        valid_until: '2027-02-01T00:00:00.000Z'
+      location:
+        location_id: loc015
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri015
+        type: CALLBACK
+        url: https://{{subscriber_id}}/callback
+      configs:
+      - domain: ONDC:RET12
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc015
+        uri_id: uri015
+        key_id: '{{uk_id}}'
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+    save_subscriber_id: true
+  - name: Admin PATCH (admin schema)
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUBSCRIBED
+      credentials:
+      - cred_id: cred_gst_015
+        type: GST
+        cred_data:
+          gstin: 29FGHIJ3456K1L7
+          legal_name: Schema Compatibility Ltd
+      - cred_id: cred_pan_015
+        type: PAN
+        cred_data:
+          pan: FGHIJ3456K
+          name: Schema Compatibility Ltd
+      contacts:
+      - contact_id: contact_auth_015
+        type: AUTHORISED_SIGNATORY
+        name: Schema Auth
+        email: admin@{{subscriber_id}}
+        phone: '+919876543211'
+      - contact_id: contact_biz_015
+        type: BUSINESS
+        name: Schema Biz
+        email: business@{{subscriber_id}}
+        phone: '+919876543213'
+      - contact_id: contact_tech_015
+        type: TECHNICAL
+        name: Schema Tech
+        email: tech@{{subscriber_id}}
+        phone: '+919876543210'
+      key:
+        uk_id: '{{uk_id}}'
+        signing_public_key: '{{signing_public_key}}'
+        encryption_public_key: '{{encryption_public_key}}'
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '2026-02-01T00:00:00.000Z'
+        valid_until: '2027-02-01T00:00:00.000Z'
+      location:
+        location_id: loc015
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri015
+        type: CALLBACK
+        url: https://{{subscriber_id}}/callback
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200

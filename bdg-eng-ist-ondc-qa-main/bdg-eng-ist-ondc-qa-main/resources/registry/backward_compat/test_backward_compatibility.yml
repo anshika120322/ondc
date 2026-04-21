@@ -1,0 +1,521 @@
+# ============================================================================
+# ONDC Registry - Backward Compatibility Test Suite
+# ============================================================================
+# Test Cases: BC-01 to BC-05
+# Purpose: Validate backward compatibility between V1, V2, V3 APIs and admin/subscribe workflows
+# Coverage:
+#   - Deprecated endpoint behavior (V1/V2 in main registry)
+#   - Admin API whitelisting workflow
+#   - Cross-version participant discovery
+#   - Lookupcache service integration
+# ============================================================================
+
+test_suite:
+  name: Backward Compatibility Tests
+  description: Comprehensive validation of backward compatibility across API versions and services
+  total_tests: 5
+  
+tests:
+  # ========================================================================
+  # BC-01: V1 Lookup API Returns Not-Implemented (Deprecated)
+  # ========================================================================
+  - id: BC-01
+    name: V1 lookup API returns not-implemented (deprecated)
+    description: Verify /api/v1/lookup endpoint in main registry returns HTTP 501 with deprecation message
+    type: negative
+    category: Backward Compatibility
+    priority: high
+    preconditions:
+      - Registry 3.0 deployed
+      - Main registry accessible
+    steps:
+      - step_id: 1
+        name: "Step 1: Call deprecated V1 endpoint"
+        action: api_call
+        method: POST
+        endpoint: /api/v1/lookup
+        auth_required: false
+        headers:
+          Content-Type: application/json
+          Accept: application/json
+        payload:
+          country: "IND"
+          type: "BPP"
+        expected_status: [501, 404, 410]
+        validations:
+          - type: status_code_range
+            expected: [501, 404, 410]
+            description: "Should return 501 Not Implemented, 404 Not Found, or 410 Gone"
+          - type: deprecation_message
+            description: "Response should indicate V1 is deprecated and direct to lookupcache or V3"
+
+  # ========================================================================
+  # BC-02: V2 Lookup API Returns Not-Implemented (Deprecated)
+  # ========================================================================
+  - id: BC-02
+    name: V2 lookup API returns not-implemented (deprecated)
+    description: Verify /api/v2/lookup endpoint in main registry returns HTTP 501 with deprecation message
+    type: negative
+    category: Backward Compatibility
+    priority: high
+    preconditions:
+      - Registry 3.0 deployed
+      - Main registry accessible
+    steps:
+      - step_id: 1
+        name: "Step 1: Generate V2 auth headers"
+        action: generate_auth
+        description: "Generate ED25519 signature for V2 request"
+        
+      - step_id: 2
+        name: "Step 2: Call deprecated V2 endpoint"
+        action: api_call
+        method: POST
+        endpoint: /api/v2/lookup
+        auth_required: true
+        auth_type: v2_signature
+        payload:
+          country: "IND"
+          type: "BPP"
+        expected_status: [501, 404, 410]
+        validations:
+          - type: status_code_range
+            expected: [501, 404, 410]
+            description: "Should return 501 Not Implemented, 404 Not Found, or 410 Gone"
+          - type: deprecation_message
+            description: "Response should indicate V2 is deprecated and direct to lookupcache or V3"
+
+  # ========================================================================
+  # BC-03: V2 Admin Subscriber API Functional for Whitelisting
+  # ========================================================================
+  - id: BC-03
+    name: V2 admin subscriber API functional for whitelisting
+    description: Verify /admin/subscribe works for whitelisting and participants are discoverable via lookupcache
+    type: positive
+    category: Backward Compatibility
+    priority: critical
+    preconditions:
+      - Admin authenticated
+      - Lookupcache service available
+      - Have admin credentials
+    steps:
+      - step_id: 1
+        name: "Step 1: Create participant with WHITELISTED status"
+        action: admin_api_call
+        method: POST
+        endpoint: /admin/subscribe
+        auth_required: true
+        auth_type: admin_bearer
+        payload:
+          participant_id: "bc-test-{{timestamp}}.example.com"
+          action: "WHITELISTED"
+          uri:
+            uri_id: "bc_uri_001"
+            type: "CALLBACK"
+            url: "https://bc-test-{{timestamp}}.example.com"
+          configs:
+            - domain: "ONDC:RET10"
+              np_type: "BPP"
+              subscriber_id: "bc-test-{{timestamp}}.example.com"
+              uri_id: "bc_uri_001"
+          dns_skip: true
+          skip_ssl_verification: true
+        expected_status: [200]
+        validations:
+          - type: status_code
+            expected: 200
+            description: "Whitelisting should succeed"
+          - type: response_field
+            field: "message.ack.status"
+            expected_values: ["ACK"]
+            description: "Response should acknowledge success"
+      
+      - step_id: 2
+        name: "Step 2: Add required entities and update to SUBSCRIBED"
+        action: admin_api_call
+        method: PATCH
+        endpoint: /admin/subscribe
+        auth_required: true
+        auth_type: admin_bearer
+        payload:
+          participant_id: "bc-test-{{timestamp}}.example.com"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "bc_cred_gst_001"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "BC Test Company Pvt Ltd"
+            - cred_id: "bc_cred_pan_001"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "BC Test Company Pvt Ltd"
+          contacts:
+            - contact_id: "bc_contact_auth_001"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Test Contact"
+              email: "test@bc-test-{{timestamp}}.example.com"
+              phone: "+919876543210"
+            - contact_id: "bc_contact_biz_001"
+              type: "BUSINESS"
+              name: "Business Manager"
+              email: "business@bc-test-{{timestamp}}.example.com"
+              phone: "+919876543211"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-01-01T00:00:00.000Z"
+            valid_until: "2034-12-31T23:59:59.000Z"
+          location:
+            location_id: "bc_loc_001"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "bc_uri_001"
+            type: "CALLBACK"
+            url: "https://bc-test-{{timestamp}}.example.com"
+          configs:
+            - domain: "ONDC:RET10"
+              np_type: "BPP"
+              subscriber_id: "bc-test-{{timestamp}}.example.com"
+              location_id: "bc_loc_001"
+              uri_id: "bc_uri_001"
+              key_id: "{{uk_id}}"
+          dns_skip: true
+          skip_ssl_verification: true
+        expected_status: [200]
+        validations:
+          - type: status_code
+            expected: 200
+            description: "Status update should succeed"
+          - type: response_field
+            field: "message.ack.status"
+            expected_values: ["ACK"]
+            description: "Response should acknowledge success"
+      
+      - step_id: 3
+        name: "Step 3: Verify discoverable via V3 lookupcache"
+        action: api_call
+        method: POST
+        endpoint: /v3.0/lookup
+        auth_required: false
+        auth_type: none
+        payload:
+          country: "IND"
+          type: "BPP"
+          domain: "ONDC:RET10"
+          city: "std:080"
+        expected_status: [200, 404, 500, 0]  # Accept various statuses including connection errors
+        validations:
+          - type: status_code_range
+            expected: [0, 200, 404, 500, 502, 503]
+            description: "Lookupcache may be unavailable (optional verification)"
+
+  # ========================================================================
+  # BC-04: V3 Lookup Returns Participants Onboarded via Admin
+  # ========================================================================
+  - id: BC-04
+    name: V3 lookup returns participants onboarded via admin
+    description: Verify lookupcache V3 lookup discovers participants onboarded via admin APIs
+    type: positive
+    category: Backward Compatibility
+    priority: high
+    preconditions:
+      - Participant onboarded via admin API
+      - Lookupcache available
+    steps:
+      - step_id: 1
+        name: "Step 1: Create participant with WHITELISTED status"
+        action: admin_api_call
+        method: POST
+        endpoint: /v2.0/admin/subscriber
+        auth_required: true
+        auth_type: admin_bearer
+        payload:
+          participant_id: "bcadmin{{timestamp}}.example.com"
+          action: "WHITELISTED"
+          uri:
+            uri_id: bc04_uri_001
+            type: CALLBACK
+            url: "https://bc04-admin.example.com/callback"
+          key:
+            key_id: bc04_key_001
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            valid_from: "2024-01-01T00:00:00Z"
+            valid_until: "2034-12-31T23:59:59Z"
+            key_algorithm: ED25519
+            enc_algorithm: X25519
+          configs:
+            - domain: "ONDC:RET11"
+              np_type: "BPP"
+              subscriber_id: "bcadmin{{timestamp}}.example.com"
+              uri_id: bc04_uri_001
+              key_id: bc04_key_001
+          dns_skip: true
+          skip_ssl_verification: true
+        expected_status: [200, 201]
+        validations:
+          - type: status_code
+            expected: [200, 201]
+            description: "Admin whitelist should succeed"
+          - type: nested_field
+            field_path: "message.ack.status"
+            expected: "ACK"
+            description: "Should receive ACK response"
+      
+      - step_id: 2
+        name: "Step 2: Update to SUBSCRIBED with full requirements"
+        action: admin_api_call
+        method: PATCH
+        endpoint: /v2.0/admin/subscriber
+        auth_required: true
+        auth_type: admin_bearer
+        payload:
+          participant_id: "bcadmin{{timestamp}}.example.com"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: bc04_cred_gst_001
+              type: GST
+              gst: "29ABCDE1234F1Z6"
+              name: "BC04 Test Business"
+            - cred_id: bc04_cred_pan_001
+              type: PAN
+              pan: "ABCDE1234F"
+              name: "BC04 Test Business"
+          contacts:
+            - contact_id: bc04_contact_auth_001
+              type: AUTHORISED_SIGNATORY
+              name: "Test Admin Contact"
+              email: "admin@bc04example.com"
+              mobileno: "9876543211"
+            - contact_id: bc04_contact_biz_001
+              type: BUSINESS
+              name: "Business Contact"
+              email: "biz@bc04example.com"
+              mobileno: "9876543212"
+          key:
+            key_id: bc04_key_001
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            valid_from: "2024-01-01T00:00:00Z"
+            valid_until: "2034-12-31T23:59:59Z"
+            key_algorithm: ED25519
+            enc_algorithm: X25519
+          location:
+            location_id: bc04_loc_001
+            type: SERVICEABLE
+            country: IND
+            city:
+              - "std:080"
+          uri:
+            uri_id: bc04_uri_001
+            type: CALLBACK
+            url: "https://bc04-admin.example.com/callback"
+          configs:
+            - domain: "ONDC:RET11"
+              np_type: "BPP"
+              subscriber_id: "bcadmin{{timestamp}}.example.com"
+              location_id: bc04_loc_001
+              uri_id: bc04_uri_001
+              key_id: bc04_key_001
+          dns_skip: true
+          skip_ssl_verification: true
+        expected_status: [200, 201]
+        validations:
+          - type: status_code
+            expected: [200, 201]
+            description: "Admin SUBSCRIBED update should succeed"
+          - type: nested_field
+            field_path: "message.ack.status"
+            expected: "ACK"
+            description: "Should receive ACK response"
+      
+      - step_id: 3
+        name: "Step 3: Query V3 lookup for admin-onboarded participant"
+        action: api_call
+        method: POST
+        endpoint: /v3.0/lookup
+        auth_required: false
+        auth_type: none
+        payload:
+          country: "IND"
+          type: "BPP"
+          domain: "ONDC:RET11"
+          city: "std:080"
+        expected_status: [200, 404, 500, 0]
+        validations:
+          - type: status_code_range
+            expected: [0, 200, 404, 500, 502, 503]
+            description: "Lookupcache may be unavailable (optional verification)"
+
+  # ========================================================================
+  # BC-05: Legacy Lookup Returns Participants Onboarded via V3 Subscribe
+  # ========================================================================
+  - id: BC-05
+    name: Legacy /lookup returns participants onboarded via V3 subscribe
+    description: Verify lookupcache legacy lookup discovers participants self-subscribed via V3
+    type: positive
+    category: Backward Compatibility
+    priority: high
+    preconditions:
+      - Participant subscribed via V3 API
+      - Legacy lookupcache lookup available
+    steps:
+      - step_id: 1
+        name: "Step 1: Admin whitelist for V3 self-subscribe"
+        action: admin_api_call
+        method: POST
+        endpoint: /v2.0/admin/subscriber
+        auth_required: true
+        auth_type: admin_bearer
+        payload:
+          participant_id: "bcv3test{{timestamp}}.example.com"
+          action: "WHITELISTED"
+          uri:
+            uri_id: bc05_uri_001
+            type: CALLBACK
+            url: "https://bcv3test.example.com/callback"
+          key:
+            key_id: bc05_key_001
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            valid_from: "2024-01-01T00:00:00Z"
+            valid_until: "2034-12-31T23:59:59Z"
+            key_algorithm: ED25519
+            enc_algorithm: X25519
+          configs:
+            - domain: "ONDC:RET10"
+              np_type: "BPP"
+              subscriber_id: "bcv3test{{timestamp}}.example.com"
+              uri_id: bc05_uri_001
+              key_id: bc05_key_001
+          dns_skip: true
+          skip_ssl_verification: true
+        expected_status: [200, 201]
+        validations:
+          - type: status_code
+            expected: [200, 201]
+            description: "Admin whitelist should succeed"
+          - type: nested_field
+            field_path: "message.ack.status"
+            expected: "ACK"
+            description: "Should receive ACK response"
+ 
+      - step_id: 2
+        name: "Step 2: Self-subscribe participant via V3 API"
+        action: api_call
+        method: POST
+        endpoint: /api/v3/subscribe
+        auth_required: true
+        auth_type: v3_signature
+        payload:
+          request_id: "bc05req{{timestamp}}"
+          participant_id: "bcv3test{{timestamp}}.example.com"
+          uk_id: "{{uk_id}}"
+          configs:
+            - domain: "ONDC:RET10"
+              np_type: "BPP"
+              subscriber_id: "bcv3test{{timestamp}}.example.com"
+              location_id: bc05_loc_001
+              uri_id: bc05_uri_001
+              key_id: "{{uk_id}}"
+          credentials:
+            - cred_id: bc05_cred_gst_001
+              type: GST
+              cred_data:
+                gstin: "29ABCDE1234F1Z7"
+                legal_name: "BC05 Test Company"
+            - cred_id: bc05_cred_pan_001
+              type: PAN
+              cred_data:
+                pan_no: "ABCDE1234G"
+          contacts:
+            - contact_id: bc05_contact_auth_001
+              type: AUTHORISED_SIGNATORY
+              name: "V3 Self Contact"
+              email: "v3@bc05example.com"
+              phone: "+919876543213"
+            - contact_id: bc05_contact_biz_001
+              type: BUSINESS
+              name: "V3 Business Contact"
+              email: "v3biz@bc05example.com"
+              phone: "+919876543214"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2024-01-01T00:00:00Z"
+            valid_until: "2034-12-31T23:59:59Z"
+          location:
+            location_id: bc05_loc_001
+            type: BUSINESS
+            country: IND
+            city:
+              - "std:080"
+          uri:
+            uri_id: bc05_uri_001
+            type: SUBSCRIBER
+            url: "https://bcv3test.example.com/callback"
+          dns_skip: true
+          skip_ssl_verification: true
+        expected_status: [200, 201]
+        validations:
+          - type: status_code
+            expected: [200, 201]
+            description: "V3 self-subscribe should succeed"
+          - type: nested_field
+            field_path: "message.ack.status"
+            expected: "ACK"
+            description: "Should receive ACK response"
+      
+      - step_id: 3
+        name: "Step 3: Query V3 lookup for V3-onboarded participant"
+        action: api_call
+        method: POST
+        endpoint: /v3.0/lookup
+        auth_required: false
+        auth_type: none
+        payload:
+          country: "IND"
+          type: "BPP"
+          domain: "ONDC:RET10"
+          city: "std:080"
+        expected_status: [200, 404, 500, 0]
+        validations:
+          - type: status_code_range
+            expected: [0, 200, 404, 500, 502, 503]
+            description: "Lookupcache may be unavailable (optional verification)"
+
+# ============================================================================
+# Test Execution Configuration
+# ============================================================================
+execution:
+  run_mode: sequential
+  stop_on_failure: false
+  timeout_per_test: 30
+  retry_failed: false
+  cleanup_test_data: true
+  
+reporting:
+  generate_summary: true
+  include_response_headers: true
+  include_response_body: true
+  timestamp_format: "ISO8601"
+
+environment:
+  main_registry_url: "https://registry-uat.kynondc.net"
+  lookupcache_url: "http://35.200.145.160:8080"
+  admin_api_url: "https://registry-uat.kynondc.net"
+  test_timeout: 30

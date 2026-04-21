@@ -1,0 +1,2887 @@
+# V3 End-to-End Test Configuration
+# 27 comprehensive tests for V3 API flows with ONDC signature authentication
+
+test_suite:
+  name: "V3 End-to-End Tests"
+  category: "v3"
+  total_tests: 27
+  description: "Complete V3 API testing with ONDC Ed25519 signature auth, self-subscribe, updates, validations, and admin WHITELISTED config upsert"
+
+# Test configuration
+config:
+  auth_type: "v3"
+  default_timeout: 30
+  retry_on_failure: false
+
+# ==========================================
+# 2.1 V3 SELF-SUBSCRIBE (4 tests)
+# ==========================================
+
+tests:
+  - id: "V00"
+    name: "V3: SUBSCRIBED Without Whitelisting"
+    description: "Participant attempts to self-subscribe without being whitelisted (should fail)"
+    optional: false  # Required test - validates security
+    workflow: true
+    steps:
+      - name: "V3 self-subscribe to SUBSCRIBED"
+        method: "POST"
+        endpoint: "/api/v3/subscribe"
+        auth_type: "v3"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          request_id: "{{request_id}}"
+          uk_id: "{{uk_id}}"
+          participant_id: "{{subscriber_id}}"
+          credentials:
+            - cred_id: "cred001"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "Test Company Private Limited"
+            - cred_id: "cred002"
+              type: "PAN"
+              cred_data:
+                pan_no: "ABCDE1234F"
+          contacts:
+            - contact_id: "contact001"
+              name: "Test Contact"
+              email: "contact@example.com"
+              phone: "+919876543210"
+              type: "AUTHORISED_SIGNATORY"
+            - contact_id: "contact002"
+              name: "Business Contact"
+              email: "business@example.com"
+              phone: "+919876543211"
+              type: "BUSINESS"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc001"
+            country: "IND"
+            city: ["std:080"]
+            type: "SERVICEABLE"
+          uri:
+            uri_id: "uri001"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/ondc/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri001"
+              key_id: "{{uk_id}}"
+        expected_status: 400
+        
+
+  - id: "V01"
+    name: "V3: WHITELISTED → SUBSCRIBED (minimal fields)"
+    description: "Participant self-subscribes with minimal required fields"
+    optional: false  # Core test
+    workflow: true
+    steps:
+      - name: "Admin creates WHITELISTED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+      
+      - name: "V3 self-subscribe to SUBSCRIBED"
+        method: "POST"
+        endpoint: "/api/v3/subscribe"
+        auth_type: "v3"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          request_id: "{{request_id}}"
+          uk_id: "{{uk_id}}"
+          participant_id: "{{subscriber_id}}"
+          credentials:
+            - cred_id: "cred001"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "Test Company Private Limited"
+            - cred_id: "cred002"
+              type: "PAN"
+              cred_data:
+                pan_no: "ABCDE1234F"
+          contacts:
+            - contact_id: "contact001"
+              name: "Test Contact"
+              email: "contact@example.com"
+              phone: "+919876543210"
+              type: "AUTHORISED_SIGNATORY"
+            - contact_id: "contact002"
+              name: "Business Contact"
+              email: "business@example.com"
+              phone: "+919876543211"
+              type: "BUSINESS"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc001"
+            country: "IND"
+            city: ["std:080"]
+            type: "SERVICEABLE"
+          uri:
+            uri_id: "uri001"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/ondc/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri001"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+      
+      - name: "V3 self-subscribe to SUBSCRIBED 2 which has to fail since already subscribed"
+        method: "POST"
+        endpoint: "/api/v3/subscribe"
+        auth_type: "v3"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          request_id: "{{request_id}}"
+          uk_id: "{{uk_id}}"
+          participant_id: "{{subscriber_id}}"
+          credentials:
+            - cred_id: "cred001"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "Test Company Private Limited"
+            - cred_id: "cred002"
+              type: "PAN"
+              cred_data:
+                pan_no: "ABCDE1234F"
+          contacts:
+            - contact_id: "contact001"
+              name: "Test Contact"
+              email: "contact@example.com"
+              phone: "+919876543210"
+              type: "AUTHORISED_SIGNATORY"
+            - contact_id: "contact002"
+              name: "Business Contact"
+              email: "business@example.com"
+              phone: "+919876543211"
+              type: "BUSINESS"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc001"
+            country: "IND"
+            city: ["std:080"]
+            type: "SERVICEABLE"
+          uri:
+            uri_id: "uri001"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/ondc/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri001"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+  - id: "V01A"
+    name: "V3: WHITELISTED → SUBSCRIBED (minimal fields)"
+    description: "Participant self-subscribes with minimal required fields"
+    optional: false  # Core test
+    workflow: true
+    steps:
+      - name: "Admin creates WHITELISTED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+      
+      - name: "V3 self-subscribe to SUBSCRIBED wth wrong location type which should ideally fail but in case passes, then subscribe again with correct location type to validate idempotency"
+        method: "POST"
+        endpoint: "/api/v3/subscribe"
+        auth_type: "v3"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          request_id: "{{request_id}}"
+          uk_id: "{{uk_id}}"
+          participant_id: "{{subscriber_id}}"
+          credentials:
+            - cred_id: "cred001"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "Test Company Private Limited"
+            - cred_id: "cred002"
+              type: "PAN"
+              cred_data:
+                pan_no: "ABCDE1234F"
+          contacts:
+            - contact_id: "contact001"
+              name: "Test Contact"
+              email: "contact@example.com"
+              phone: "+919876543210"
+              type: "AUTHORISED_SIGNATORY"
+            - contact_id: "contact002"
+              name: "Business Contact"
+              email: "business@example.com"
+              phone: "+919876543211"
+              type: "BUSINESS"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc001"
+            country: "IND"
+            city: ["std:080"]
+            type: "WHAREHOUSE"  # Wrong location type to test validation
+          uri:
+            uri_id: "uri001"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/ondc/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri001"
+              key_id: "{{uk_id}}"
+        expected_status: 400
+        validate:
+          - field: "message.ack.status"
+            value: "NACK"
+      
+      - name: "V3 self-subscribe to SUBSCRIBED 2"
+        method: "POST"
+        endpoint: "/api/v3/subscribe"
+        auth_type: "v3"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          request_id: "{{request_id}}"
+          uk_id: "{{uk_id}}"
+          participant_id: "{{subscriber_id}}"
+          credentials:
+            - cred_id: "cred001"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "Test Company Private Limited"
+            - cred_id: "cred002"
+              type: "PAN"
+              cred_data:
+                pan_no: "ABCDE1234F"
+          contacts:
+            - contact_id: "contact001"
+              name: "Test Contact"
+              email: "contact@example.com"
+              phone: "+919876543210"
+              type: "AUTHORISED_SIGNATORY"
+            - contact_id: "contact002"
+              name: "Business Contact"
+              email: "business@example.com"
+              phone: "+919876543211"
+              type: "BUSINESS"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc001"
+            country: "IND"
+            city: ["std:080"]
+            type: "SERVICEABLE"
+          uri:
+            uri_id: "uri001"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/ondc/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri001"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+  - id: "V02"
+    name: "V3: WHITELISTED → SUBSCRIBED (all fields)"
+    description: "Participant self-subscribes with complete data"
+    workflow: true
+    steps:
+      - name: "Admin creates WHITELISTED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          configs:
+            - domain: "ONDC:RET15"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+      
+      - name: "V3 self-subscribe with all fields"
+        method: "POST"
+        endpoint: "/api/v3/subscribe"
+        auth_type: "v3"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          request_id: "{{request_id}}"
+          uk_id: "{{uk_id}}"
+          participant_id: "{{subscriber_id}}"
+          credentials:
+            - cred_id: "cred_gst_v02"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "V02 Pvt Ltd"
+            - cred_id: "cred_pan_v02"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "V02 Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_v02"
+              type: "AUTHORISED_SIGNATORY"
+              name: "V02 Auth Signatory"
+              email: "auth-v02@example.com"
+              phone: "+919876543210"
+            - contact_id: "contact_biz_v02"
+              type: "BUSINESS"
+              name: "V02 Business Contact"
+              email: "biz-v02@example.com"
+              phone: "+919876543211"
+            - contact_id: "contact_tech_v02"
+              type: "TECHNICAL"
+              name: "V02 Tech Contact"
+              email: "tech-v02@example.com"
+              phone: "+919876543212"
+              designation: "Tech Lead V02"
+          location:
+            location_id: "loc_v02"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+              - "std:044"
+          uri:
+            uri_id: "uri_callback_v02"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "V02 callback endpoint"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          configs:
+            - domain: "ONDC:RET15"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_v02"
+              uri_id: "uri_callback_v02"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+  - id: "V03"
+    name: "V3: INACTIVE → SUBSCRIBED (self-restore)"
+    description: "Participant self-restores from INACTIVE status"
+    workflow: true
+    steps:
+      - name: "Admin creates SUBSCRIBED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_v03"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "V03 Pvt Ltd"
+            - cred_id: "cred_pan_v03"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "V03 Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_v03"
+              type: "AUTHORISED_SIGNATORY"
+              name: "V03 Auth"
+              email: "auth-v03@example.com"
+              phone: "+919876543213"
+            - contact_id: "contact_biz_v03"
+              type: "BUSINESS"
+              name: "V03 Business"
+              email: "biz-v03@example.com"
+              phone: "+919876543214"
+            - contact_id: "contact_tech_v03"
+              type: "TECHNICAL"
+              name: "V03 Tech"
+              email: "tech-v03@example.com"
+              phone: "+919876543215"
+              designation: "Tech Lead"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_v03"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_v03"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "V03 callback"
+          configs:
+            - domain: "ONDC:RET16"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_v03"
+              uri_id: "uri_callback_v03"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+      
+      - name: "Admin sets to INACTIVE"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "INACTIVE"
+        expected_status: 200
+      
+      - name: "V3 self-restore to SUBSCRIBED"
+        method: "POST"
+        endpoint: "/api/v3/subscribe"
+        auth_type: "v3"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          request_id: "{{request_id}}"
+          uk_id: "{{uk_id}}"
+          participant_id: "{{subscriber_id}}"
+          credentials:
+            - cred_id: "cred_gst_v03"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "V03 Pvt Ltd"
+            - cred_id: "cred_pan_v03"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "V03 Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_v03"
+              type: "AUTHORISED_SIGNATORY"
+              name: "V03 Auth"
+              email: "auth-v03@example.com"
+              phone: "+919876543213"
+            - contact_id: "contact_biz_v03"
+              type: "BUSINESS"
+              name: "V03 Business"
+              email: "biz-v03@example.com"
+              phone: "+919876543214"
+            - contact_id: "contact_tech_v03"
+              type: "TECHNICAL"
+              name: "V03 Tech"
+              email: "tech-v03@example.com"
+              phone: "+919876543215"
+              designation: "Tech Lead"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_v03"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_v03"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "V03 callback"
+          configs:
+            - domain: "ONDC:RET16"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_v03"
+              uri_id: "uri_callback_v03"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+  - id: "V04"
+    name: "V3: SUBSCRIBED → SUBSCRIBED (idempotent)"
+    description: "Already subscribed participant sends subscribe again (no-op)"
+    workflow: true
+    steps:
+      - name: "Admin creates SUBSCRIBED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_v04"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "V04 Pvt Ltd"
+            - cred_id: "cred_pan_v04"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "V04 Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_v04"
+              type: "AUTHORISED_SIGNATORY"
+              name: "V04 Auth"
+              email: "auth-v04@example.com"
+              phone: "+919876543216"
+            - contact_id: "contact_biz_v04"
+              type: "BUSINESS"
+              name: "V04 Business"
+              email: "biz-v04@example.com"
+              phone: "+919876543217"
+            - contact_id: "contact_tech_v04"
+              type: "TECHNICAL"
+              name: "V04 Tech"
+              email: "tech-v04@example.com"
+              phone: "+919876543218"
+              designation: "Tech Lead"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_v04"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_v04"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "V04 callback"
+          configs:
+            - domain: "ONDC:SRV10"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_v04"
+              uri_id: "uri_callback_v04"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+      
+      - name: "V3 subscribe again (idempotent)"
+        method: "POST"
+        endpoint: "/api/v3/subscribe"
+        auth_type: "v3"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          request_id: "{{request_id}}"
+          uk_id: "{{uk_id}}"
+          participant_id: "{{subscriber_id}}"
+          credentials:
+            - cred_id: "cred_gst_v04"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "V04 Pvt Ltd"
+            - cred_id: "cred_pan_v04"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "V04 Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_v04"
+              type: "AUTHORISED_SIGNATORY"
+              name: "V04 Auth"
+              email: "auth-v04@example.com"
+              phone: "+919876543216"
+            - contact_id: "contact_biz_v04"
+              type: "BUSINESS"
+              name: "V04 Business"
+              email: "biz-v04@example.com"
+              phone: "+919876543217"
+            - contact_id: "contact_tech_v04"
+              type: "TECHNICAL"
+              name: "V04 Tech"
+              email: "tech-v04@example.com"
+              phone: "+919876543218"
+              designation: "Tech Lead"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_v04"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_v04"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "V04 callback"
+          configs:
+            - domain: "ONDC:SRV10"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_v04"
+              uri_id: "uri_callback_v04"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+# ==========================================
+# 2.2 V3 FIELD UPDATES (PATCH) (10 tests)
+# ==========================================
+
+  - id: "V05"
+    name: "V3: Update own credentials"
+    description: "Participant updates their credentials via PATCH"
+    workflow: true
+    steps:
+      - name: "Admin creates SUBSCRIBED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_v05"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "V05 Pvt Ltd"
+            - cred_id: "cred_pan_v05"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "V05 Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_v05"
+              type: "AUTHORISED_SIGNATORY"
+              name: "V05 Auth"
+              email: "auth-v05@example.com"
+              phone: "+919876543219"
+            - contact_id: "contact_biz_v05"
+              type: "BUSINESS"
+              name: "V05 Business"
+              email: "biz-v05@example.com"
+              phone: "+919876543220"
+            - contact_id: "contact_tech_v05"
+              type: "TECHNICAL"
+              name: "V05 Tech"
+              email: "tech-v05@example.com"
+              phone: "+919876543221"
+              designation: "Tech Lead"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_v05"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_v05"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "V05 callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_v05"
+              uri_id: "uri_callback_v05"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+      
+      - name: "V3 update credentials"
+        method: "PATCH"
+        endpoint: "/api/v3/subscribe"
+        auth_type: "v3"
+        data:
+          dns_skip: true
+          request_id: "{{request_id}}"
+          participant_id: "{{subscriber_id}}"
+          uk_id: "{{uk_id}}"
+          credentials:
+            - cred_id: "cred_gst_v05_updated"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "V05 Pvt Ltd Updated"
+            - cred_id: "cred_pan_v05_updated"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "V05 Pvt Ltd Updated"
+            - cred_id: "cred_fssai_v05"
+              type: "FSSAI"
+              cred_data:
+                fssai_no: "123456789012345"
+                name: "V05 Pvt Ltd FSSAI"
+        expected_status: 200
+
+  - id: "V06"
+    name: "V3: Update own contacts"
+    description: "Participant updates contact information"
+    workflow: true
+    steps:
+      - name: "Admin creates SUBSCRIBED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_v06"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "V06 Pvt Ltd"
+            - cred_id: "cred_pan_v06"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "V06 Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_v06"
+              type: "AUTHORISED_SIGNATORY"
+              name: "V06 Auth Original"
+              email: "auth-v06-old@example.com"
+              phone: "+919876543222"
+            - contact_id: "contact_biz_v06"
+              type: "BUSINESS"
+              name: "V06 Business Original"
+              email: "biz-v06-old@example.com"
+              phone: "+919876543223"
+            - contact_id: "contact_tech_v06"
+              type: "TECHNICAL"
+              name: "V06 Tech Original"
+              email: "tech-v06-old@example.com"
+              phone: "+919876543224"
+              designation: "Tech Lead"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_v06"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_v06"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "V06 callback"
+          configs:
+            - domain: "ONDC:RET15"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_v06"
+              uri_id: "uri_callback_v06"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+      
+      - name: "V3 update contacts"
+        method: "PATCH"
+        endpoint: "/api/v3/subscribe"
+        auth_type: "v3"
+        data:
+          dns_skip: true
+          request_id: "{{request_id}}"
+          participant_id: "{{subscriber_id}}"
+          uk_id: "{{uk_id}}"
+          contacts:
+            - contact_id: "contact_auth_v06"
+              type: "AUTHORISED_SIGNATORY"
+              name: "V06 Auth Updated"
+              email: "auth-v06-new@example.com"
+              phone: "+919123456780"
+            - contact_id: "contact_biz_v06"
+              type: "BUSINESS"
+              name: "V06 Business Updated"
+              email: "biz-v06-new@example.com"
+              phone: "+919123456781"
+            - contact_id: "contact_tech_v06"
+              type: "TECHNICAL"
+              name: "V06 Tech Updated"
+              email: "tech-v06-new@example.com"
+              phone: "+919123456782"
+              designation: "Senior Tech Lead"
+        expected_status: 200
+
+  - id: "V07"
+    name: "V3: Update own locations"
+    description: "Participant updates service locations"
+    workflow: true
+    steps:
+      - name: "Admin creates SUBSCRIBED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_v07"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "V07 Pvt Ltd"
+            - cred_id: "cred_pan_v07"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "V07 Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_v07"
+              type: "AUTHORISED_SIGNATORY"
+              name: "V07 Auth"
+              email: "auth-v07@example.com"
+              phone: "+919876543225"
+            - contact_id: "contact_biz_v07"
+              type: "BUSINESS"
+              name: "V07 Business"
+              email: "biz-v07@example.com"
+              phone: "+919876543226"
+            - contact_id: "contact_tech_v07"
+              type: "TECHNICAL"
+              name: "V07 Tech"
+              email: "tech-v07@example.com"
+              phone: "+919876543227"
+              designation: "Tech Lead"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_v07"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_v07"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "V07 callback"
+          configs:
+            - domain: "ONDC:SRV10"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_v07"
+              uri_id: "uri_callback_v07"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+      
+      - name: "V3 update locations"
+        method: "PATCH"
+        endpoint: "/api/v3/subscribe"
+        auth_type: "v3"
+        data:
+          dns_skip: true
+          request_id: "{{request_id}}"
+          participant_id: "{{subscriber_id}}"
+          uk_id: "{{uk_id}}"
+          location:
+            location_id: "loc_v07"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:011"
+              - "std:022"
+              - "std:033"
+              - "std:044"
+        expected_status: 200
+
+  - id: "V08"
+    name: "V3: Update own URIs"
+    description: "Participant updates callback URLs"
+    workflow: true
+    steps:
+      - name: "Admin creates SUBSCRIBED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_v08"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "V08 Pvt Ltd"
+            - cred_id: "cred_pan_v08"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "V08 Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_v08"
+              type: "AUTHORISED_SIGNATORY"
+              name: "V08 Auth"
+              email: "auth-v08@example.com"
+              phone: "+919876543228"
+            - contact_id: "contact_biz_v08"
+              type: "BUSINESS"
+              name: "V08 Business"
+              email: "biz-v08@example.com"
+              phone: "+919876543229"
+            - contact_id: "contact_tech_v08"
+              type: "TECHNICAL"
+              name: "V08 Tech"
+              email: "tech-v08@example.com"
+              phone: "+919876543230"
+              designation: "Tech Lead"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_v08"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_v08"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "V08 callback original"
+          configs:
+            - domain: "ONDC:RET16"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_v08"
+              uri_id: "uri_callback_v08"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+      
+      - name: "V3 update URIs"
+        method: "PATCH"
+        endpoint: "/api/v3/subscribe"
+        auth_type: "v3"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          request_id: "{{request_id}}"
+          participant_id: "{{subscriber_id}}"
+          uk_id: "{{uk_id}}"
+          uri:
+            uri_id: "uri_callback_v08"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/webhook/updated"
+            description: "V08 callback updated"
+        expected_status: 200
+
+  - id: "V09"
+    name: "V3: Update own keys"
+    description: "Participant rotates cryptographic keys"
+    workflow: true
+    steps:
+      - name: "Admin creates SUBSCRIBED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_v09"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "V09 Pvt Ltd"
+            - cred_id: "cred_pan_v09"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "V09 Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_v09"
+              type: "AUTHORISED_SIGNATORY"
+              name: "V09 Auth"
+              email: "auth-v09@example.com"
+              phone: "+919876543231"
+            - contact_id: "contact_biz_v09"
+              type: "BUSINESS"
+              name: "V09 Business"
+              email: "biz-v09@example.com"
+              phone: "+919876543232"
+            - contact_id: "contact_tech_v09"
+              type: "TECHNICAL"
+              name: "V09 Tech"
+              email: "tech-v09@example.com"
+              phone: "+919876543233"
+              designation: "Tech Lead"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_v09"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_v09"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "V09 callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_v09"
+              uri_id: "uri_callback_v09"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+      
+      - name: "V3 rotate keys"
+        method: "PATCH"
+        endpoint: "/api/v3/subscribe"
+        auth_type: "v3"
+        data:
+          dns_skip: true
+          request_id: "{{request_id}}"
+          participant_id: "{{subscriber_id}}"
+          uk_id: "{{uk_id}}"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+        expected_status: 200
+
+  - id: "V10"
+    name: "V3: Update own configs"
+    description: "Participant modifies domain configurations"
+    workflow: true
+    steps:
+      - name: "Admin creates SUBSCRIBED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_v10"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "V10 Pvt Ltd"
+            - cred_id: "cred_pan_v10"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "V10 Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_v10"
+              type: "AUTHORISED_SIGNATORY"
+              name: "V10 Auth"
+              email: "auth-v10@example.com"
+              phone: "+919876543234"
+            - contact_id: "contact_biz_v10"
+              type: "BUSINESS"
+              name: "V10 Business"
+              email: "biz-v10@example.com"
+              phone: "+919876543235"
+            - contact_id: "contact_tech_v10"
+              type: "TECHNICAL"
+              name: "V10 Tech"
+              email: "tech-v10@example.com"
+              phone: "+919876543236"
+              designation: "Tech Lead"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_v10"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_v10"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "V10 callback"
+          configs:
+            - domain: "ONDC:RET15"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_v10"
+              uri_id: "uri_callback_v10"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+      
+      - name: "V3 update configs"
+        method: "PATCH"
+        endpoint: "/api/v3/subscribe"
+        auth_type: "v3"
+        data:
+          dns_skip: true
+          request_id: "{{request_id}}"
+          participant_id: "{{subscriber_id}}"
+          uk_id: "{{uk_id}}"
+          configs:
+            - domain: "ONDC:RET16"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri001"
+              key_id: "{{uk_id}}"
+        expected_status: 400
+
+  - id: "V11"
+    name: "V3: Update multiple fields simultaneously"
+    description: "Participant updates credentials, contacts, URIs in one PATCH"
+    workflow: true
+    steps:
+      - name: "Admin creates SUBSCRIBED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_v11"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "V11 Pvt Ltd"
+            - cred_id: "cred_pan_v11"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "V11 Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_v11"
+              type: "AUTHORISED_SIGNATORY"
+              name: "V11 Auth Original"
+              email: "auth-v11-old@example.com"
+              phone: "+919876543237"
+            - contact_id: "contact_biz_v11"
+              type: "BUSINESS"
+              name: "V11 Business Original"
+              email: "biz-v11-old@example.com"
+              phone: "+919876543238"
+            - contact_id: "contact_tech_v11"
+              type: "TECHNICAL"
+              name: "V11 Tech Original"
+              email: "tech-v11-old@example.com"
+              phone: "+919876543239"
+              designation: "Tech Lead"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_v11"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_v11"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "V11 callback original"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_v11"
+              uri_id: "uri_callback_v11"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+      
+      - name: "V3 update multiple fields"
+        method: "PATCH"
+        endpoint: "/api/v3/subscribe"
+        auth_type: "v3"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          request_id: "{{request_id}}"
+          participant_id: "{{subscriber_id}}"
+          uk_id: "{{uk_id}}"
+          credentials:
+            - cred_id: "cred_gst_v11_multi"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "V11 Pvt Ltd Multi-Updated"
+            - cred_id: "cred_pan_v11_multi"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "V11 Pvt Ltd Multi-Updated"
+            - cred_id: "cred_fssai_v11_multi"
+              type: "FSSAI"
+              cred_data:
+                fssai_no: "123456789012345"
+                name: "V11 Pvt Ltd FSSAI Multi-Updated"
+          contacts:
+            - contact_id: "contact_auth_v11"
+              type: "AUTHORISED_SIGNATORY"
+              name: "V11 Auth Multi-Updated"
+              email: "auth-v11-multi@example.com"
+              phone: "+919988776655"
+            - contact_id: "contact_biz_v11"
+              type: "BUSINESS"
+              name: "V11 Business Multi-Updated"
+              email: "biz-v11-multi@example.com"
+              phone: "+919988776656"
+            - contact_id: "contact_tech_v11"
+              type: "TECHNICAL"
+              name: "V11 Tech Multi-Updated"
+              email: "tech-v11-multi@example.com"
+              phone: "+919988776657"
+              designation: "Senior Tech Lead"
+          uri:
+            uri_id: "uri_callback_v11"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback/multi-updated"
+            description: "V11 callback multi-updated"
+        expected_status: 200
+
+  - id: "V12"
+    name: "V3: Add new domain configs"
+    description: "Participant adds additional domain to their registration"
+    workflow: true
+    steps:
+      - name: "Admin creates SUBSCRIBED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_v12"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "V12 Pvt Ltd"
+            - cred_id: "cred_pan_v12"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "V12 Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_v12"
+              type: "AUTHORISED_SIGNATORY"
+              name: "V12 Auth"
+              email: "auth-v12@example.com"
+              phone: "+919876543240"
+            - contact_id: "contact_biz_v12"
+              type: "BUSINESS"
+              name: "V12 Business"
+              email: "biz-v12@example.com"
+              phone: "+919876543241"
+            - contact_id: "contact_tech_v12"
+              type: "TECHNICAL"
+              name: "V12 Tech"
+              email: "tech-v12@example.com"
+              phone: "+919876543242"
+              designation: "Tech Lead"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_v12"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_v12"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "V12 callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_v12"
+              uri_id: "uri_callback_v12"
+              key_id: "{{uk_id}}"
+            - domain: "ONDC:RET15"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_v12"
+              uri_id: "uri_callback_v12"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+      
+      - name: "V3 add new domain"
+        method: "PATCH"
+        endpoint: "/api/v3/subscribe"
+        auth_type: "v3"
+        data:
+          dns_skip: true
+          request_id: "{{request_id}}"
+          participant_id: "{{subscriber_id}}"
+          uk_id: "{{uk_id}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri001"
+              key_id: "{{uk_id}}"
+            - domain: "ONDC:SRV10"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              key_id: "{{uk_id}}"
+        expected_status: 400
+
+  - id: "V13"
+    name: "V3: Update domain-specific settings"
+    description: "Participant changes np_type for specific domain"
+    workflow: true
+    steps:
+      - name: "Admin creates SUBSCRIBED participant with 2 domains"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_v13"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "V13 Pvt Ltd"
+            - cred_id: "cred_pan_v13"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "V13 Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_v13"
+              type: "AUTHORISED_SIGNATORY"
+              name: "V13 Auth"
+              email: "auth-v13@example.com"
+              phone: "+919876543243"
+            - contact_id: "contact_biz_v13"
+              type: "BUSINESS"
+              name: "V13 Business"
+              email: "biz-v13@example.com"
+              phone: "+919876543244"
+            - contact_id: "contact_tech_v13"
+              type: "TECHNICAL"
+              name: "V13 Tech"
+              email: "tech-v13@example.com"
+              phone: "+919876543245"
+              designation: "Tech Lead"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_v13"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_v13"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "V13 callback"
+          configs:
+            - domain: "ONDC:RET15"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_v13"
+              uri_id: "uri_callback_v13"
+              key_id: "{{uk_id}}"
+            - domain: "ONDC:RET16"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_v13"
+              uri_id: "uri_callback_v13"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+      
+      - name: "V3 update domain-specific np_type (it has to fail because np_type is immutable)"
+        method: "PATCH"
+        endpoint: "/api/v3/subscribe"
+        auth_type: "v3"
+        data:
+          dns_skip: true
+          request_id: "{{request_id}}"
+          participant_id: "{{subscriber_id}}"
+          uk_id: "{{uk_id}}"
+          configs:
+            - domain: "ONDC:RET15"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri001"
+              key_id: "{{uk_id}}"
+            - domain: "ONDC:RET16"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              key_id: "{{uk_id}}"
+        expected_status: 400
+
+  - id: "V14"
+    name: "V3: Partial update (subset of fields)"
+    description: "Participant updates only email, keeping phone unchanged"
+    workflow: true
+    steps:
+      - name: "Admin creates SUBSCRIBED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_v14"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "V14 Pvt Ltd"
+            - cred_id: "cred_pan_v14"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "V14 Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_v14"
+              type: "AUTHORISED_SIGNATORY"
+              name: "V14 Auth"
+              email: "original-v14@example.com"
+              phone: "+919999999999"
+            - contact_id: "contact_biz_v14"
+              type: "BUSINESS"
+              name: "V14 Business"
+              email: "biz-v14@example.com"
+              phone: "+919876543246"
+            - contact_id: "contact_tech_v14"
+              type: "TECHNICAL"
+              name: "V14 Tech"
+              email: "tech-v14@example.com"
+              phone: "+919876543247"
+              designation: "Tech Lead"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_v14"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_v14"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "V14 callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_v14"
+              uri_id: "uri_callback_v14"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+      
+      - name: "V3 partial update (email only)"
+        method: "PATCH"
+        endpoint: "/api/v3/subscribe"
+        auth_type: "v3"
+        data:
+          dns_skip: true
+          request_id: "{{request_id}}"
+          participant_id: "{{subscriber_id}}"
+          uk_id: "{{uk_id}}"
+          contacts:
+            - contact_id: "contact_auth_v14"
+              type: "AUTHORISED_SIGNATORY"
+              name: "V14 Auth"
+              email: "updated-only-v14@example.com"
+              phone: "+919999999999"
+            - contact_id: "contact_biz_v14"
+              type: "BUSINESS"
+              name: "V14 Business"
+              email: "biz-v14@example.com"
+              phone: "+919876543246"
+            - contact_id: "contact_tech_v14"
+              type: "TECHNICAL"
+              name: "V14 Tech"
+              email: "tech-v14@example.com"
+              phone: "+919876543247"
+              designation: "Tech Lead"
+        expected_status: 200
+
+# ==========================================
+# 2.3 V3 MULTI-DOMAIN (3 tests)
+# ==========================================
+
+  - id: "V15"
+    name: "V3: Subscribe with multiple domains"
+    description: "Participant self-subscribes for 3 domains simultaneously"
+    optional: true  # Advanced multi-domain test
+    workflow: true
+    steps:
+      - name: "Admin creates WHITELISTED participant with 3 domains"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          credentials:
+            - cred_id: "cred_gst_v15"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "V14 Pvt Ltd"
+            - cred_id: "cred_pan_v15"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "V14 Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_v15"
+              type: "AUTHORISED_SIGNATORY"
+              name: "V14 Auth"
+              email: "original-v14@example.com"
+              phone: "+919999999999"
+            - contact_id: "contact_biz_v15"
+              type: "BUSINESS"
+              name: "V14 Business"
+              email: "biz-v15@example.com"
+              phone: "+919876543246"
+            - contact_id: "contact_tech_v15"
+              type: "TECHNICAL"
+              name: "V14 Tech"
+              email: "tech-v15@example.com"
+              phone: "+919876543247"
+              designation: "Tech Lead"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_v15"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_v15"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "V15 callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_v15"
+              uri_id: "uri_callback_v15"
+              key_id: "{{uk_id}}"
+            - domain: "ONDC:RET15"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_v15"
+              uri_id: "uri_callback_v15"
+              key_id: "{{uk_id}}"
+            - domain: "ONDC:SRV10"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_v15"
+              uri_id: "uri_callback_v15"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+      
+      - name: "V3 subscribe for all 3 domains"
+        method: "POST"
+        endpoint: "/api/v3/subscribe"
+        auth_type: "v3"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          request_id: "{{request_id}}"
+          uk_id: "{{uk_id}}"
+          participant_id: "{{subscriber_id}}"
+          credentials:
+            - cred_id: "cred_gst_v15"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "V14 Pvt Ltd"
+            - cred_id: "cred_pan_v15"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "V14 Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_v15"
+              type: "AUTHORISED_SIGNATORY"
+              name: "V14 Auth"
+              email: "original-v14@example.com"
+              phone: "+919999999999"
+            - contact_id: "contact_biz_v15"
+              type: "BUSINESS"
+              name: "V14 Business"
+              email: "biz-v15@example.com"
+              phone: "+919876543246"
+            - contact_id: "contact_tech_v15"
+              type: "TECHNICAL"
+              name: "V14 Tech"
+              email: "tech-v15@example.com"
+              phone: "+919876543247"
+              designation: "Tech Lead"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_v15"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_v15"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "V15 callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_v15"
+              uri_id: "uri_callback_v15"
+              key_id: "{{uk_id}}"
+            - domain: "ONDC:RET15"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_v15"
+              uri_id: "uri_callback_v15"
+              key_id: "{{uk_id}}"
+            - domain: "ONDC:SRV10"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_v15"
+              uri_id: "uri_callback_v15"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+  - id: "V16"
+    name: "V3: Update configs across domains"
+    description: "Participant updates configuration for multiple domains"
+    workflow: true
+    steps:
+      - name: "Admin creates SUBSCRIBED participant with 3 domains"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_v16"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "V16 Pvt Ltd"
+            - cred_id: "cred_pan_v16"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "V16 Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_v16"
+              type: "AUTHORISED_SIGNATORY"
+              name: "V16 Auth"
+              email: "auth-v16@example.com"
+              phone: "+919876543248"
+            - contact_id: "contact_biz_v16"
+              type: "BUSINESS"
+              name: "V16 Business"
+              email: "biz-v16@example.com"
+              phone: "+919876543249"
+            - contact_id: "contact_tech_v16"
+              type: "TECHNICAL"
+              name: "V16 Tech"
+              email: "tech-v16@example.com"
+              phone: "+919876543250"
+              designation: "Tech Lead"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_v16"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_v16"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "V16 callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_v16"
+              uri_id: "uri_callback_v16"
+              key_id: "{{uk_id}}"
+            - domain: "ONDC:RET15"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_v16"
+              uri_id: "uri_callback_v16"
+              key_id: "{{uk_id}}"
+            - domain: "ONDC:SRV10"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_v16"
+              uri_id: "uri_callback_v16"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+      
+      - name: "V3 update configs across domains"
+        method: "PATCH"
+        endpoint: "/api/v3/subscribe"
+        auth_type: "v3"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          request_id: "{{request_id}}"
+          participant_id: "{{subscriber_id}}"
+          uk_id: "{{uk_id}}"
+          uri:
+            uri_id: "uri_callback_v16_update"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "V16 callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_v16"
+              uri_id: "uri_callback_v16_update"
+              key_id: "{{uk_id}}"
+            - domain: "ONDC:RET15"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_v16"
+              uri_id: "uri_callback_v16_update"
+              key_id: "{{uk_id}}"
+            - domain: "ONDC:SRV10"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_v16"
+              uri_id: "uri_callback_v16_update"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+
+  - id: "V17"
+    name: "V3: Add domain after initial subscribe"
+    description: "Participant adds new domain to existing subscription"
+    workflow: true
+    steps:
+      - name: "Admin creates SUBSCRIBED participant with 1 domain"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_v17"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "V17 Pvt Ltd"
+            - cred_id: "cred_pan_v17"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "V17 Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_v17"
+              type: "AUTHORISED_SIGNATORY"
+              name: "V17 Auth"
+              email: "auth-v17@example.com"
+              phone: "+919876543251"
+            - contact_id: "contact_biz_v17"
+              type: "BUSINESS"
+              name: "V17 Business"
+              email: "biz-v17@example.com"
+              phone: "+919876543252"
+            - contact_id: "contact_tech_v17"
+              type: "TECHNICAL"
+              name: "V17 Tech"
+              email: "tech-v17@example.com"
+              phone: "+919876543253"
+              designation: "Tech Lead"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_v17"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_v17"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "V17 callback"
+          configs:
+            - domain: "ONDC:RET16"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_v17"
+              uri_id: "uri_callback_v17"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+      
+      - name: "V3 add second domain (it should fail as adding new domain is not allowed. Only updating existing domain's config is allowed)"
+        method: "PATCH"
+        endpoint: "/api/v3/subscribe"
+        auth_type: "v3"
+        data:
+          dns_skip: true
+          request_id: "{{request_id}}"
+          participant_id: "{{subscriber_id}}"
+          uk_id: "{{uk_id}}"
+          configs:
+            - domain: "ONDC:RET16"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri001"
+            - domain: "ONDC:RET15"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri001"
+              key_id: "{{uk_id}}"
+        expected_status: 400
+
+# ==========================================
+# 2.4 V3 ERROR & VALIDATION (8 tests)
+# ==========================================
+
+  - id: "V18"
+    name: "Error: Invalid transition (SUBSCRIBED → INACTIVE)"
+    description: "V3 cannot transition SUBSCRIBED to INACTIVE (admin only)"
+    workflow: true
+    steps:
+      - name: "Admin creates SUBSCRIBED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_v18"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "V18 Pvt Ltd"
+            - cred_id: "cred_pan_v18"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "V18 Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_v18"
+              type: "AUTHORISED_SIGNATORY"
+              name: "V18 Auth"
+              email: "auth-v18@example.com"
+              phone: "+919876543254"
+            - contact_id: "contact_biz_v18"
+              type: "BUSINESS"
+              name: "V18 Business"
+              email: "biz-v18@example.com"
+              phone: "+919876543255"
+            - contact_id: "contact_tech_v18"
+              type: "TECHNICAL"
+              name: "V18 Tech"
+              email: "tech-v18@example.com"
+              phone: "+919876543256"
+              designation: "Tech Lead"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_v18"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_v18"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "V18 callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_v18"
+              uri_id: "uri_callback_v18"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+      
+      - name: "V3 attempt invalid transition to INACTIVE"
+        method: "POST"
+        endpoint: "/api/v3/subscribe"
+        auth_type: "v3"
+        data:
+          dns_skip: true
+          request_id: "{{request_id}}"
+          uk_id: "{{uk_id}}"
+          participant_id: "{{subscriber_id}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri001"
+              key_id: "{{uk_id}}"
+        expected_status: 400
+
+  - id: "V19"
+    name: "Error: Missing ONDC signature"
+    description: "Attempt V3 request without signature authentication"
+    optional: true  # Edge case error validation
+    workflow: true
+    steps:
+      - name: "Admin creates WHITELISTED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+      
+      - name: "V3 request without signature"
+        method: "POST"
+        endpoint: "/api/v3/subscribe"
+        auth_type: "none"
+        data:
+          dns_skip: true
+          request_id: "{{request_id}}"
+          uk_id: "{{uk_id}}"
+          participant_id: "{{subscriber_id}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri001"
+              key_id: "{{uk_id}}"
+        expected_status: 401
+
+  - id: "V20"
+    name: "Error: Invalid ONDC signature format"
+    description: "Send malformed signature header"
+    workflow: true
+    steps:
+      - name: "Admin creates WHITELISTED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+      
+      - name: "V3 request with invalid signature"
+        method: "POST"
+        endpoint: "/api/v3/subscribe"
+        auth_type: "v3"
+        invalid_signature: true
+        data:
+          dns_skip: true
+          request_id: "{{request_id}}"
+          uk_id: "{{uk_id}}"
+          participant_id: "{{subscriber_id}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri001"
+              key_id: "{{uk_id}}"
+        expected_status: 401
+
+  - id: "V21"
+    name: "Error: Attempt to update another participant"
+    description: "Participant tries to update different subscriber_id"
+    workflow: true
+    steps:
+      - name: "Admin creates SUBSCRIBED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_v21"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "V21 Pvt Ltd"
+            - cred_id: "cred_pan_v21"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "V21 Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_v21"
+              type: "AUTHORISED_SIGNATORY"
+              name: "V21 Auth"
+              email: "auth-v21@example.com"
+              phone: "+919876543257"
+            - contact_id: "contact_biz_v21"
+              type: "BUSINESS"
+              name: "V21 Business"
+              email: "biz-v21@example.com"
+              phone: "+919876543258"
+            - contact_id: "contact_tech_v21"
+              type: "TECHNICAL"
+              name: "V21 Tech"
+              email: "tech-v21@example.com"
+              phone: "+919876543259"
+              designation: "Tech Lead"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_v21"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_v21"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "V21 callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_v21"
+              uri_id: "uri_callback_v21"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+      
+      - name: "V3 attempt to update different subscriber_id"
+        method: "PATCH"
+        endpoint: "/api/v3/subscribe"
+        auth_type: "v3"
+        data:
+          request_id: "{{request_id}}"
+          participant_id: "different-participant.example.com"
+          uk_id: "{{uk_id}}"
+          contacts:
+            - contact_id: "contact_hacker"
+              type: "TECHNICAL"
+              name: "Hacker"
+              email: "hacker@example.com"
+              phone: "+919999999999"
+        expected_status: 403
+
+  - id: "V22"
+    name: "Error: Subscribe when already SUBSCRIBED"
+    description: "Attempt POST /v3/subscribe when already in SUBSCRIBED state"
+    workflow: true
+    steps:
+      - name: "Admin creates SUBSCRIBED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_v22"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "V22 Pvt Ltd"
+            - cred_id: "cred_pan_v22"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "V22 Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_v22"
+              type: "AUTHORISED_SIGNATORY"
+              name: "V22 Auth"
+              email: "auth-v22@example.com"
+              phone: "+919876543260"
+            - contact_id: "contact_biz_v22"
+              type: "BUSINESS"
+              name: "V22 Business"
+              email: "biz-v22@example.com"
+              phone: "+919876543261"
+            - contact_id: "contact_tech_v22"
+              type: "TECHNICAL"
+              name: "V22 Tech"
+              email: "tech-v22@example.com"
+              phone: "+919876543262"
+              designation: "Tech Lead"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_v22"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_v22"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "V22 callback"
+          configs:
+            - domain: "ONDC:RET15"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_v22"
+              uri_id: "uri_callback_v22"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+      
+      - name: "V3 subscribe again (idempotent - should succeed)"
+        method: "POST"
+        endpoint: "/api/v3/subscribe"
+        auth_type: "v3"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          request_id: "{{request_id}}"
+          uk_id: "{{uk_id}}"
+          participant_id: "{{subscriber_id}}"
+          credentials:
+            - cred_id: "cred_gst_v22"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "V22 Pvt Ltd"
+            - cred_id: "cred_pan_v22"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "V22 Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_v22"
+              type: "AUTHORISED_SIGNATORY"
+              name: "V22 Auth"
+              email: "auth-v22@example.com"
+              phone: "+919876543260"
+            - contact_id: "contact_biz_v22"
+              type: "BUSINESS"
+              name: "V22 Business"
+              email: "biz-v22@example.com"
+              phone: "+919876543261"
+            - contact_id: "contact_tech_v22"
+              type: "TECHNICAL"
+              name: "V22 Tech"
+              email: "tech-v22@example.com"
+              phone: "+919876543262"
+              designation: "Tech Lead"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_v22"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_v22"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "V22 callback"
+          configs:
+            - domain: "ONDC:RET15"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_v22"
+              uri_id: "uri_callback_v22"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+  - id: "V23"
+    name: "Error: Update while SUSPENDED"
+    description: "V3 PATCH should fail when participant is SUSPENDED"
+    workflow: true
+    steps:
+      - name: "Admin creates SUBSCRIBED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_v23"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "V23 Pvt Ltd"
+            - cred_id: "cred_pan_v23"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "V23 Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_v23"
+              type: "AUTHORISED_SIGNATORY"
+              name: "V23 Auth"
+              email: "auth-v23@example.com"
+              phone: "+919876543263"
+            - contact_id: "contact_biz_v23"
+              type: "BUSINESS"
+              name: "V23 Business"
+              email: "biz-v23@example.com"
+              phone: "+919876543264"
+            - contact_id: "contact_tech_v23"
+              type: "TECHNICAL"
+              name: "V23 Tech"
+              email: "tech-v23@example.com"
+              phone: "+919876543265"
+              designation: "Tech Lead"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_v23"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_v23"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "V23 callback"
+          configs:
+            - domain: "ONDC:RET16"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_v23"
+              uri_id: "uri_callback_v23"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+      
+      - name: "Admin suspends participant"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "SUSPENDED"
+        expected_status: 200
+      
+      - name: "V3 attempt update while SUSPENDED"
+        method: "PATCH"
+        endpoint: "/api/v3/subscribe"
+        auth_type: "v3"
+        data:
+          dns_skip: true
+          request_id: "{{request_id}}"
+          participant_id: "{{subscriber_id}}"
+          uk_id: "{{uk_id}}"
+          contacts:
+            - contact_id: "contact_tech_v23"
+              type: "TECHNICAL"
+              name: "V23 Tech Updated"
+              email: "suspended-update@example.com"
+              phone: "+919876543210"
+          configs:
+            - domain: "ONDC:RET16"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_v23"
+              uri_id: "uri_callback_v23"
+              key_id: "{{uk_id}}"
+        expected_status: 400
+
+  - id: "V24"
+    name: "Error: Invalid field formats"
+    description: "V3 POST with invalid email and phone"
+    workflow: true
+    steps:
+      - name: "Admin creates WHITELISTED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          credentials:
+            - cred_id: "cred_gst_v24"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "V14 Pvt Ltd"
+            - cred_id: "cred_pan_v24"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "V24 Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_v24"
+              type: "AUTHORISED_SIGNATORY"
+              name: "V14 Auth"
+              email: "original-v24@example.com"
+              phone: "+919999999999"
+            - contact_id: "contact_biz_v24"
+              type: "BUSINESS"
+              name: "V14 Business"
+              email: "biz-v24@example.com"
+              phone: "+919876543246"
+            - contact_id: "contact_tech_v24"
+              type: "TECHNICAL"
+              name: "V14 Tech"
+              email: "tech-v24@example.com"
+              phone: "+919876543247"
+              designation: "Tech Lead"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_v24"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_v24"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "V24 callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_v24"
+              uri_id: "uri_callback_v24"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+      
+      - name: "V3 subscribe with invalid formats"
+        method: "POST"
+        endpoint: "/api/v3/subscribe"
+        auth_type: "v3"
+        data:
+          dns_skip: true
+          request_id: "{{request_id}}"
+          uk_id: "{{uk_id}}"
+          participant_id: "{{subscriber_id}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_v24"
+              uri_id: "uri_callback_v24"
+              key_id: "{{uk_id}}"
+          contacts:
+            - contact_id: "contact_invalid"
+              type: "TECHNICAL"
+              name: "Invalid Contact"
+              email: "not-valid-email"
+              phone: "abc123"
+        expected_status: 400
+
+  - id: "V25"
+    name: "Error: Missing required fields"
+    description: "V3 POST without configs"
+    workflow: true
+    steps:
+      - name: "Admin creates WHITELISTED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          configs:
+            - domain: "ONDC:RET15"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+      
+      - name: "V3 subscribe without configs"
+        method: "POST"
+        endpoint: "/api/v3/subscribe"
+        auth_type: "v3"
+        data:
+          request_id: "{{request_id}}"
+          uk_id: "{{uk_id}}"
+          participant_id: "{{subscriber_id}}"
+          credentials:
+            - cred_id: "cred_test_v25"
+              type: "GST"
+        expected_status: 400
+# ==========================================
+# 2.6 ADMIN WHITELISTED CONFIG UPSERT FOR V3 PARTICIPANTS (1 test)
+# ==========================================
+
+  - id: "V26"
+    name: "Admin adds WHITELISTED configs to V3 SUBSCRIBED participant"
+    description: "Workflow: V3 participant self-subscribes, then admin adds more WHITELISTED configs"
+    workflow: true
+    steps:
+      - name: "Admin creates WHITELISTED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+      
+      - name: "V3 participant self-subscribes"
+        method: "POST"
+        endpoint: "/api/v3/subscribe"
+        auth_type: "v3"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          request_id: "{{request_id}}"
+          uk_id: "{{uk_id}}"
+          participant_id: "{{subscriber_id}}"
+          credentials:
+            - cred_id: "cred_gst_v26"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "V26 Test Company Pvt Ltd"
+            - cred_id: "cred_pan_v26"
+              type: "PAN"
+              cred_data:
+                pan_no: "ABCDE1234F"
+          contacts:
+            - contact_id: "contact_auth_v26"
+              name: "V26 Authorized Person"
+              email: "auth@{{subscriber_id}}"
+              phone: "+919876543210"
+              type: "AUTHORISED_SIGNATORY"
+            - contact_id: "contact_biz_v26"
+              name: "V26 Business Contact"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543211"
+              type: "BUSINESS"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_v26"
+            country: "IND"
+            city: ["std:080"]
+            type: "SERVICEABLE"
+          uri:
+            uri_id: "uri_v26"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/ondc/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_v26"
+              uri_id: "uri_v26"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+      
+      - name: "Admin adds new WHITELISTED configs"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          location:
+            location_id: "loc_logistics_v26"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+              - "std:022"
+          uri:
+            uri_id: "uri_logistics_v26"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/logistics/callback"
+            description: "Logistics callback"
+          configs:
+            - domain: "ONDC:SRV10"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_logistics_v26"
+              uri_id: "uri_logistics_v26"
+              key_id: "{{uk_id}}"
+            - domain: "ONDC:LOG11"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_logistics_v26"
+              uri_id: "uri_logistics_v26"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+      
+      - name: "Verify mixed config statuses"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.domain"
+            value: "ONDC:RET1A"
+          - field: "0.status"
+            value: "SUBSCRIBED"
+          - field: "1.domain"
+            value: "ONDC:SRV10"
+          - field: "1.status"
+            value: "WHITELISTED"
+          - field: "2.domain"
+            value: "ONDC:LOG11"
+          - field: "2.status"
+            value: "WHITELISTED"

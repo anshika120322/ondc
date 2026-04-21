@@ -1,0 +1,42 @@
+# V2 Lookup Filter Combinations Test Configuration
+# Similar to V3 but for V2 API endpoint
+
+ondcRegistry:
+  # Base URL for Registry API (UAT Lookup Server)
+  host: "https://registry-uat.kynondc.net"
+  
+  # Admin API Authentication
+  admin_username: "admin@ondc.org"
+  admin_password: "Admin@123"
+  admin_auth_url: "https://admin-auth-uat.kynondc.net/api/auth/login"
+  
+  # V2 API ED25519 Signature Authentication - Using registered V3 participant
+  participant_id: "test-v3-lookup-working.participant.ondc"
+  uk_id: "83b68b94-8fb9-44ad-bcd4-b0e89d741290"
+  private_key_seed: "c190934de2c9aea71b47a31bacb8f002b0e4995c083cb457c0d58b9d6ba3670f"
+  
+  # ED25519 Public Keys (base64 encoded)
+  signing_public_key: "rb07mNxVAG9quf/6CJCpNM06FwdG0N/FBn+qcLHvWxs="
+  encryption_public_key: "MOsaXHtJWbQ6Y8W2mAYEHBrYMG/OYl/+y8yCMGQRExw="
+
+test:
+  default_lookup_payload:
+    country: "IND"
+    type: "BPP"
+  
+  lookup_types:
+    - "BPP"
+    - "BAP"
+    - "BG"
+  
+  countries:
+    - "IND"
+  
+  default_domains:
+    - "ONDC:RET10"
+    - "ONDC:RET11"
+    - "ONDC:RET12"
+  
+  default_cities:
+    - "std:080"
+    - "std:011"

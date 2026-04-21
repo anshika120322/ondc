@@ -1,0 +1,79 @@
+ondcAdminService:
+  environments:
+    uat:
+      host: https://admin-service-uat.kynondc.net/api/v1
+      verify_ssl: true
+    preprod:
+      host: https://admin-service-preprod.ondc.org/api/v1
+      verify_ssl: true
+
+endpoints:
+  # ── Health ───────────────────────────────────────────────────────────
+  - method: GET
+    path: /health
+
+  # ── Audit ────────────────────────────────────────────────────────────
+  - method: GET
+    path: /audit/logs
+  - method: GET
+    path: /audit/all
+
+  # ── RBAC ─────────────────────────────────────────────────────────────
+  - method: GET
+    path: /rbac/my-pages
+  - method: GET
+    path: /rbac/roles-pages
+
+  # ── Pages ────────────────────────────────────────────────────────────
+  - method: GET
+    path: /pages
+  - method: POST
+    path: /pages
+
+  # ── Groups ───────────────────────────────────────────────────────────
+  - method: GET
+    path: /groups
+  - method: POST
+    path: /groups
+  - method: POST
+    path: /groups/assign-user
+  - method: POST
+    path: /groups/assign-page
+
+  # ── Users ────────────────────────────────────────────────────────────
+  - method: GET
+    path: /users
+
+  # ── Registry Proxy - Enums ───────────────────────────────────────────
+  - method: GET
+    path: /admin/enums
+
+  # ── Registry Proxy - Configs / Stats ─────────────────────────────────
+  - method: GET
+    path: /admin/configs/stats
+
+  # ── Registry Proxy - Participants ────────────────────────────────────
+  - method: GET
+    path: /admin/participants
+  - method: GET
+    path: /admin/participants/1/contacts
+  - method: GET
+    path: /admin/participants/1/credentials
+  - method: GET
+    path: /admin/participants/1/keys
+  - method: GET
+    path: /admin/participants/1/keys/active
+  - method: GET
+    path: /admin/participants/1/locations
+  - method: GET
+    path: /admin/participants/1/uris
+  - method: GET
+    path: /admin/participants/1/policies
+
+  # ── Registry Proxy - Policies ────────────────────────────────────────
+  - method: GET
+    path: /admin/policies
+
+  # ── Registry Proxy - Domains ─────────────────────────────────────────
+  - method: GET
+    path: /admin/domains

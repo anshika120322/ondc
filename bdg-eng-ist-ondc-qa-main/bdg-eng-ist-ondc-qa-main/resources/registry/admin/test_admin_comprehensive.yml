@@ -1,0 +1,3139 @@
+test_suite:
+  name: Admin End-to-End Tests
+  category: admin
+  total_tests: 52
+  description: Complete Admin API testing including creates, transitions, updates, workflows, and validations
+config:
+  auth_type: admin
+  default_timeout: 30
+  retry_on_failure: false
+tests:
+- id: A01
+  name: Create WHITELISTED participant (minimal fields)
+  description: Admin creates participant with minimal required fields in WHITELISTED status
+  method: POST
+  endpoint: /admin/subscribe
+  auth_type: admin
+  data:
+    participant_id: '{{subscriber_id}}'
+    action: WHITELISTED
+    uri:
+      uri_id: uri_callback_001
+      type: CALLBACK
+      url: https://seller-mock.kynondc.net
+    configs:
+    - domain: ONDC:RET10
+      np_type: BPP
+      subscriber_id: '{{subscriber_id}}'
+      uri_id: uri_callback_001
+    dns_skip: true
+    skip_ssl_verification: true
+  expected_status: 200
+  validate:
+  - field: message.ack.status
+    value: ACK
+- id: A02
+  name: Create WHITELISTED participant (all fields)
+  description: Admin creates participant with all possible fields populated
+  method: POST
+  endpoint: /admin/subscribe
+  auth_type: admin
+  data:
+    participant_id: '{{subscriber_id}}'
+    action: WHITELISTED
+    credentials:
+    - cred_id: cred_gst_001
+      type: GST
+      cred_data:
+        gstin: 29ABCDE1234F1Z5
+        legal_name: Example Retail Pvt Ltd
+    contacts:
+    - contact_id: contact_tech_001
+      type: TECHNICAL
+      name: Tech Support
+      email: tech@{{subscriber_id}}
+      phone: '+919876543210'
+      designation: Technical Lead
+    key:
+      uk_id: key123456
+      signing_public_key: MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789==
+      encryption_public_key: MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba==
+      signed_algorithm: ED25519
+      encryption_algorithm: X25519
+      valid_from: '2026-02-04T00:00:00.000Z'
+      valid_until: '2027-02-04T00:00:00.000Z'
+    location:
+      location_id: loc001
+      type: WAREHOUSE
+      country: IND
+      city:
+      - std:080
+      - std:011
+    uri:
+      uri_id: uri_callback_001
+      type: CALLBACK
+      url: https://seller-mock.kynondc.net
+      description: Callback endpoint
+    configs:
+    - domain: ONDC:RET10
+      np_type: BPP
+      subscriber_id: '{{subscriber_id}}'
+      location_id: loc001
+      uri_id: uri_callback_001
+      key_id: key123456
+    - domain: ONDC:RET11
+      np_type: BPP
+      subscriber_id: '{{subscriber_id}}'
+      location_id: loc001
+      uri_id: uri_callback_001
+      key_id: key123456
+    dns_skip: true
+    skip_ssl_verification: true
+  expected_status: 200
+  validate:
+  - field: message.ack.status
+    value: ACK
+- id: A03
+  name: Create SUBSCRIBED participant (direct, minimal)
+  description: Admin directly creates participant in SUBSCRIBED status with minimal fields
+  method: POST
+  endpoint: /admin/subscribe
+  auth_type: admin
+  data:
+    participant_id: '{{subscriber_id}}'
+    action: SUBSCRIBED
+    credentials:
+    - cred_id: cred_gst_001
+      type: GST
+      cred_data:
+        gstin: 29ABCDE1234F1Z5
+        legal_name: Example Logistics Pvt Ltd
+    - cred_id: cred_pan_001
+      type: PAN
+      cred_data:
+        pan: ABCDE1234F
+        name: Example Logistics Pvt Ltd
+    contacts:
+    - contact_id: contact_auth_001
+      type: AUTHORISED_SIGNATORY
+      name: John Doe
+      email: john@{{subscriber_id}}
+      phone: '+919876543211'
+    - contact_id: contact_biz_001
+      type: BUSINESS
+      name: Business Manager
+      email: business@{{subscriber_id}}
+      phone: '+919876543213'
+    - contact_id: contact_tech_001
+      type: TECHNICAL
+      name: Tech Support
+      email: tech@{{subscriber_id}}
+      phone: '+919876543210'
+      designation: Technical Lead
+    key:
+      uk_id: key123456
+      signing_public_key: MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789==
+      encryption_public_key: MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba==
+      signed_algorithm: ED25519
+      encryption_algorithm: X25519
+      valid_from: '2026-02-04T00:00:00.000Z'
+      valid_until: '2027-02-04T00:00:00.000Z'
+    location:
+      location_id: loc001
+      type: SERVICEABLE
+      country: IND
+      city:
+      - std:080
+    uri:
+      uri_id: uri_callback_001
+      type: CALLBACK
+      url: https://seller-mock.kynondc.net
+      description: Callback endpoint
+    configs:
+    - domain: ONDC:LOG10
+      np_type: BAP
+      subscriber_id: '{{subscriber_id}}'
+      location_id: loc001
+      uri_id: uri_callback_001
+      key_id: key123456
+    dns_skip: true
+    skip_ssl_verification: true
+  expected_status: 200
+  validate:
+  - field: message.ack.status
+    value: ACK
+- id: A04
+  name: Create SUBSCRIBED participant (all fields)
+  description: Admin directly creates SUBSCRIBED participant with complete data
+  method: POST
+  endpoint: /admin/subscribe
+  auth_type: admin
+  data:
+    participant_id: '{{subscriber_id}}'
+    action: SUBSCRIBED
+    credentials:
+    - cred_id: cred_gst_001
+      type: GST
+      cred_data:
+        gstin: 29ABCDE1234F1Z5
+        legal_name: Example BAP Pvt Ltd
+    - cred_id: cred_pan_001
+      type: PAN
+      cred_data:
+        pan: ABCDE1234F
+        name: Example BAP Pvt Ltd
+    contacts:
+    - contact_id: contact_auth_001
+      type: AUTHORISED_SIGNATORY
+      name: Jane Smith
+      email: jane@{{subscriber_id}}
+      phone: '+919876543212'
+    - contact_id: contact_biz_001
+      type: BUSINESS
+      name: Business Director
+      email: business@{{subscriber_id}}
+      phone: '+919876543214'
+    - contact_id: contact_tech_001
+      type: TECHNICAL
+      name: Tech Support
+      email: tech@{{subscriber_id}}
+      phone: '+919876543210'
+      designation: Technical Lead
+    key:
+      uk_id: key123456
+      signing_public_key: MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789==
+      encryption_public_key: MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba==
+      signed_algorithm: ED25519
+      encryption_algorithm: X25519
+      valid_from: '2026-02-04T00:00:00.000Z'
+      valid_until: '2027-02-04T00:00:00.000Z'
+    location:
+      location_id: loc001
+      type: SERVICEABLE
+      country: IND
+      city:
+      - std:022
+    uri:
+      uri_id: uri_callback_001
+      type: CALLBACK
+      url: https://seller-mock.kynondc.net
+      description: Callback endpoint
+    configs:
+    - domain: ONDC:RET10
+      np_type: BAP
+      subscriber_id: '{{subscriber_id}}'
+      location_id: loc001
+      uri_id: uri_callback_001
+      key_id: key123456
+    dns_skip: true
+    skip_ssl_verification: true
+  expected_status: 200
+  validate:
+  - field: message.ack.status
+    value: ACK
+- id: A05
+  name: Create participant with multiple domains
+  description: Admin creates participant registered for 5 different domains
+  method: POST
+  endpoint: /admin/subscribe
+  auth_type: admin
+  data:
+    participant_id: '{{subscriber_id}}'
+    action: WHITELISTED
+    configs:
+    - domain: ONDC:RET10
+      np_type: BPP
+      subscriber_id: '{{subscriber_id}}'
+    - domain: ONDC:RET11
+      np_type: BPP
+      subscriber_id: '{{subscriber_id}}'
+    - domain: ONDC:RET12
+      np_type: BPP
+      subscriber_id: '{{subscriber_id}}'
+    - domain: ONDC:LOG10
+      np_type: BAP
+      subscriber_id: '{{subscriber_id}}'
+    - domain: ONDC:FIS10
+      np_type: BPP
+      subscriber_id: '{{subscriber_id}}'
+    dns_skip: true
+    skip_ssl_verification: true
+  expected_status: 200
+  validate:
+  - field: message.ack.status
+    value: ACK
+- id: A06
+  name: "Transition: WHITELISTED \u2192 SUBSCRIBED"
+  description: Admin changes participant from WHITELISTED to SUBSCRIBED
+  workflow: true
+  steps:
+  - name: Create WHITELISTED participant
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: WHITELISTED
+      configs:
+      - domain: ONDC:RET10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Transition to SUBSCRIBED
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUBSCRIBED
+      credentials:
+      - cred_id: cred_gst_001
+        type: GST
+        cred_data:
+          gstin: 29ABCDE1234F1Z5
+          legal_name: Example Company Pvt Ltd
+      - cred_id: cred_pan_001
+        type: PAN
+        cred_data:
+          pan: ABCDE1234F
+          name: Example Company Pvt Ltd
+      contacts:
+      - contact_id: contact_auth_001
+        type: AUTHORISED_SIGNATORY
+        name: John Doe
+        email: john@{{subscriber_id}}
+        phone: '+919876543210'
+      - contact_id: contact_biz_001
+        type: BUSINESS
+        name: Business Manager
+        email: business@{{subscriber_id}}
+        phone: '+919876543211'
+      key:
+        uk_id: key123456
+        signing_public_key: MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789==
+        encryption_public_key: MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba==
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '2026-02-04T00:00:00.000Z'
+        valid_until: '2027-02-04T00:00:00.000Z'
+      location:
+        location_id: loc001
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri_callback_001
+        type: CALLBACK
+        url: https://seller-mock.kynondc.net
+      configs:
+      - domain: ONDC:RET10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri_callback_001
+        key_id: key123456
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+- id: A07
+  name: "Transition: WHITELISTED \u2192 INACTIVE"
+  description: Admin marks WHITELISTED participant as INACTIVE
+  workflow: true
+  steps:
+  - name: Create WHITELISTED participant
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: WHITELISTED
+      configs:
+      - domain: ONDC:RET10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Transition to INACTIVE
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: INACTIVE
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+- id: A08
+  name: "Transition: WHITELISTED \u2192 SUSPENDED"
+  description: Admin suspends WHITELISTED participant
+  workflow: true
+  steps:
+  - name: Create WHITELISTED participant
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: WHITELISTED
+      configs:
+      - domain: ONDC:RET11
+        np_type: BAP
+        subscriber_id: '{{subscriber_id}}'
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Transition to SUSPENDED
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUSPENDED
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+- id: A09
+  name: "Transition: SUBSCRIBED \u2192 INACTIVE"
+  description: Admin deactivates SUBSCRIBED participant
+  workflow: true
+  steps:
+  - name: Create SUBSCRIBED participant
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUBSCRIBED
+      credentials:
+      - cred_id: cred_gst_001
+        type: GST
+        cred_data:
+          gstin: 29ABCDE1234F1Z5
+          legal_name: A09 Company Pvt Ltd
+      - cred_id: cred_pan_001
+        type: PAN
+        cred_data:
+          pan: ABCDE1234F
+          name: A09 Company Pvt Ltd
+      contacts:
+      - contact_id: contact_auth_001
+        type: AUTHORISED_SIGNATORY
+        name: John Doe
+        email: john@{{subscriber_id}}
+        phone: '+919876543210'
+      - contact_id: contact_biz_001
+        type: BUSINESS
+        name: Business Manager
+        email: business@{{subscriber_id}}
+        phone: '+919876543211'
+      key:
+        uk_id: key123456
+        signing_public_key: MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789==
+        encryption_public_key: MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba==
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '2026-02-04T00:00:00.000Z'
+        valid_until: '2027-02-04T00:00:00.000Z'
+      location:
+        location_id: loc001
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri_callback_001
+        type: CALLBACK
+        url: https://seller-mock.kynondc.net
+      configs:
+      - domain: ONDC:RET12
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri_callback_001
+        key_id: key123456
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Transition to INACTIVE
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: INACTIVE
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+- id: A10
+  name: "Transition: SUBSCRIBED \u2192 SUSPENDED"
+  description: Admin suspends SUBSCRIBED participant
+  workflow: true
+  steps:
+  - name: Create SUBSCRIBED participant
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUBSCRIBED
+      credentials:
+      - cred_id: cred_gst_001
+        type: GST
+        cred_data:
+          gstin: 29ABCDE1234F1Z5
+          legal_name: A10 Logistics Pvt Ltd
+      - cred_id: cred_pan_001
+        type: PAN
+        cred_data:
+          pan: ABCDE1234F
+          name: A10 Logistics Pvt Ltd
+      contacts:
+      - contact_id: contact_auth_001
+        type: AUTHORISED_SIGNATORY
+        name: John Doe
+        email: john@{{subscriber_id}}
+        phone: '+919876543210'
+      - contact_id: contact_biz_001
+        type: BUSINESS
+        name: Business Manager
+        email: business@{{subscriber_id}}
+        phone: '+919876543211'
+      key:
+        uk_id: key123456
+        signing_public_key: MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789==
+        encryption_public_key: MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba==
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '2026-02-04T00:00:00.000Z'
+        valid_until: '2027-02-04T00:00:00.000Z'
+      location:
+        location_id: loc001
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri_callback_001
+        type: CALLBACK
+        url: https://seller-mock.kynondc.net
+      configs:
+      - domain: ONDC:LOG10
+        np_type: BAP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri_callback_001
+        key_id: key123456
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Transition to SUSPENDED
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUSPENDED
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+- id: A11
+  name: "Transition: SUBSCRIBED \u2192 UNSUBSCRIBED"
+  description: Admin unsubscribes active participant
+  workflow: true
+  steps:
+  - name: Create SUBSCRIBED participant
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUBSCRIBED
+      credentials:
+      - cred_id: cred_gst_001
+        type: GST
+        cred_data:
+          gstin: 29ABCDE1234F1Z5
+          legal_name: A11 Gateway Pvt Ltd
+      - cred_id: cred_pan_001
+        type: PAN
+        cred_data:
+          pan: ABCDE1234F
+          name: A11 Gateway Pvt Ltd
+      contacts:
+      - contact_id: contact_auth_001
+        type: AUTHORISED_SIGNATORY
+        name: John Doe
+        email: john@{{subscriber_id}}
+        phone: '+919876543210'
+      - contact_id: contact_biz_001
+        type: BUSINESS
+        name: Business Manager
+        email: business@{{subscriber_id}}
+        phone: '+919876543211'
+      key:
+        uk_id: key123456
+        signing_public_key: MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789==
+        encryption_public_key: MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba==
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '2026-02-04T00:00:00.000Z'
+        valid_until: '2027-02-04T00:00:00.000Z'
+      location:
+        location_id: loc001
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri_callback_001
+        type: CALLBACK
+        url: https://seller-mock.kynondc.net
+      configs:
+      - domain: ONDC:RET10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri_callback_001
+        key_id: key123456
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Transition to UNSUBSCRIBED
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: UNSUBSCRIBED
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+- id: A12
+  name: "Transition: INACTIVE \u2192 SUBSCRIBED"
+  description: Admin restores INACTIVE participant to SUBSCRIBED
+  workflow: true
+  steps:
+  - name: Create SUBSCRIBED participant
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUBSCRIBED
+      credentials:
+      - cred_id: cred_gst_001
+        type: GST
+        cred_data:
+          gstin: 29ABCDE1234F1Z5
+          legal_name: A12 Company Pvt Ltd
+      - cred_id: cred_pan_001
+        type: PAN
+        cred_data:
+          pan: ABCDE1234F
+          name: A12 Company Pvt Ltd
+      contacts:
+      - contact_id: contact_auth_001
+        type: AUTHORISED_SIGNATORY
+        name: John Doe
+        email: john@{{subscriber_id}}
+        phone: '+919876543210'
+      - contact_id: contact_biz_001
+        type: BUSINESS
+        name: Business Manager
+        email: business@{{subscriber_id}}
+        phone: '+919876543211'
+      key:
+        uk_id: key123456
+        signing_public_key: MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789==
+        encryption_public_key: MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba==
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '2026-02-04T00:00:00.000Z'
+        valid_until: '2027-02-04T00:00:00.000Z'
+      location:
+        location_id: loc001
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri_callback_001
+        type: CALLBACK
+        url: https://seller-mock.kynondc.net
+      configs:
+      - domain: ONDC:LOG10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri_callback_001
+        key_id: key123456
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Transition to INACTIVE
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: INACTIVE
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Restore to SUBSCRIBED
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUBSCRIBED
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+- id: A13
+  name: "Transition: INACTIVE \u2192 WHITELISTED"
+  description: Admin resets INACTIVE participant to WHITELISTED
+  workflow: true
+  steps:
+  - name: Create WHITELISTED participant
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: WHITELISTED
+      configs:
+      - domain: ONDC:LOG11
+        np_type: BAP
+        subscriber_id: '{{subscriber_id}}'
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Transition to INACTIVE
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: INACTIVE
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Reset to WHITELISTED
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: WHITELISTED
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+- id: A14
+  name: "Transition: INACTIVE \u2192 UNSUBSCRIBED"
+  description: Admin unsubscribes INACTIVE participant
+  workflow: true
+  steps:
+  - name: Create WHITELISTED participant
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: WHITELISTED
+      configs:
+      - domain: ONDC:LOG11
+        np_type: BAP
+        subscriber_id: '{{subscriber_id}}'
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Transition to INACTIVE
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: INACTIVE
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Transition to UNSUBSCRIBED
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: UNSUBSCRIBED
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+- id: A15
+  name: "Transition: SUSPENDED \u2192 SUBSCRIBED"
+  description: Admin restores SUSPENDED participant
+  workflow: true
+  steps:
+  - name: Create SUBSCRIBED participant
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUBSCRIBED
+      credentials:
+      - cred_id: cred_gst_001
+        type: GST
+        cred_data:
+          gstin: 29ABCDE1234F1Z5
+          legal_name: A15 Company Pvt Ltd
+      - cred_id: cred_pan_001
+        type: PAN
+        cred_data:
+          pan: ABCDE1234F
+          name: A15 Company Pvt Ltd
+      contacts:
+      - contact_id: contact_auth_001
+        type: AUTHORISED_SIGNATORY
+        name: John Doe
+        email: john@{{subscriber_id}}
+        phone: '+919876543210'
+      - contact_id: contact_biz_001
+        type: BUSINESS
+        name: Business Manager
+        email: business@{{subscriber_id}}
+        phone: '+919876543211'
+      key:
+        uk_id: key123456
+        signing_public_key: MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789==
+        encryption_public_key: MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba==
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '2026-02-04T00:00:00.000Z'
+        valid_until: '2027-02-04T00:00:00.000Z'
+      location:
+        location_id: loc001
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri_callback_001
+        type: CALLBACK
+        url: https://seller-mock.kynondc.net
+      configs:
+      - domain: ONDC:RET10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri_callback_001
+        key_id: key123456
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Transition to SUSPENDED
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUSPENDED
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Restore to SUBSCRIBED
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUBSCRIBED
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+- id: A16
+  name: "Transition: SUSPENDED \u2192 INACTIVE"
+  description: Admin moves SUSPENDED participant to INACTIVE
+  workflow: true
+  steps:
+  - name: Create WHITELISTED participant
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: WHITELISTED
+      configs:
+      - domain: ONDC:RET11
+        np_type: BAP
+        subscriber_id: '{{subscriber_id}}'
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Transition to SUSPENDED
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUSPENDED
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Transition to INACTIVE
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: INACTIVE
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+- id: A17
+  name: "Transition: SUSPENDED \u2192 UNSUBSCRIBED"
+  description: Admin unsubscribes SUSPENDED participant
+  workflow: true
+  steps:
+  - name: Create WHITELISTED participant
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: WHITELISTED
+      configs:
+      - domain: ONDC:RET12
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Transition to SUSPENDED
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUSPENDED
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Transition to UNSUBSCRIBED
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: UNSUBSCRIBED
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+- id: A18
+  name: "Transition: UNSUBSCRIBED \u2192 WHITELISTED"
+  description: Admin re-whitelists UNSUBSCRIBED participant
+  workflow: true
+  steps:
+  - name: Create WHITELISTED participant
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: WHITELISTED
+      configs:
+      - domain: ONDC:LOG10
+        np_type: BAP
+        subscriber_id: '{{subscriber_id}}'
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Transition to UNSUBSCRIBED
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: UNSUBSCRIBED
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Re-whitelist
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: WHITELISTED
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+- id: A19
+  name: "Transition: UNSUBSCRIBED \u2192 SUBSCRIBED"
+  description: Admin directly resubscribes UNSUBSCRIBED participant
+  workflow: true
+  steps:
+  - name: Create SUBSCRIBED participant
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUBSCRIBED
+      credentials:
+      - cred_id: cred_gst_001
+        type: GST
+        cred_data:
+          gstin: 29ABCDE1234F1Z5
+          legal_name: A19 Company Pvt Ltd
+      - cred_id: cred_pan_001
+        type: PAN
+        cred_data:
+          pan: ABCDE1234F
+          name: A19 Company Pvt Ltd
+      contacts:
+      - contact_id: contact_auth_001
+        type: AUTHORISED_SIGNATORY
+        name: John Doe
+        email: john@{{subscriber_id}}
+        phone: '+919876543210'
+      - contact_id: contact_biz_001
+        type: BUSINESS
+        name: Business Manager
+        email: business@{{subscriber_id}}
+        phone: '+919876543211'
+      key:
+        uk_id: key123456
+        signing_public_key: MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789==
+        encryption_public_key: MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba==
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '2026-02-04T00:00:00.000Z'
+        valid_until: '2027-02-04T00:00:00.000Z'
+      location:
+        location_id: loc001
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri_callback_001
+        type: CALLBACK
+        url: https://seller-mock.kynondc.net
+      configs:
+      - domain: ONDC:LOG10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri_callback_001
+        key_id: key123456
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Transition to UNSUBSCRIBED
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: UNSUBSCRIBED
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Resubscribe
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUBSCRIBED
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+- id: A20
+  name: Update credentials only
+  description: Admin updates participant credentials via PATCH
+  workflow: true
+  steps:
+  - name: Create SUBSCRIBED participant
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUBSCRIBED
+      credentials:
+      - cred_id: cred_gst_001
+        type: GST
+        cred_data:
+          gstin: 29ABCDE1234F1Z5
+          legal_name: Example Logistics Pvt Ltd
+      - cred_id: cred_pan_001
+        type: PAN
+        cred_data:
+          pan: ABCDE1234F
+          name: Example Logistics Pvt Ltd
+      contacts:
+      - contact_id: contact_auth_001
+        type: AUTHORISED_SIGNATORY
+        name: John Doe
+        email: john@{{subscriber_id}}
+        phone: '+919876543211'
+      - contact_id: contact_biz_001
+        type: BUSINESS
+        name: Business Manager
+        email: business@{{subscriber_id}}
+        phone: '+919876543213'
+      - contact_id: contact_tech_001
+        type: TECHNICAL
+        name: Tech Support
+        email: tech@{{subscriber_id}}
+        phone: '+919876543210'
+        designation: Technical Lead
+      key:
+        uk_id: key123456
+        signing_public_key: MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789==
+        encryption_public_key: MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba==
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '2026-02-04T00:00:00.000Z'
+        valid_until: '2027-02-04T00:00:00.000Z'
+      location:
+        location_id: loc001
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri_callback_001
+        type: CALLBACK
+        url: https://seller-mock.kynondc.net
+        description: Callback endpoint
+      configs:
+      - domain: ONDC:LOG10
+        np_type: BAP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri_callback_001
+        key_id: key123456
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Update credentials
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      credentials:
+      - cred_id: cred_gst_001
+        cred_data:
+          legal_name: A19 Company Pvt Ltd UPDATED
+      - cred_id: cred_pan_001
+        cred_data:
+          pan: UPCDE1234F
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+- id: A21
+  name: Update contacts only
+  description: Admin updates participant contact information
+  workflow: true
+  steps:
+  - name: Create SUBSCRIBED participant
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUBSCRIBED
+      credentials:
+      - cred_id: cred_gst_001
+        type: GST
+        cred_data:
+          gstin: 29ABCDE1234F1Z5
+          legal_name: Example Logistics Pvt Ltd
+      - cred_id: cred_pan_001
+        type: PAN
+        cred_data:
+          pan: ABCDE1234F
+          name: Example Logistics Pvt Ltd
+      contacts:
+      - contact_id: contact_auth_001
+        type: AUTHORISED_SIGNATORY
+        name: John Doe
+        email: john@{{subscriber_id}}
+        phone: '+919876543211'
+      - contact_id: contact_biz_001
+        type: BUSINESS
+        name: Business Manager
+        email: business@{{subscriber_id}}
+        phone: '+919876543213'
+      - contact_id: contact_tech_001
+        type: TECHNICAL
+        name: Tech Support
+        email: tech@{{subscriber_id}}
+        phone: '+919876543210'
+        designation: Technical Lead
+      key:
+        uk_id: key123456
+        signing_public_key: MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789==
+        encryption_public_key: MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba==
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '2026-02-04T00:00:00.000Z'
+        valid_until: '2027-02-04T00:00:00.000Z'
+      location:
+        location_id: loc001
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri_callback_001
+        type: CALLBACK
+        url: https://seller-mock.kynondc.net
+        description: Callback endpoint
+      configs:
+      - domain: ONDC:LOG10
+        np_type: BAP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri_callback_001
+        key_id: key123456
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Update contacts
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      contacts:
+      - contact_id: contact_auth_001
+        email: new-support@example.com
+        phone: '+919123456789'
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+- id: A22
+  name: Update locations only
+  description: Admin updates participant location cities
+  workflow: true
+  steps:
+  - name: Create SUBSCRIBED participant
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUBSCRIBED
+      credentials:
+      - cred_id: cred_gst_001
+        type: GST
+        cred_data:
+          gstin: 29ABCDE1234F1Z5
+          legal_name: Example Logistics Pvt Ltd
+      - cred_id: cred_pan_001
+        type: PAN
+        cred_data:
+          pan: ABCDE1234F
+          name: Example Logistics Pvt Ltd
+      contacts:
+      - contact_id: contact_auth_001
+        type: AUTHORISED_SIGNATORY
+        name: John Doe
+        email: john@{{subscriber_id}}
+        phone: '+919876543211'
+      - contact_id: contact_biz_001
+        type: BUSINESS
+        name: Business Manager
+        email: business@{{subscriber_id}}
+        phone: '+919876543213'
+      - contact_id: contact_tech_001
+        type: TECHNICAL
+        name: Tech Support
+        email: tech@{{subscriber_id}}
+        phone: '+919876543210'
+        designation: Technical Lead
+      key:
+        uk_id: key123456
+        signing_public_key: MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789==
+        encryption_public_key: MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba==
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '2026-02-04T00:00:00.000Z'
+        valid_until: '2027-02-04T00:00:00.000Z'
+      location:
+        location_id: loc001
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri_callback_001
+        type: CALLBACK
+        url: https://seller-mock.kynondc.net
+        description: Callback endpoint
+      configs:
+      - domain: ONDC:LOG10
+        np_type: BAP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri_callback_001
+        key_id: key123456
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Update locations
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      location:
+        location_id: loc001
+        city:
+        - std:080
+        - std:044
+        - std:022
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+- id: A23
+  name: Update URIs only
+  description: Admin updates participant callback URIs
+  workflow: true
+  steps:
+  - name: Create SUBSCRIBED participant
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUBSCRIBED
+      credentials:
+      - cred_id: cred_gst_001
+        type: GST
+        cred_data:
+          gstin: 29ABCDE1234F1Z5
+          legal_name: Example Logistics Pvt Ltd
+      - cred_id: cred_pan_001
+        type: PAN
+        cred_data:
+          pan: ABCDE1234F
+          name: Example Logistics Pvt Ltd
+      contacts:
+      - contact_id: contact_auth_001
+        type: AUTHORISED_SIGNATORY
+        name: John Doe
+        email: john@{{subscriber_id}}
+        phone: '+919876543211'
+      - contact_id: contact_biz_001
+        type: BUSINESS
+        name: Business Manager
+        email: business@{{subscriber_id}}
+        phone: '+919876543213'
+      - contact_id: contact_tech_001
+        type: TECHNICAL
+        name: Tech Support
+        email: tech@{{subscriber_id}}
+        phone: '+919876543210'
+        designation: Technical Lead
+      key:
+        uk_id: key123456
+        signing_public_key: MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789==
+        encryption_public_key: MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba==
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '2026-02-04T00:00:00.000Z'
+        valid_until: '2027-02-04T00:00:00.000Z'
+      location:
+        location_id: loc001
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri_callback_001
+        type: CALLBACK
+        url: https://seller-mock.kynondc.net
+        description: Callback endpoint
+      configs:
+      - domain: ONDC:LOG10
+        np_type: BAP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri_callback_001
+        key_id: key123456
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Update URIs
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      uri:
+        uri_id: uri_callback_001
+        type: CALLBACK
+        url: https://seller-mock.kynondc.net
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+- id: A24
+  name: Update keys only
+  description: Admin rotates participant cryptographic keys
+  workflow: true
+  steps:
+  - name: Create SUBSCRIBED participant
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUBSCRIBED
+      credentials:
+      - cred_id: cred_gst_001
+        type: GST
+        cred_data:
+          gstin: 29ABCDE1234F1Z5
+          legal_name: Example Logistics Pvt Ltd
+      - cred_id: cred_pan_001
+        type: PAN
+        cred_data:
+          pan: ABCDE1234F
+          name: Example Logistics Pvt Ltd
+      contacts:
+      - contact_id: contact_auth_001
+        type: AUTHORISED_SIGNATORY
+        name: John Doe
+        email: john@{{subscriber_id}}
+        phone: '+919876543211'
+      - contact_id: contact_biz_001
+        type: BUSINESS
+        name: Business Manager
+        email: business@{{subscriber_id}}
+        phone: '+919876543213'
+      - contact_id: contact_tech_001
+        type: TECHNICAL
+        name: Tech Support
+        email: tech@{{subscriber_id}}
+        phone: '+919876543210'
+        designation: Technical Lead
+      key:
+        uk_id: key123456
+        signing_public_key: MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789==
+        encryption_public_key: MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba==
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '2026-02-04T00:00:00.000Z'
+        valid_until: '2027-02-04T00:00:00.000Z'
+      location:
+        location_id: loc001
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri_callback_001
+        type: CALLBACK
+        url: https://seller-mock.kynondc.net
+        description: Callback endpoint
+      configs:
+      - domain: ONDC:LOG10
+        np_type: BAP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri_callback_001
+        key_id: key123456
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Update keys
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      key:
+        uk_id: key123456
+        signing_public_key: NEWwBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789==
+        encryption_public_key: NEWwBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba==
+        valid_from: '2025-01-01T00:00:00Z'
+        valid_until: '2027-12-31T23:59:59Z'
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+- id: A25
+  name: Update configs only
+  description: Admin modifies participant domain configurations
+  workflow: true
+  steps:
+  - name: Create SUBSCRIBED participant
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUBSCRIBED
+      credentials:
+      - cred_id: cred_gst_001
+        type: GST
+        cred_data:
+          gstin: 29ABCDE1234F1Z5
+          legal_name: Example Logistics Pvt Ltd
+      - cred_id: cred_pan_001
+        type: PAN
+        cred_data:
+          pan: ABCDE1234F
+          name: Example Logistics Pvt Ltd
+      contacts:
+      - contact_id: contact_auth_001
+        type: AUTHORISED_SIGNATORY
+        name: John Doe
+        email: john@{{subscriber_id}}
+        phone: '+919876543211'
+      - contact_id: contact_biz_001
+        type: BUSINESS
+        name: Business Manager
+        email: business@{{subscriber_id}}
+        phone: '+919876543213'
+      - contact_id: contact_tech_001
+        type: TECHNICAL
+        name: Tech Support
+        email: tech@{{subscriber_id}}
+        phone: '+919876543210'
+        designation: Technical Lead
+      key:
+        uk_id: key123456
+        signing_public_key: MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789==
+        encryption_public_key: MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba==
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '2026-02-04T00:00:00.000Z'
+        valid_until: '2027-02-04T00:00:00.000Z'
+      location:
+        location_id: loc001
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri_callback_001
+        type: CALLBACK
+        url: https://seller-mock.kynondc.net
+        description: Callback endpoint
+      configs:
+      - domain: ONDC:RET10
+        np_type: BAP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri_callback_001
+        key_id: key123456
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Update configs
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      uri:
+        uri_id: uri_callback_002
+        type: CALLBACK
+        url: https://seller-mock.kynondc.net
+        description: Callback endpoint
+      configs:
+      - domain: ONDC:RET10
+        np_type: BAP
+        subscriber_id: '{{subscriber_id}}'
+        uri_id: uri_callback_002
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+- id: A26
+  name: Update multiple fields simultaneously
+  description: Admin updates credentials, contacts, and location in single PATCH
+  workflow: true
+  steps:
+  - name: Create SUBSCRIBED participant
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUBSCRIBED
+      credentials:
+      - cred_id: cred_gst_001
+        type: GST
+        cred_data:
+          gstin: 29ABCDE1234F1Z5
+          legal_name: Example Logistics Pvt Ltd
+      - cred_id: cred_pan_001
+        type: PAN
+        cred_data:
+          pan: ABCDE1234F
+          name: Example Logistics Pvt Ltd
+      contacts:
+      - contact_id: contact_auth_001
+        type: AUTHORISED_SIGNATORY
+        name: John Doe
+        email: john@{{subscriber_id}}
+        phone: '+919876543211'
+      - contact_id: contact_biz_001
+        type: BUSINESS
+        name: Business Manager
+        email: business@{{subscriber_id}}
+        phone: '+919876543213'
+      - contact_id: contact_tech_001
+        type: TECHNICAL
+        name: Tech Support
+        email: tech@{{subscriber_id}}
+        phone: '+919876543210'
+        designation: Technical Lead
+      key:
+        uk_id: key123456
+        signing_public_key: MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789==
+        encryption_public_key: MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba==
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '2026-02-04T00:00:00.000Z'
+        valid_until: '2027-02-04T00:00:00.000Z'
+      location:
+        location_id: loc001
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri_callback_001
+        type: CALLBACK
+        url: https://seller-mock.kynondc.net
+        description: Callback endpoint
+      configs:
+      - domain: ONDC:RET10
+        np_type: BAP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri_callback_001
+        key_id: key123456
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Update multiple fields
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      credentials:
+      - cred_id: cred_gst_001
+        type: GST
+        cred_data:
+          gstin: 29ABCDE1234F1Z5
+          legal_name: updated to Example Logistics Pvt Ltd
+      contacts:
+      - contact_id: contact_auth_001
+        email: multi-update@example.com
+        phone: '+919999888877'
+      location:
+        location_id: loc001
+        city:
+        - std:011
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+- id: A27
+  name: Add new domain to existing participant
+  description: Admin adds additional domain to participant's configs
+  workflow: true
+  steps:
+  - name: Create SUBSCRIBED participant
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUBSCRIBED
+      credentials:
+      - cred_id: cred_gst_001
+        type: GST
+        cred_data:
+          gstin: 29ABCDE1234F1Z5
+          legal_name: Example Logistics Pvt Ltd
+      - cred_id: cred_pan_001
+        type: PAN
+        cred_data:
+          pan: ABCDE1234F
+          name: Example Logistics Pvt Ltd
+      contacts:
+      - contact_id: contact_auth_001
+        type: AUTHORISED_SIGNATORY
+        name: John Doe
+        email: john@{{subscriber_id}}
+        phone: '+919876543211'
+      - contact_id: contact_biz_001
+        type: BUSINESS
+        name: Business Manager
+        email: business@{{subscriber_id}}
+        phone: '+919876543213'
+      - contact_id: contact_tech_001
+        type: TECHNICAL
+        name: Tech Support
+        email: tech@{{subscriber_id}}
+        phone: '+919876543210'
+        designation: Technical Lead
+      key:
+        uk_id: key123456
+        signing_public_key: MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789==
+        encryption_public_key: MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba==
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '2026-02-04T00:00:00.000Z'
+        valid_until: '2027-02-04T00:00:00.000Z'
+      location:
+        location_id: loc001
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri_callback_001
+        type: CALLBACK
+        url: https://seller-mock.kynondc.net
+        description: Callback endpoint
+      configs:
+      - domain: ONDC:RET10
+        np_type: BAP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri_callback_001
+        key_id: key123456
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Add new domain
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      configs:
+      - domain: ONDC:RET11
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+      - domain: ONDC:LOG11
+        np_type: BAP
+        subscriber_id: '{{subscriber_id}}'
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+- id: A28
+  name: Remove domain from existing participant
+  description: Admin removes a specific domain config when participant has multiple domains
+  workflow: true
+  steps:
+  - name: Create participant with multiple domains
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: WHITELISTED
+      configs:
+      - domain: ONDC:RET10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+      - domain: ONDC:RET11
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+      - domain: ONDC:RET12
+        np_type: BAP
+        subscriber_id: '{{subscriber_id}}'
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+    note: 'Creates participant with 3 configs'
+  - name: Fetch participant details via lookup
+    method: GET
+    participant_id: '{{subscriber_id}}'
+    expected_status: 200
+    note: 'Query lookup API to get participant with config_ids'
+  - name: Remove specific domain (ONDC:RET11)
+    method: DELETE
+    endpoint: /admin/configs/{{response[0].configs[1].config_id}}
+    auth_type: admin
+    expected_status: 200
+    note: 'Deletes the second config (ONDC:RET11) using config_id from lookup response'
+- id: A29
+  name: Update domain-specific configs
+  description: Admin changes np_type for specific domain
+  workflow: true
+  steps:
+  - name: Create SUBSCRIBED participant
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUBSCRIBED
+      credentials:
+      - cred_id: cred_gst_001
+        type: GST
+        cred_data:
+          gstin: 29ABCDE1234F1Z5
+          legal_name: Example Logistics Pvt Ltd
+      - cred_id: cred_pan_001
+        type: PAN
+        cred_data:
+          pan: ABCDE1234F
+          name: Example Logistics Pvt Ltd
+      contacts:
+      - contact_id: contact_auth_001
+        type: AUTHORISED_SIGNATORY
+        name: John Doe
+        email: john@{{subscriber_id}}
+        phone: '+919876543211'
+      - contact_id: contact_biz_001
+        type: BUSINESS
+        name: Business Manager
+        email: business@{{subscriber_id}}
+        phone: '+919876543213'
+      - contact_id: contact_tech_001
+        type: TECHNICAL
+        name: Tech Support
+        email: tech@{{subscriber_id}}
+        phone: '+919876543210'
+        designation: Technical Lead
+      key:
+        uk_id: key123456
+        signing_public_key: MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789==
+        encryption_public_key: MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba==
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '2026-02-04T00:00:00.000Z'
+        valid_until: '2027-02-04T00:00:00.000Z'
+      location:
+        location_id: loc001
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri_callback_001
+        type: CALLBACK
+        url: https://seller-mock.kynondc.net
+        description: Callback endpoint
+      configs:
+      - domain: ONDC:RET10
+        np_type: BAP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri_callback_001
+        key_id: key123456
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Update domain configs
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      location:
+        location_id: loc002
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      configs:
+      - domain: ONDC:RET11
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc002
+        uri_id: uri_callback_001
+        key_id: key123456
+      - domain: ONDC:RET10
+        np_type: BAP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc002
+        uri_id: uri_callback_001
+        key_id: key123456
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+- id: A30
+  name: Add credential to existing participant
+  description: Admin adds new credential type to participant
+  workflow: true
+  steps:
+  - name: Create SUBSCRIBED participant with initial credentials
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUBSCRIBED
+      credentials:
+      - cred_id: cred_gst_001
+        type: GST
+        cred_data:
+          gstin: 29ABCDE1234F1Z5
+          legal_name: Example Logistics Pvt Ltd
+      - cred_id: cred_pan_001
+        type: PAN
+        cred_data:
+          pan: ABCDE1234F
+          name: Example Logistics Pvt Ltd
+      contacts:
+      - contact_id: contact_auth_001
+        type: AUTHORISED_SIGNATORY
+        name: John Doe
+        email: john@{{subscriber_id}}
+        phone: '+919876543211'
+      - contact_id: contact_biz_001
+        type: BUSINESS
+        name: Business Manager
+        email: business@{{subscriber_id}}
+        phone: '+919876543213'
+      - contact_id: contact_tech_001
+        type: TECHNICAL
+        name: Tech Support
+        email: tech@{{subscriber_id}}
+        phone: '+919876543210'
+        designation: Technical Lead
+      key:
+        uk_id: key123456
+        signing_public_key: MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789==
+        encryption_public_key: MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba==
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '2026-02-04T00:00:00.000Z'
+        valid_until: '2027-02-04T00:00:00.000Z'
+      location:
+        location_id: loc001
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri_callback_001
+        type: CALLBACK
+        url: https://seller-mock.kynondc.net
+        description: Callback endpoint
+      configs:
+      - domain: ONDC:RET10
+        np_type: BAP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri_callback_001
+        key_id: key123456
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Add new credential
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      credentials:
+      - cred_id: cred_FSSAI_001
+        type: FSSAI
+        cred_data:
+          false: 29ABCDE1234F1Z5
+          name: Example Logistics Pvt Ltd
+      - cred_id: cred_tm_001
+        type: TRADEMARK
+        cred_data:
+          tm_no: 29ABCDE1234F1Z5
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+- id: A31
+  name: Update existing credential
+  description: Admin updates an existing credential (e.g., new GST number after company registration change)
+  workflow: true
+  steps:
+  - name: Create participant with initial credential
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: WHITELISTED
+      credentials:
+      - cred_id: cred_gst_001
+        type: GST
+        cred_data:
+          gstin: 29ABCDE1234F1Z5
+          legal_name: Example Old Company Ltd
+      configs:
+      - domain: ONDC:RET10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Update GST credential with new values
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      credentials:
+      - cred_id: cred_gst_001
+        type: GST
+        cred_data:
+          gstin: 27XYZAB5678C2D9
+          legal_name: Example New Company Ltd
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+    validate:
+    - field: message.ack.status
+      value: ACK
+- id: A32
+  name: "Workflow: Create \u2192 Update fields \u2192 Change status"
+  description: 'Complete flow: create, update data, change status'
+  workflow: true
+  steps:
+  - name: Create WHITELISTED
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: WHITELISTED
+      credentials:
+      - cred_id: cred_gst_001
+        type: GST
+        cred_data:
+          gstin: 29ABCDE1234F1Z5
+          legal_name: Example Logistics Pvt Ltd
+      - cred_id: cred_pan_001
+        type: PAN
+        cred_data:
+          pan: ABCDE1234F
+          name: Example Logistics Pvt Ltd
+      contacts:
+      - contact_id: contact_auth_001
+        type: AUTHORISED_SIGNATORY
+        name: John Doe
+        email: john@{{subscriber_id}}
+        phone: '+919876543211'
+      key:
+        uk_id: key123456
+        signing_public_key: MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789==
+        encryption_public_key: MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba==
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '2026-02-04T00:00:00.000Z'
+        valid_until: '2027-02-04T00:00:00.000Z'
+      uri:
+        uri_id: uri_callback_001
+        type: CALLBACK
+        url: https://seller-mock.kynondc.net
+        description: Callback endpoint
+      configs:
+      - domain: ONDC:RET10
+        np_type: BAP
+        subscriber_id: '{{subscriber_id}}'
+        uri_id: uri_callback_001
+        key_id: key123456
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Update contacts and location
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      contacts:
+      - contact_id: contact_auth_001
+        type: AUTHORISED_SIGNATORY
+        name: John Doe
+        email: john@{{subscriber_id}}
+        phone: '+919876543211'
+      - contact_id: contact_biz_001
+        type: BUSINESS
+        name: Business Manager
+        email: business@{{subscriber_id}}
+        phone: '+919876543213'
+      - contact_id: contact_tech_001
+        type: TECHNICAL
+        name: Tech Support
+        email: tech@{{subscriber_id}}
+        phone: '+919876543210'
+        designation: Technical Lead
+      key:
+        uk_id: key123456
+        signing_public_key: MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789==
+        encryption_public_key: MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba==
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '2026-02-04T00:00:00.000Z'
+        valid_until: '2027-02-04T00:00:00.000Z'
+      location:
+        location_id: loc001
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri_callback_001
+        type: CALLBACK
+        url: https://seller-mock.kynondc.net
+        description: Callback endpoint
+      configs:
+      - domain: ONDC:RET10
+        np_type: BAP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri_callback_001
+        key_id: key123456
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Change to SUBSCRIBED
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUBSCRIBED
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+- id: A33
+  name: "Workflow: Suspend \u2192 Update \u2192 Restore"
+  description: Admin suspends, updates data, then restores participant
+  workflow: true
+  steps:
+  - name: Create SUBSCRIBED
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUBSCRIBED
+      credentials:
+      - cred_id: cred_gst_001
+        type: GST
+        cred_data:
+          gstin: 29ABCDE1234F1Z5
+          legal_name: Example Logistics Pvt Ltd
+      - cred_id: cred_pan_001
+        type: PAN
+        cred_data:
+          pan: ABCDE1234F
+          name: Example Logistics Pvt Ltd
+      contacts:
+      - contact_id: contact_auth_001
+        type: AUTHORISED_SIGNATORY
+        name: John Doe
+        email: john@{{subscriber_id}}
+        phone: '+919876543211'
+      - contact_id: contact_biz_001
+        type: BUSINESS
+        name: Business Manager
+        email: business@{{subscriber_id}}
+        phone: '+919876543213'
+      - contact_id: contact_tech_001
+        type: TECHNICAL
+        name: Tech Support
+        email: tech@{{subscriber_id}}
+        phone: '+919876543210'
+        designation: Technical Lead
+      key:
+        uk_id: key123456
+        signing_public_key: MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789==
+        encryption_public_key: MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba==
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '2026-02-04T00:00:00.000Z'
+        valid_until: '2027-02-04T00:00:00.000Z'
+      location:
+        location_id: loc001
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri_callback_001
+        type: CALLBACK
+        url: https://seller-mock.kynondc.net
+        description: Callback endpoint
+      configs:
+      - domain: ONDC:RET10
+        np_type: BAP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri_callback_001
+        key_id: key123456
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Suspend
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUSPENDED
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Update credentials while suspended
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      credentials:
+      - cred_id: cred_gst_001
+        type: GST
+        cred_data:
+          gstin: 29ABCDE1234F1Z5
+          legal_name: suspended to Example Logistics Pvt Ltd
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Restore to SUBSCRIBED
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUBSCRIBED
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+- id: A34
+  name: "Workflow: Create multi-domain \u2192 Update per domain"
+  description: Admin creates participant with multiple domains, updates each
+  workflow: true
+  steps:
+  - name: Create with 3 domains
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUBSCRIBED
+      credentials:
+      - cred_id: cred_gst_001
+        type: GST
+        cred_data:
+          gstin: 29ABCDE1234F1Z5
+          legal_name: Example Logistics Pvt Ltd
+      - cred_id: cred_pan_001
+        type: PAN
+        cred_data:
+          pan: ABCDE1234F
+          name: Example Logistics Pvt Ltd
+      contacts:
+      - contact_id: contact_auth_001
+        type: AUTHORISED_SIGNATORY
+        name: John Doe
+        email: john@{{subscriber_id}}
+        phone: '+919876543211'
+      - contact_id: contact_biz_001
+        type: BUSINESS
+        name: Business Manager
+        email: business@{{subscriber_id}}
+        phone: '+919876543213'
+      - contact_id: contact_tech_001
+        type: TECHNICAL
+        name: Tech Support
+        email: tech@{{subscriber_id}}
+        phone: '+919876543210'
+        designation: Technical Lead
+      key:
+        uk_id: key123456
+        signing_public_key: MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789==
+        encryption_public_key: MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba==
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '2026-02-04T00:00:00.000Z'
+        valid_until: '2027-02-04T00:00:00.000Z'
+      location:
+        location_id: loc001
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri_callback_001
+        type: CALLBACK
+        url: https://seller-mock.kynondc.net
+        description: Callback endpoint
+      configs:
+      - domain: ONDC:RET10
+        np_type: BAP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri_callback_001
+        key_id: key123456
+      - domain: ONDC:RET11
+        np_type: BAP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri_callback_001
+        key_id: key123456
+      - domain: ONDC:RET12
+        np_type: BAP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri_callback_001
+        key_id: key123456
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Update first domain np_type
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      location:
+        location_id: loc002
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri_callback_002
+        type: CALLBACK
+        url: https://seller-mock.kynondc.net
+        description: Callback endpoint
+      configs:
+      - domain: ONDC:RET10
+        np_type: BAP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc002
+        uri_id: uri_callback_001
+        key_id: key123456
+      - domain: ONDC:RET11
+        np_type: BAP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri_callback_002
+        key_id: key123456
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+- id: A35
+  name: 'Workflow: Full lifecycle'
+  description: "Complete: Whitelist \u2192 Subscribe \u2192 Inactive \u2192 Restore \u2192 Unsubscribe"
+  workflow: true
+  steps:
+  - name: Create WHITELISTED
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: WHITELISTED
+      credentials:
+      - cred_id: cred_gst_001
+        type: GST
+        cred_data:
+          gstin: 29ABCDE1234F1Z5
+          legal_name: Example Logistics Pvt Ltd
+      - cred_id: cred_pan_001
+        type: PAN
+        cred_data:
+          pan: ABCDE1234F
+          name: Example Logistics Pvt Ltd
+      contacts:
+      - contact_id: contact_auth_001
+        type: AUTHORISED_SIGNATORY
+        name: John Doe
+        email: john@{{subscriber_id}}
+        phone: '+919876543211'
+      - contact_id: contact_biz_001
+        type: BUSINESS
+        name: Business Manager
+        email: business@{{subscriber_id}}
+        phone: '+919876543213'
+      - contact_id: contact_tech_001
+        type: TECHNICAL
+        name: Tech Support
+        email: tech@{{subscriber_id}}
+        phone: '+919876543210'
+        designation: Technical Lead
+      key:
+        uk_id: key123456
+        signing_public_key: MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789==
+        encryption_public_key: MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba==
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '2026-02-04T00:00:00.000Z'
+        valid_until: '2027-02-04T00:00:00.000Z'
+      location:
+        location_id: loc001
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri_callback_001
+        type: CALLBACK
+        url: https://seller-mock.kynondc.net
+        description: Callback endpoint
+      configs:
+      - domain: ONDC:RET10
+        np_type: BAP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri_callback_001
+        key_id: key123456
+      - domain: ONDC:RET11
+        np_type: BAP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri_callback_001
+        key_id: key123456
+      - domain: ONDC:RET12
+        np_type: BAP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri_callback_001
+        key_id: key123456
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Transition to SUBSCRIBED
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUBSCRIBED
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Deactivate
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: INACTIVE
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Restore to SUBSCRIBED
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUBSCRIBED
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Unsubscribe
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: UNSUBSCRIBED
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+- id: A36
+  name: "Workflow: Create \u2192 Add domains incrementally"
+  description: Admin starts with 1 domain, adds more over time
+  workflow: true
+  steps:
+  - name: Create with single domain
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUBSCRIBED
+      credentials:
+      - cred_id: cred_gst_001
+        type: GST
+        cred_data:
+          gstin: 29ABCDE1234F1Z5
+          legal_name: Example Logistics Pvt Ltd
+      - cred_id: cred_pan_001
+        type: PAN
+        cred_data:
+          pan: ABCDE1234F
+          name: Example Logistics Pvt Ltd
+      contacts:
+      - contact_id: contact_auth_001
+        type: AUTHORISED_SIGNATORY
+        name: John Doe
+        email: john@{{subscriber_id}}
+        phone: '+919876543211'
+      - contact_id: contact_biz_001
+        type: BUSINESS
+        name: Business Manager
+        email: business@{{subscriber_id}}
+        phone: '+919876543213'
+      - contact_id: contact_tech_001
+        type: TECHNICAL
+        name: Tech Support
+        email: tech@{{subscriber_id}}
+        phone: '+919876543210'
+        designation: Technical Lead
+      key:
+        uk_id: key123456
+        signing_public_key: MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789==
+        encryption_public_key: MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba==
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '2026-02-04T00:00:00.000Z'
+        valid_until: '2027-02-04T00:00:00.000Z'
+      location:
+        location_id: loc001
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri_callback_001
+        type: CALLBACK
+        url: https://seller-mock.kynondc.net
+        description: Callback endpoint
+      configs:
+      - domain: ONDC:RET10
+        np_type: BAP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri_callback_001
+        key_id: key123456
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Add second domain
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      configs:
+      - domain: ONDC:RET11
+        np_type: BAP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri_callback_001
+        key_id: key123456
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Add third domain
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      configs:
+      - domain: ONDC:RET12
+        np_type: BAP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri_callback_001
+        key_id: key123456
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+- id: A37
+  name: 'Workflow: SUSPENDED participant update restrictions'
+  description: Verify what updates are allowed while participant is SUSPENDED
+  workflow: true
+  steps:
+  - name: Create SUBSCRIBED participant
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUBSCRIBED
+      credentials:
+      - cred_id: cred_gst_001
+        type: GST
+        cred_data:
+          gstin: 29ABCDE1234F1Z5
+          legal_name: Example Suspendable Ltd
+      - cred_id: cred_pan_001
+        type: PAN
+        cred_data:
+          pan: ABCDE1234F
+          name: Example Suspendable Ltd
+      contacts:
+      - contact_id: contact_auth_001
+        type: AUTHORISED_SIGNATORY
+        name: John Doe
+        email: john@{{subscriber_id}}
+        phone: '+919876543211'
+      - contact_id: contact_biz_001
+        type: BUSINESS
+        name: Business Manager
+        email: business@{{subscriber_id}}
+        phone: '+919876543213'
+      key:
+        uk_id: key123456
+        signing_public_key: MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789==
+        encryption_public_key: MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba==
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '2026-02-04T00:00:00.000Z'
+        valid_until: '2027-02-04T00:00:00.000Z'
+      location:
+        location_id: loc001
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri_callback_001
+        type: CALLBACK
+        url: https://seller-mock.kynondc.net
+      configs:
+      - domain: ONDC:RET10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri_callback_001
+        key_id: key123456
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Suspend participant
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUSPENDED
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Attempt to update contact while SUSPENDED (should be allowed)
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      contacts:
+      - contact_id: contact_tech_002
+        type: TECHNICAL
+        name: Tech Support
+        email: tech-new@{{subscriber_id}}
+        phone: '+919876543299'
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Attempt to add domain while SUSPENDED (API allows this)
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      configs:
+      - domain: ONDC:RET11
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+    note: 'API currently allows config updates while SUSPENDED'
+- id: A38
+  name: 'Workflow: Rapid status changes'
+  description: Test state consistency with rapid transitions
+  workflow: true
+  steps:
+  - name: Create WHITELISTED
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: WHITELISTED
+      credentials:
+      - cred_id: cred_gst_001
+        type: GST
+        cred_data:
+          gstin: 29ABCDE1234F1Z5
+          legal_name: Example Logistics Pvt Ltd
+      - cred_id: cred_pan_001
+        type: PAN
+        cred_data:
+          pan: ABCDE1234F
+          name: Example Logistics Pvt Ltd
+      contacts:
+      - contact_id: contact_auth_001
+        type: AUTHORISED_SIGNATORY
+        name: John Doe
+        email: john@{{subscriber_id}}
+        phone: '+919876543211'
+      - contact_id: contact_biz_001
+        type: BUSINESS
+        name: Business Manager
+        email: business@{{subscriber_id}}
+        phone: '+919876543213'
+      - contact_id: contact_tech_001
+        type: TECHNICAL
+        name: Tech Support
+        email: tech@{{subscriber_id}}
+        phone: '+919876543210'
+        designation: Technical Lead
+      key:
+        uk_id: key123456
+        signing_public_key: MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789==
+        encryption_public_key: MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba==
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '2026-02-04T00:00:00.000Z'
+        valid_until: '2027-02-04T00:00:00.000Z'
+      location:
+        location_id: loc001
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri_callback_001
+        type: CALLBACK
+        url: https://seller-mock.kynondc.net
+        description: Callback endpoint
+      configs:
+      - domain: ONDC:RET10
+        np_type: BAP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri_callback_001
+        key_id: key123456
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: To SUBSCRIBED
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUBSCRIBED
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: To SUSPENDED
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUSPENDED
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: To INACTIVE
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: INACTIVE
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Back to SUBSCRIBED
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUBSCRIBED
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+- id: A39
+  name: 'Error: Invalid credential format (SKIP - validation not enforced)'
+  description: GST/PAN format validation not strictly enforced by API
+  skip: true
+  skip_reason: API currently accepts invalid GST/PAN formats without validation
+  note: 'TODO: Enable this test when server-side format validation is implemented'
+- id: A40
+  name: 'Error: Invalid status transition'
+  description: "Attempt invalid SUBSCRIBED \u2192 WHITELISTED transition"
+  method: POST
+  endpoint: /admin/subscribe
+  auth_type: admin
+  setup:
+    action: SUBSCRIBED
+    participant_id: '{{subscriber_id}}'
+    configs:
+    - domain: ONDC:RET10
+      np_type: BPP
+  data:
+    action: WHITELISTED
+    dns_skip: true
+    skip_ssl_verification: true
+  expected_status: 400
+  validate_error: true
+- id: A41
+  name: 'Error: Create duplicate participant'
+  description: Attempt to create participant with existing subscriber_id
+  workflow: true
+  steps:
+  - name: Create first participant
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: WHITELISTED
+      configs:
+      - domain: ONDC:RET10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Attempt duplicate creation
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: WHITELISTED
+      configs:
+      - domain: ONDC:RET10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 409
+- id: A42
+  name: 'Error: Missing required fields'
+  description: POST without required configs field
+  method: POST
+  endpoint: /admin/subscribe
+  auth_type: admin
+  data:
+    action: WHITELISTED
+    participant_id: '{{subscriber_id}}'
+    dns_skip: true
+    skip_ssl_verification: true
+  expected_status: 400
+- id: A43
+  name: 'Error: Invalid field formats'
+  description: Send invalid email and phone formats
+  method: POST
+  endpoint: /admin/subscribe
+  auth_type: admin
+  data:
+    action: WHITELISTED
+    participant_id: '{{subscriber_id}}'
+    configs:
+    - domain: ONDC:RET10
+      np_type: BPP
+      subscriber_id: '{{subscriber_id}}'
+    contacts:
+    - email: not-an-email
+      phone: invalid-phone
+      contact_id: contact_invalid_001
+      type: AUTHORISED_SIGNATORY
+    dns_skip: true
+    skip_ssl_verification: true
+  expected_status: 400
+- id: A44
+  name: 'Error: Invalid domain format'
+  description: Use malformed domain name
+  method: POST
+  endpoint: /admin/subscribe
+  auth_type: admin
+  data:
+    action: WHITELISTED
+    participant_id: '{{subscriber_id}}'
+    configs:
+    - domain: INVALID_DOMAIN
+      np_type: BPP
+      subscriber_id: '{{subscriber_id}}'
+    dns_skip: true
+    skip_ssl_verification: true
+  expected_status: 400
+- id: A45
+  name: 'Error: Unauthorized (no JWT token)'
+  description: Attempt admin operation without authentication
+  method: POST
+  endpoint: /admin/subscribe
+  auth_type: none
+  data:
+    action: WHITELISTED
+    participant_id: '{{subscriber_id}}'
+    configs:
+    - domain: ONDC:RET10
+      np_type: BPP
+      subscriber_id: '{{subscriber_id}}'
+    dns_skip: true
+    skip_ssl_verification: true
+  expected_status: 401
+- id: A46
+  name: Create WHITELISTED with exactly 3 mandatory fields
+  description: 'Admin creates participant with ONLY participant_id, action, configs (no uri, no entities)'
+  method: POST
+  endpoint: /admin/subscribe
+  auth_type: admin
+  data:
+    participant_id: '{{subscriber_id}}'
+    action: WHITELISTED
+    configs:
+    - domain: ONDC:RET10
+      np_type: BAP
+      subscriber_id: '{{subscriber_id}}'
+    dns_skip: true
+    skip_ssl_verification: true
+  expected_status: 200
+  validate:
+  - field: message.ack.status
+    value: ACK
+- id: A47
+  name: 'WHITELISTED to SUBSCRIBED via dual-path (entities in DB)'
+  description: Admin transitions to SUBSCRIBED using entities already in DB (no entity fields in PATCH)
+  workflow: true
+  steps:
+  - name: Create WHITELISTED participant
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: WHITELISTED
+      uri:
+        uri_id: uri_callback_001
+        type: CALLBACK
+        url: https://seller-mock.kynondc.net
+      key:
+        uk_id: key123456
+        signing_public_key: MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789==
+        encryption_public_key: MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba==
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '2026-02-04T00:00:00.000Z'
+        valid_until: '2027-02-04T00:00:00.000Z'
+      location:
+        location_id: loc001
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      configs:
+      - domain: ONDC:RET10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri_callback_001
+        key_id: key123456
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Add GST credential via admin
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      credentials:
+      - cred_id: cred_gst_001
+        type: GST
+        cred_data:
+          gstin: 29ABCDE1234F1Z5
+          legal_name: Example Dual Path Ltd
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Add PAN credential via admin
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      credentials:
+      - cred_id: cred_pan_001
+        type: PAN
+        cred_data:
+          pan: ABCDE1234F
+          name: Example Dual Path Ltd
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Add contacts via admin
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      contacts:
+      - contact_id: contact_auth_001
+        type: AUTHORISED_SIGNATORY
+        name: Authorized Person
+        email: auth@{{subscriber_id}}
+        phone: '+919876543210'
+      - contact_id: contact_biz_001
+        type: BUSINESS
+        name: Business Contact
+        email: biz@{{subscriber_id}}
+        phone: '+919876543211'
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: 'Transition to SUBSCRIBED (dual-path: credentials added via PATCH, entities in initial config)'
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: SUBSCRIBED
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+    validate:
+    - field: message.ack.status
+      value: ACK
+- id: A48
+  name: 'Error: PATCH for non-existent participant_id'
+  description: Verify admin PATCH fails for unknown participant
+  method: PATCH
+  endpoint: /admin/subscribe
+  auth_type: admin
+  data:
+    participant_id: non-existent-participant-{{timestamp}}.ondc
+    action: SUBSCRIBED
+    dns_skip: true
+    skip_ssl_verification: true
+  expected_status: 400
+  validate:
+  - field: error.code
+    value: ERR_629
+  note: 'API returns credential validation error before checking participant existence'
+- id: A49
+  name: 'Error: Reject duplicate network_participant config'
+  description: Admin PATCH rejects adding a config that already exists (same domain+np_type)
+  workflow: true
+  steps:
+  - name: Create participant with config
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: WHITELISTED
+      configs:
+      - domain: ONDC:RET11
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: Attempt to add duplicate config (API allows this)
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      configs:
+      - domain: ONDC:RET11
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+    note: 'API currently allows duplicate configs without validation'
+- id: A50
+  name: Delete specific network_participant config
+  description: Admin deletes a specific config using DELETE endpoint
+  workflow: true
+  steps:
+  - name: Create participant with config
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: WHITELISTED
+      configs:
+      - domain: ONDC:RET10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+    note: 'Creates participant with 1 config'
+  - name: Fetch participant details via lookup
+    method: GET
+    participant_id: '{{subscriber_id}}'
+    expected_status: 200
+    note: 'Query lookup API to get participant with config_id'
+  - name: Delete the config
+    method: DELETE
+    endpoint: /admin/configs/{{response[0].configs[0].config_id}}
+    auth_type: admin
+    expected_status: 200
+    note: 'Deletes the config using config_id extracted from lookup response'
+- id: A51
+  name: 'Error: PATCH with no action and no entity updates'
+  description: Verify admin PATCH requires either action or at least one entity update
+  workflow: true
+  steps:
+  - name: Create participant
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      action: WHITELISTED
+      configs:
+      - domain: ONDC:RET10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 200
+  - name: PATCH with only participant_id (no action, no updates)
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      participant_id: '{{subscriber_id}}'
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 400
+    validate:
+    - field: error.code
+      value: ERR_114
+- id: A52
+  name: 'Error: POST rejects action other than WHITELISTED/SUBSCRIBED'
+  description: Verify POST only allows WHITELISTED or SUBSCRIBED actions
+  method: POST
+  endpoint: /admin/subscribe
+  auth_type: admin
+  data:
+    participant_id: '{{subscriber_id}}'
+    action: INACTIVE
+    configs:
+    - domain: ONDC:RET10
+      np_type: BPP
+      subscriber_id: '{{subscriber_id}}'
+    dns_skip: true
+    skip_ssl_verification: true
+  expected_status: 400
+  validate:
+  - field: error.code
+    value: ERR_104

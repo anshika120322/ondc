@@ -1,0 +1,128 @@
+ondc_admin_security_api:
+  description: "ONDC Admin Security Tests - Authentication, authorization, token management, and session security (TC-041 to TC-046)"
+  
+  endpoints:
+    base_url: "http://localhost:3000"
+    csrf_token: "/api/v1/auth/csrf-token"
+    login: "/api/v1/auth/login"
+    users_me: "/api/v1/users/me"
+  
+  test_users:
+    super_admin:
+      email: "super@admin.com"
+      password: "SuperSecure123!"
+      role: "SUPER_ADMIN"
+    
+    admin:
+      email: "admin@example.com"
+      password: "AdminPass123!"
+      role: "ADMIN"
+    
+    operator:
+      email: "operator@example.com"
+      password: "OperatorPass123!"
+      role: "OPERATOR"
+  
+  security:
+    token_expiry_minutes: 15
+    session_timeout_minutes: 15
+    csrf_token_length: 64
+    single_session_enforcement: true
+  
+  validation:
+    csrf_token:
+      - field: "csrfToken"
+        type: "string"
+        pattern: "^[a-fA-F0-9]{64}$"
+        required: true
+    
+    unauthorized_response:
+      - field: "message"
+        type: "string"
+        expected: "Unauthorized"
+        required: true
+      - field: "statusCode"
+        type: "number"
+        expected: 401
+        required: true
+    
+    invalid_token_response:
+      - field: "message"
+        type: "string"
+        contains: "invalid|unauthorized"
+        required: true
+      - field: "statusCode"
+        type: "number"
+        expected: 401
+        required: true
+    
+    expired_token_response:
+      - field: "message"
+        type: "string"
+        contains: "expired|unauthorized|invalid"
+        required: true
+      - field: "statusCode"
+        type: "number"
+        expected: 401
+        required: true
+  
+  test_cases:
+    tc_041:
+      name: "CSRF Token Generation"
+      type: "Positive"
+      priority: "Medium"
+      endpoint: "/api/v1/auth/csrf-token"
+      method: "GET"
+      expected_status: 200
+      validation_rules:
+        - "CSRF token returned in response"
+        - "Token is 64-character hex string"
+        - "Token set in HTTP-only cookie"
+    
+    tc_042:
+      name: "Unauthorized Access"
+      type: "Negative"
+      priority: "High"
+      endpoint: "/api/v1/users/me"
+      method: "GET"
+      auth_required: false
+      expected_status: 401
+      expected_error: "Unauthorized"
+    
+    tc_043:
+      name: "Invalid Token"
+      type: "Negative"
+      priority: "High"
+      endpoint: "/api/v1/users/me"
+      method: "GET"
+      invalid_token: true
+      expected_status: 401
+      expected_error: "Invalid token"
+    
+    tc_044:
+      name: "Expired Access Token"
+      type: "Negative"
+      priority: "High"
+      endpoint: "/api/v1/users/me"
+      method: "GET"
+      expired_token: true
+      expected_status: 401
+      expected_error: "Token expired"
+    
+    tc_045:
+      name: "Session Timeout"
+      type: "Positive"
+      priority: "Medium"
+      wait_minutes: 16
+      expected_status: 401
+      expected_error: "Session expired"
+      note: "In skeleton mode, wait time is reduced to 2 seconds"
+    
+    tc_046:
+      name: "Concurrent Login Sessions"
+      type: "Positive"
+      priority: "High"
+      single_session_enforcement: true
+      expected_behavior: "Browser A session invalidated when Browser B logs in"
+      browser_a_status: 401
+      browser_b_status: 200

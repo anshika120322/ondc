@@ -1,0 +1,2332 @@
+# Combined Admin + V3 Workflow Tests (Positive Scenarios Only)
+# Tests Admin ↔ V3 API interactions and collaboration workflows
+
+test_suite:
+  name: "Combined Admin + V3 Workflow Tests"
+  category: "combined"
+  total_tests: 20
+  description: "Positive workflows testing Admin and V3 API interactions, state transitions, entity management, and multi-domain scenarios"
+
+# Test configuration
+config:
+  default_timeout: 30
+  retry_on_failure: false
+
+# ==========================================
+# 1. STATUS TRANSITION WORKFLOWS (6 tests)
+# ==========================================
+
+tests:
+  - id: "C01"
+    name: "Admin WHITELISTED → V3 SUBSCRIBED"
+    description: "Admin creates WHITELISTED, participant self-subscribes via V3"
+    workflow: true
+    steps:
+      - name: "Admin creates WHITELISTED"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+        
+
+      - name: "Verify participant is WHITELISTED after Admin creates WHITELISTED"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "WHITELISTED"
+      - name: "V3 self-subscribe to SUBSCRIBED"
+        method: "POST"
+        endpoint: "/v3.0/subscribe"
+        auth_type: "v3"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          request_id: "{{request_id}}"
+          uk_id: "{{uk_id}}"
+          participant_id: "{{subscriber_id}}"
+          credentials:
+            - cred_id: "cred_gst_c01"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "C01 Test Company"
+            - cred_id: "cred_pan_c01"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+          contacts:
+            - contact_id: "contact_auth_c01"
+            - contact_id: "contact_biz_c01"
+              name: "C01 Business"
+              email: "biz@c01.example.com"
+              phone: "+919876543211"
+              type: "BUSINESS"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_c01"
+            country: "IND"
+            city: ["std:080"]
+            type: "SERVICEABLE"
+          uri:
+            uri_id: "uri_c01"
+            type: "CALLBACK"
+            url: "{{participant_url}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_c01"
+              uri_id: "uri_c01"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+
+      - name: "Verify participant is SUBSCRIBED"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "SUBSCRIBED"
+
+  - id: "C02"
+    name: "Admin SUBSCRIBED → V3 updates entities"
+    description: "Admin creates fully subscribed, V3 updates their data"
+    workflow: true
+    steps:
+      - name: "Admin creates SUBSCRIBED"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_c02"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "C02 Admin Created"
+            - cred_id: "cred_pan_c02"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+          contacts:
+            - contact_id: "contact_auth_c02"
+              name: "C02 Admin Contact"
+              email: "admin@c02.example.com"
+              phone: "+919999999999"
+              type: "AUTHORISED_SIGNATORY"
+            - contact_id: "contact_biz_c02"
+              type: "BUSINESS"
+              name: "Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543212"
+          key:
+            uk_id: "key_c02"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_c02"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_c02"
+            type: "CALLBACK"
+            url: "{{participant_url}}"
+          configs:
+            - domain: "ONDC:RET12"
+              np_type: "LOGISTICS"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_c02"
+              uri_id: "uri_c02"
+              key_id: "key_c02"
+        expected_status: 200
+        
+
+      - name: "Verify participant is SUBSCRIBED after Admin creates SUBSCRIBED"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "SUBSCRIBED"
+      - name: "V3 updates contacts"
+        method: "PATCH"
+        endpoint: "/v3.0/subscribe"
+        auth_type: "v3"
+        data:
+          request_id: "{{request_id}}"
+          uk_id: "key_c02"
+          participant_id: "{{subscriber_id}}"
+          contacts:
+            - contact_id: "contact_auth_c02"
+            - contact_id: "contact_auth_c03"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_c03"
+            country: "IND"
+            city: ["std:080", "std:011"]
+            type: "SERVICEABLE"
+          uri:
+            uri_id: "uri_c03"
+            type: "CALLBACK"
+            url: "{{participant_url}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_c03"
+              uri_id: "uri_c03"
+              key_id: "{{uk_id}}"
+            - domain: "ONDC:RET15"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_c03"
+              uri_id: "uri_c03"
+              key_id: "{{uk_id}}"
+            - domain: "ONDC:RET12"
+              np_type: "LOGISTICS"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_c03"
+              uri_id: "uri_c03"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+
+      - name: "Verify participant SUBSCRIBED for all 3 domains"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "SUBSCRIBED"
+
+  - id: "C04"
+    name: "Admin SUBSCRIBED → Admin SUSPENDED → V3 blocked"
+    description: "Test V3 operations blocked during suspension"
+    workflow: true
+    steps:
+      - name: "Admin creates SUBSCRIBED"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_c04"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "C04 Suspend Test"
+            - cred_id: "cred_pan_c04"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+          contacts:
+            - contact_id: "contact_auth_c04"
+              name: "C04 Contact"
+              email: "contact@c04.example.com"
+              phone: "+919876543210"
+              type: "AUTHORISED_SIGNATORY"
+            - contact_id: "contact_biz_c04"
+              type: "BUSINESS"
+              name: "Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543212"
+          key:
+            uk_id: "key_c04"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_c04"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_c04"
+            type: "CALLBACK"
+            url: "{{participant_url}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_c04"
+              uri_id: "uri_c04"
+              key_id: "key_c04"
+        expected_status: 200
+        
+
+      - name: "Verify participant is SUBSCRIBED after Admin creates SUBSCRIBED"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "SUBSCRIBED"
+      - name: "Admin suspends"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "SUSPENDED"
+        expected_status: 200
+        
+
+      - name: "Verify participant is SUSPENDED after Admin suspends"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "SUSPENDED"
+      - name: "V3 update attempt (should fail)"
+        method: "PATCH"
+        endpoint: "/v3.0/subscribe"
+        auth_type: "v3"
+        data:
+          request_id: "{{request_id}}"
+          uk_id: "key_c04"
+          participant_id: "{{subscriber_id}}"
+          contacts:
+            - contact_id: "contact_auth_c04"
+            - contact_id: "contact_auth_c05"
+              name: "C05 Contact"
+              email: "contact@c05.example.com"
+              phone: "+919876543210"
+              type: "AUTHORISED_SIGNATORY"
+            - contact_id: "contact_biz_c05"
+              type: "BUSINESS"
+              name: "Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543212"
+          key:
+            uk_id: "key_c05"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_c05"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_c05"
+            type: "CALLBACK"
+            url: "{{participant_url}}"
+          configs:
+            - domain: "ONDC:RET12"
+              np_type: "LOGISTICS"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_c05"
+              uri_id: "uri_c05"
+              key_id: "key_c05"
+        expected_status: 200
+        
+
+      - name: "Verify participant is SUBSCRIBED after Admin creates SUBSCRIBED"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "SUBSCRIBED"
+      - name: "Admin deactivates"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "INACTIVE"
+        expected_status: 200
+        
+
+      - name: "Verify participant is INACTIVE after Admin deactivates"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "INACTIVE"
+      - name: "V3 self-restores to SUBSCRIBED"
+        method: "POST"
+        endpoint: "/v3.0/subscribe"
+        auth_type: "v3"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          request_id: "{{request_id}}"
+          uk_id: "key_c05"
+          participant_id: "{{subscriber_id}}"
+          credentials:
+            - cred_id: "cred_gst_c05"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "C05 Inactive Test"
+            - cred_id: "cred_pan_c05"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+          contacts:
+            - contact_id: "contact_auth_c05"
+            - contact_id: "contact_biz_c05"
+              type: "BUSINESS"
+              name: "Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543212"
+          key:
+            uk_id: "key_c05"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_c05"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_c05"
+            type: "CALLBACK"
+            url: "{{participant_url}}"
+          configs:
+            - domain: "ONDC:RET12"
+              np_type: "LOGISTICS"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_c05"
+              uri_id: "uri_c05"
+              key_id: "key_c05"
+        expected_status: 200
+
+      - name: "Verify participant restored to SUBSCRIBED"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "SUBSCRIBED"
+
+  - id: "C06"
+    name: "V3 SUBSCRIBED → Admin SUSPENDED → Admin restores"
+    description: "Admin intervention on V3-subscribed participant"
+    workflow: true
+    steps:
+      - name: "Admin whitelists"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET15"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+        
+
+      - name: "Verify participant is WHITELISTED after Admin whitelists"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "WHITELISTED"
+      - name: "V3 subscribes"
+        method: "POST"
+        endpoint: "/v3.0/subscribe"
+        auth_type: "v3"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          request_id: "{{request_id}}"
+          uk_id: "{{uk_id}}"
+          participant_id: "{{subscriber_id}}"
+          credentials:
+            - cred_id: "cred_gst_c06"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "C06 Intervention Test"
+            - cred_id: "cred_pan_c06"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+          contacts:
+            - contact_id: "contact_auth_c06"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_c06"
+            country: "IND"
+            city: ["std:080"]
+            type: "SERVICEABLE"
+          uri:
+            uri_id: "uri_c06"
+            type: "CALLBACK"
+            url: "{{participant_url}}"
+          configs:
+            - domain: "ONDC:RET15"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_c06"
+              uri_id: "uri_c06"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+        
+
+      - name: "Verify participant is SUBSCRIBED after V3 subscribes"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "SUBSCRIBED"
+      - name: "Admin suspends"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "SUSPENDED"
+        expected_status: 200
+        
+
+      - name: "Verify participant is SUSPENDED after Admin suspends"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "SUSPENDED"
+      - name: "Admin restores"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+        expected_status: 200
+
+      - name: "Verify participant restored to SUBSCRIBED"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "SUBSCRIBED"
+
+# ==========================================
+# 2. ENTITY MANAGEMENT WORKFLOWS (7 tests)
+# ==========================================
+
+  - id: "C07"
+    name: "Admin creates credentials → V3 adds more credentials"
+    description: "Collaborative credential management"
+    workflow: true
+    steps:
+      - name: "Admin creates with GST only"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          credentials:
+            - cred_id: "cred_gst_c07"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "C07 Admin GST"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+        
+
+      - name: "Verify participant is WHITELISTED after Admin creates with GST only"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "WHITELISTED"
+      - name: "V3 adds PAN credential"
+        method: "PATCH"
+        endpoint: "/v3.0/subscribe"
+        auth_type: "v3"
+        data:
+          request_id: "{{request_id}}"
+          uk_id: "{{uk_id}}"
+          participant_id: "{{subscriber_id}}"
+          credentials:
+            - cred_id: "cred_pan_c07"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+        expected_status: 200
+
+      - name: "Verify participant accessible after credential add"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+
+  - id: "C08"
+    name: "Admin creates contacts → V3 updates contacts"
+    description: "Contact management between admin and V3"
+    workflow: true
+    steps:
+      - name: "Admin creates with initial contact"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_c08"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "C08 Contact Test"
+            - cred_id: "cred_pan_c08"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+          contacts:
+            - contact_id: "contact_auth_c08"
+            - contact_id: "contact_biz_c08"
+              type: "BUSINESS"
+              name: "Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543212"
+          key:
+            uk_id: "key_c08"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_c08"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_c08"
+            type: "CALLBACK"
+            url: "{{participant_url}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_c08"
+              uri_id: "uri_c08"
+              key_id: "key_c08"
+        expected_status: 200
+        
+
+      - name: "Verify participant is SUBSCRIBED after Admin creates with initial contact"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "SUBSCRIBED"
+      - name: "V3 updates contact"
+        method: "PATCH"
+        endpoint: "/v3.0/subscribe"
+        auth_type: "v3"
+        data:
+          request_id: "{{request_id}}"
+          uk_id: "key_c08"
+          participant_id: "{{subscriber_id}}"
+          contacts:
+            - contact_id: "contact_auth_c08"
+            - contact_id: "contact_auth_c09"
+              name: "C09 Contact"
+              email: "contact@c09.example.com"
+              phone: "+919876543210"
+              type: "AUTHORISED_SIGNATORY"
+            - contact_id: "contact_biz_c09"
+              type: "BUSINESS"
+              name: "Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543212"
+          key:
+            uk_id: "key_c09"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_c09"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_c09"
+            type: "CALLBACK"
+            url: "{{participant_url}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_c09"
+              uri_id: "uri_c09"
+              key_id: "key_c09"
+        expected_status: 200
+        
+
+      - name: "Verify participant is SUBSCRIBED after Admin creates with single city"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "SUBSCRIBED"
+      - name: "V3 adds more cities"
+        method: "PATCH"
+        endpoint: "/v3.0/subscribe"
+        auth_type: "v3"
+        data:
+          request_id: "{{request_id}}"
+          uk_id: "key_c09"
+          participant_id: "{{subscriber_id}}"
+          location:
+            location_id: "loc_c09"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080", "std:011", "std:022"]
+        expected_status: 200
+
+      - name: "Verify participant accessible after location update"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "SUBSCRIBED"
+
+  - id: "C10"
+    name: "V3 creates all entities → Admin updates status transitions"
+    description: "V3 owns entity data, admin manages lifecycle"
+    workflow: true
+    steps:
+      - name: "Admin whitelists minimal"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+        
+
+      - name: "Verify participant is WHITELISTED after Admin whitelists minimal"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "WHITELISTED"
+      - name: "V3 creates full participant"
+        method: "POST"
+        endpoint: "/v3.0/subscribe"
+        auth_type: "v3"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          request_id: "{{request_id}}"
+          uk_id: "{{uk_id}}"
+          participant_id: "{{subscriber_id}}"
+          credentials:
+            - cred_id: "cred_gst_c10"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "C10 V3 Owned"
+            - cred_id: "cred_pan_c10"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+          contacts:
+            - contact_id: "contact_auth_c10"
+            - contact_id: "contact_biz_c10"
+              type: "BUSINESS"
+              name: "Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543212"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_c10"
+            country: "IND"
+            city: ["std:080"]
+            type: "SERVICEABLE"
+          uri:
+            uri_id: "uri_c10"
+            type: "CALLBACK"
+            url: "{{participant_url}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_c10"
+              uri_id: "uri_c10"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+        
+
+      - name: "Verify participant is SUBSCRIBED after V3 creates full participant"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "SUBSCRIBED"
+      - name: "Admin deactivates"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "INACTIVE"
+        expected_status: 200
+        
+
+      - name: "Verify participant is INACTIVE after Admin deactivates"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "INACTIVE"
+      - name: "Admin reactivates"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+        expected_status: 200
+
+      - name: "Verify participant SUBSCRIBED after reactivation"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "SUBSCRIBED"
+
+  - id: "C11"
+    name: "Admin updates location → V3 updates location → Non-conflicting"
+    description: "Both admin and V3 managing location without conflict"
+    workflow: true
+    steps:
+      - name: "Admin creates with location"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_c11"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "C11 Location Collaborative"
+            - cred_id: "cred_pan_c11"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+          contacts:
+            - contact_id: "contact_auth_c11"
+              name: "C11 Contact"
+              email: "contact@c11.example.com"
+              phone: "+919876543210"
+              type: "AUTHORISED_SIGNATORY"
+            - contact_id: "contact_biz_c11"
+              type: "BUSINESS"
+              name: "Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543212"
+          key:
+            uk_id: "key_c11"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_c11"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_c11"
+            type: "CALLBACK"
+            url: "{{participant_url}}"
+          configs:
+            - domain: "ONDC:RET15"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_c11"
+              uri_id: "uri_c11"
+              key_id: "key_c11"
+        expected_status: 200
+        
+
+      - name: "Verify participant is SUBSCRIBED after Admin creates with location"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "SUBSCRIBED"
+      - name: "Admin updates location"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          location:
+            location_id: "loc_c11"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080", "std:022"]
+        expected_status: 200
+        
+
+      - name: "Verify participant is SUBSCRIBED after Admin updates location"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "SUBSCRIBED"
+      - name: "V3 updates location again"
+        method: "PATCH"
+        endpoint: "/v3.0/subscribe"
+        auth_type: "v3"
+        data:
+          request_id: "{{request_id}}"
+          uk_id: "key_c11"
+          participant_id: "{{subscriber_id}}"
+          location:
+            location_id: "loc_c11"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080", "std:022", "std:011"]
+        expected_status: 200
+
+      - name: "Verify participant accessible after collaborative location update"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "SUBSCRIBED"
+
+  - id: "C12"
+    name: "Admin adds URI → V3 updates URI"
+    description: "URI management collaboration"
+    workflow: true
+    steps:
+      - name: "Admin creates with URI"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_c12"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "C12 URI Test"
+            - cred_id: "cred_pan_c12"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+          contacts:
+            - contact_id: "contact_auth_c12"
+            - contact_id: "contact_biz_c12"
+              type: "BUSINESS"
+              name: "Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543212"
+          key:
+            uk_id: "key_c12"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_c12"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_c12"
+            type: "CALLBACK"
+            url: "https://old-uri.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_c12"
+              uri_id: "uri_c12"
+              key_id: "key_c12"
+        expected_status: 200
+        
+
+      - name: "Verify participant is SUBSCRIBED after Admin creates with URI"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "SUBSCRIBED"
+      - name: "V3 updates URI"
+        method: "PATCH"
+        endpoint: "/v3.0/subscribe"
+        auth_type: "v3"
+        data:
+          request_id: "{{request_id}}"
+          uk_id: "key_c12"
+          participant_id: "{{subscriber_id}}"
+          uri:
+            uri_id: "uri_c12"
+            type: "CALLBACK"
+            url: "https://new-uri.example.com/callback"
+        expected_status: 200
+
+      - name: "Verify participant accessible after URI update"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "SUBSCRIBED"
+
+  - id: "C13"
+    name: "Admin creates key → V3 rotates key"
+    description: "Key rotation managed by V3 after admin creation"
+    workflow: true
+    steps:
+      - name: "Admin creates with key"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_c13"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "C13 Key Rotation"
+            - cred_id: "cred_pan_c13"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+          contacts:
+            - contact_id: "contact_auth_c13"
+            - contact_id: "contact_biz_c13"
+              type: "BUSINESS"
+              name: "Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543212"
+          key:
+            uk_id: "key_c13_old"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_c13"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_c13"
+            type: "CALLBACK"
+            url: "{{participant_url}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_c13"
+              uri_id: "uri_c13"
+              key_id: "key_c13_old"
+        expected_status: 200
+        
+
+      - name: "Verify participant is SUBSCRIBED after Admin creates with key"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "SUBSCRIBED"
+      - name: "V3 rotates to new key"
+        method: "PATCH"
+        endpoint: "/v3.0/subscribe"
+        auth_type: "v3"
+        data:
+          request_id: "{{request_id}}"
+          uk_id: "{{uk_id}}"
+          participant_id: "{{subscriber_id}}"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+        expected_status: 200
+
+      - name: "Verify participant accessible after key rotation"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "SUBSCRIBED"
+
+# ==========================================
+# 3. MULTI-DOMAIN WORKFLOWS (4 tests)
+# ==========================================
+
+  - id: "C14"
+    name: "Admin creates 2 domains → V3 subscribes → Admin adds 3rd domain"
+    description: "Domain expansion workflow"
+    workflow: true
+    steps:
+      - name: "Admin creates with 2 domains"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+            - domain: "ONDC:RET15"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+        
+
+      - name: "Verify participant is WHITELISTED after Admin creates with 2 domains"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "WHITELISTED"
+      - name: "V3 subscribes"
+        method: "POST"
+        endpoint: "/v3.0/subscribe"
+        auth_type: "v3"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          request_id: "{{request_id}}"
+          uk_id: "{{uk_id}}"
+          participant_id: "{{subscriber_id}}"
+          credentials:
+            - cred_id: "cred_gst_c14"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "C14 Multi Domain"
+            - cred_id: "cred_pan_c14"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+          contacts:
+            - contact_id: "contact_auth_c14"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_c14"
+            country: "IND"
+            city: ["std:080"]
+            type: "SERVICEABLE"
+          uri:
+            uri_id: "uri_c14"
+            type: "CALLBACK"
+            url: "{{participant_url}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_c14"
+              uri_id: "uri_c14"
+              key_id: "{{uk_id}}"
+            - domain: "ONDC:RET15"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_c14"
+              uri_id: "uri_c14"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+        
+
+      - name: "Verify participant is SUBSCRIBED after V3 subscribes"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "SUBSCRIBED"
+      - name: "Admin adds 3rd domain"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+            - domain: "ONDC:RET15"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+            - domain: "ONDC:RET12"
+              np_type: "LOGISTICS"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+
+
+      - name: "Verify participant is SUBSCRIBED after Admin adds 3rd domain"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "SUBSCRIBED"
+      - name: "Verify 3 domain configs exist"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "[*]"
+            operator: "contains_object"
+            value: {domain: "ONDC:RET1A", status: "SUBSCRIBED"}
+          - field: "[*]"
+            operator: "contains_object"
+            value: {domain: "ONDC:RET15", status: "SUBSCRIBED"}
+          - field: "[*]"
+            operator: "contains_object"
+            value: {domain: "ONDC:RET12", status: "WHITELISTED"}
+          - field: "[*]"
+            operator: "count"
+            value: 3
+
+  - id: "C15"
+    name: "V3 subscribes single domain → Admin adds domains → V3 subscribes new"
+    description: "Incremental domain activation"
+    workflow: true
+    steps:
+      - name: "Admin whitelists single domain"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+        
+
+      - name: "Verify participant is WHITELISTED after Admin whitelists single domain"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "WHITELISTED"
+      - name: "V3 subscribes first domain"
+        method: "POST"
+        endpoint: "/v3.0/subscribe"
+        auth_type: "v3"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          request_id: "{{request_id}}"
+          uk_id: "{{uk_id}}"
+          participant_id: "{{subscriber_id}}"
+          credentials:
+            - cred_id: "cred_gst_c15"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "C15 Incremental"
+            - cred_id: "cred_pan_c15"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+          contacts:
+            - contact_id: "contact_auth_c15"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_c15"
+            country: "IND"
+            city: ["std:080"]
+            type: "SERVICEABLE"
+          uri:
+            uri_id: "uri_c15"
+            type: "CALLBACK"
+            url: "{{participant_url}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_c15"
+              uri_id: "uri_c15"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+        
+
+      - name: "Verify participant is SUBSCRIBED after V3 subscribes first domain"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "SUBSCRIBED"
+      - name: "Admin adds 2 more domains"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+            - domain: "ONDC:RET15"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+            - domain: "ONDC:RET12"
+              np_type: "LOGISTICS"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+        
+
+      - name: "Verify participant is SUBSCRIBED after Admin adds 2 more domains"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "SUBSCRIBED"
+      - name: "V3 updates configs for all domains"
+        method: "PATCH"
+        endpoint: "/v3.0/subscribe"
+        auth_type: "v3"
+        data:
+          request_id: "{{request_id}}"
+          uk_id: "{{uk_id}}"
+          participant_id: "{{subscriber_id}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_c15"
+              uri_id: "uri_c15"
+              key_id: "{{uk_id}}"
+            - domain: "ONDC:RET15"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_c15"
+              uri_id: "uri_c15"
+              key_id: "{{uk_id}}"
+            - domain: "ONDC:RET12"
+              np_type: "LOGISTICS"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_c15"
+              uri_id: "uri_c15"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+
+
+      - name: "Verify participant is SUBSCRIBED after V3 updates configs for all domains"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "SUBSCRIBED"
+      - name: "Verify 3 domain configs updated"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "[*]"
+            operator: "contains_object"
+            value: {domain: "ONDC:RET1A", status: "SUBSCRIBED"}
+          - field: "[*]"
+            operator: "contains_object"
+            value: {domain: "ONDC:RET15", status: "SUBSCRIBED"}
+          - field: "[*]"
+            operator: "contains_object"
+            value: {domain: "ONDC:RET12", status: "SUBSCRIBED"}
+          - field: "[*].status"
+            operator: "all"
+            value: "SUBSCRIBED"
+          - field: "[*]"
+            operator: "count"
+            value: 3
+
+  - id: "C16"
+    name: "Admin 4 domains → V3 subscribes all → Admin INACTIVE → V3 restores"
+    description: "Large multi-domain with lifecycle"
+    workflow: true
+    steps:
+      - name: "Admin creates with 4 domains"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+            - domain: "ONDC:RET15"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+            - domain: "ONDC:RET12"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+            - domain: "ONDC:RET12"
+              np_type: "LOGISTICS"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+        
+
+      - name: "Verify participant is WHITELISTED after Admin creates with 4 domains"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "WHITELISTED"
+      - name: "V3 subscribes all 4"
+        method: "POST"
+        endpoint: "/v3.0/subscribe"
+        auth_type: "v3"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          request_id: "{{request_id}}"
+          uk_id: "{{uk_id}}"
+          participant_id: "{{subscriber_id}}"
+          credentials:
+            - cred_id: "cred_gst_c16"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "C16 Large Multi"
+            - cred_id: "cred_pan_c16"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+          contacts:
+            - contact_id: "contact_auth_c16"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_c16"
+            country: "IND"
+            city: ["std:080", "std:011"]
+            type: "SERVICEABLE"
+          uri:
+            uri_id: "uri_c16"
+            type: "CALLBACK"
+            url: "{{participant_url}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_c16"
+              uri_id: "uri_c16"
+              key_id: "{{uk_id}}"
+            - domain: "ONDC:RET15"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_c16"
+              uri_id: "uri_c16"
+              key_id: "{{uk_id}}"
+            - domain: "ONDC:RET12"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_c16"
+              uri_id: "uri_c16"
+              key_id: "{{uk_id}}"
+            - domain: "ONDC:RET12"
+              np_type: "LOGISTICS"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_c16"
+              uri_id: "uri_c16"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+        
+
+      - name: "Verify participant is SUBSCRIBED after V3 subscribes all 4"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "SUBSCRIBED"
+      - name: "Admin deactivates"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "INACTIVE"
+        expected_status: 200
+        
+
+      - name: "Verify participant is INACTIVE after Admin deactivates"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "INACTIVE"
+      - name: "V3 restores all domains"
+        method: "POST"
+        endpoint: "/v3.0/subscribe"
+        auth_type: "v3"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          request_id: "{{request_id}}"
+          uk_id: "{{uk_id}}"
+          participant_id: "{{subscriber_id}}"
+          credentials:
+            - cred_id: "cred_gst_c16"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "C16 Large Multi"
+            - cred_id: "cred_pan_c16"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+          contacts:
+            - contact_id: "contact_auth_c16"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_c16"
+            country: "IND"
+            city: ["std:080", "std:011"]
+            type: "SERVICEABLE"
+          uri:
+            uri_id: "uri_c16"
+            type: "CALLBACK"
+            url: "{{participant_url}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_c16"
+              uri_id: "uri_c16"
+              key_id: "{{uk_id}}"
+            - domain: "ONDC:RET15"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_c16"
+              uri_id: "uri_c16"
+              key_id: "{{uk_id}}"
+            - domain: "ONDC:RET12"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_c16"
+              uri_id: "uri_c16"
+              key_id: "{{uk_id}}"
+            - domain: "ONDC:RET12"
+              np_type: "LOGISTICS"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_c16"
+              uri_id: "uri_c16"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+
+      - name: "Verify participant SUBSCRIBED with 4 domains restored"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "SUBSCRIBED"
+
+  - id: "C17"
+    name: "Different np_types per domain managed by admin and V3"
+    description: "Complex domain-specific type configuration"
+    workflow: true
+    steps:
+      - name: "Admin creates diverse config"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+            - domain: "ONDC:RET15"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+            - domain: "ONDC:RET12"
+              np_type: "LOGISTICS"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+        
+
+      - name: "Verify participant is WHITELISTED after Admin creates diverse config"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "WHITELISTED"
+      - name: "V3 subscribes with diverse types"
+        method: "POST"
+        endpoint: "/v3.0/subscribe"
+        auth_type: "v3"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          request_id: "{{request_id}}"
+          uk_id: "{{uk_id}}"
+          participant_id: "{{subscriber_id}}"
+          credentials:
+            - cred_id: "cred_gst_c17"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "C17 Diverse Types"
+            - cred_id: "cred_pan_c17"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+          contacts:
+            - contact_id: "contact_auth_c17"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_c17"
+            country: "IND"
+            city: ["std:080"]
+            type: "SERVICEABLE"
+          uri:
+            uri_id: "uri_c17"
+            type: "CALLBACK"
+            url: "{{participant_url}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_c17"
+              uri_id: "uri_c17"
+              key_id: "{{uk_id}}"
+            - domain: "ONDC:RET15"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_c17"
+              uri_id: "uri_c17"
+              key_id: "{{uk_id}}"
+            - domain: "ONDC:RET12"
+              np_type: "LOGISTICS"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_c17"
+              uri_id: "uri_c17"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+
+      - name: "Verify participant SUBSCRIBED with diverse domain types"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "SUBSCRIBED"
+
+# ==========================================
+# 4. COMPLEX LIFECYCLE WORKFLOWS (3 tests)
+# ==========================================
+
+  - id: "C18"
+    name: "Full cycle: Admin whitelist → V3 subscribe → Admin suspend → Admin INACTIVE → V3 restore"
+    description: "Complete mixed lifecycle with all major state transitions"
+    workflow: true
+    steps:
+      - name: "Admin whitelists"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+        
+
+      - name: "Verify participant is WHITELISTED after Admin whitelists"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "WHITELISTED"
+      - name: "V3 subscribes"
+        method: "POST"
+        endpoint: "/v3.0/subscribe"
+        auth_type: "v3"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          request_id: "{{request_id}}"
+          uk_id: "{{uk_id}}"
+          participant_id: "{{subscriber_id}}"
+          credentials:
+            - cred_id: "cred_gst_c18"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "C18 Full Lifecycle"
+            - cred_id: "cred_pan_c18"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+          contacts:
+            - contact_id: "contact_auth_c18"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_c18"
+            country: "IND"
+            city: ["std:080"]
+            type: "SERVICEABLE"
+          uri:
+            uri_id: "uri_c18"
+            type: "CALLBACK"
+            url: "{{participant_url}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_c18"
+              uri_id: "uri_c18"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+        
+
+      - name: "Verify participant is SUBSCRIBED after V3 subscribes"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "SUBSCRIBED"
+      - name: "Admin suspends"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "SUSPENDED"
+        expected_status: 200
+        
+
+      - name: "Verify participant is SUSPENDED after Admin suspends"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "SUSPENDED"
+      - name: "Admin changes to INACTIVE"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "INACTIVE"
+        expected_status: 200
+        
+
+      - name: "Verify participant is INACTIVE after Admin changes to INACTIVE"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "INACTIVE"
+      - name: "V3 self-restores"
+        method: "POST"
+        endpoint: "/v3.0/subscribe"
+        auth_type: "v3"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          request_id: "{{request_id}}"
+          uk_id: "{{uk_id}}"
+          participant_id: "{{subscriber_id}}"
+          credentials:
+            - cred_id: "cred_gst_c18"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "C18 Full Lifecycle"
+            - cred_id: "cred_pan_c18"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+          contacts:
+            - contact_id: "contact_auth_c18"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_c18"
+            country: "IND"
+            city: ["std:080"]
+            type: "SERVICEABLE"
+          uri:
+            uri_id: "uri_c18"
+            type: "CALLBACK"
+            url: "{{participant_url}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_c18"
+              uri_id: "uri_c18"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+
+      - name: "Verify full lifecycle completed - participant SUBSCRIBED"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "SUBSCRIBED"
+
+  - id: "C19"
+    name: "Admin creates → V3 subscribes → Admin unsubscribes (terminal state)"
+    description: "Full lifecycle ending with admin unsubscribe"
+    workflow: true
+    steps:
+      - name: "Admin whitelists"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET15"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+        
+
+      - name: "Verify participant is WHITELISTED after Admin whitelists"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "WHITELISTED"
+      - name: "V3 subscribes"
+        method: "POST"
+        endpoint: "/v3.0/subscribe"
+        auth_type: "v3"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          request_id: "{{request_id}}"
+          uk_id: "{{uk_id}}"
+          participant_id: "{{subscriber_id}}"
+          credentials:
+            - cred_id: "cred_gst_c19"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "C19 Unsubscribe Test"
+            - cred_id: "cred_pan_c19"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+          contacts:
+            - contact_id: "contact_auth_c19"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_c19"
+            country: "IND"
+            city: ["std:080"]
+            type: "SERVICEABLE"
+          uri:
+            uri_id: "uri_c19"
+            type: "CALLBACK"
+            url: "{{participant_url}}"
+          configs:
+            - domain: "ONDC:RET15"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_c19"
+              uri_id: "uri_c19"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+        
+
+      - name: "Verify participant is SUBSCRIBED after V3 subscribes"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "SUBSCRIBED"
+      - name: "Admin unsubscribes"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "UNSUBSCRIBED"
+        expected_status: 200
+
+      - name: "Verify participant is UNSUBSCRIBED"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "UNSUBSCRIBED"
+
+  - id: "C20"
+    name: "Restore cycle: Admin SUSPEND → Admin INACTIVE → V3 restore → Admin SUSPEND → Admin restore"
+    description: "Complex state transition cycle with multiple transitions"
+    workflow: true
+    steps:
+      - name: "Admin creates SUBSCRIBED"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_c20"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "C20 Restore Cycle"
+            - cred_id: "cred_pan_c20"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+          contacts:
+            - contact_id: "contact_auth_c20"
+              name: "C20 Contact"
+              email: "contact@c20.example.com"
+              phone: "+919876543210"
+              type: "AUTHORISED_SIGNATORY"
+            - contact_id: "contact_biz_c20"
+              type: "BUSINESS"
+              name: "Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543212"
+          key:
+            uk_id: "key_c20"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_c20"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_c20"
+            type: "CALLBACK"
+            url: "{{participant_url}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_c20"
+              uri_id: "uri_c20"
+              key_id: "key_c20"
+        expected_status: 200
+        
+
+      - name: "Verify participant is SUBSCRIBED after Admin creates SUBSCRIBED"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "SUBSCRIBED"
+      - name: "Admin suspends"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "SUSPENDED"
+        expected_status: 200
+        
+
+      - name: "Verify participant is SUSPENDED after Admin suspends"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "SUSPENDED"
+      - name: "Admin changes to inactive"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "INACTIVE"
+        expected_status: 200
+        
+
+      - name: "Verify participant is INACTIVE after Admin changes to inactive"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "INACTIVE"
+      - name: "V3 self-restores"
+        method: "POST"
+        endpoint: "/v3.0/subscribe"
+        auth_type: "v3"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          request_id: "{{request_id}}"
+          uk_id: "key_c20"
+          participant_id: "{{subscriber_id}}"
+          credentials:
+            - cred_id: "cred_gst_c20"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "C20 Restore Cycle"
+            - cred_id: "cred_pan_c20"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+          contacts:
+            - contact_id: "contact_auth_c20"
+            - contact_id: "contact_biz_c20"
+              type: "BUSINESS"
+              name: "Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543212"
+          key:
+            uk_id: "key_c20"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_c20"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_c20"
+            type: "CALLBACK"
+            url: "{{participant_url}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_c20"
+              uri_id: "uri_c20"
+              key_id: "key_c20"
+        expected_status: 200
+        
+
+      - name: "Verify participant is SUBSCRIBED after V3 self-restores"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "SUBSCRIBED"
+      - name: "Admin suspends again"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "SUSPENDED"
+        expected_status: 200
+        
+
+      - name: "Verify participant is SUSPENDED after Admin suspends again"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "SUSPENDED"
+      - name: "Admin restores"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+        expected_status: 200
+
+      - name: "Verify final state is SUBSCRIBED after restore cycle"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "SUBSCRIBED"

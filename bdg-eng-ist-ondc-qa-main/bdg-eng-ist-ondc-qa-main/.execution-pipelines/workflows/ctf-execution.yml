@@ -1,0 +1,295 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: ondc-qa-exec-
+spec:
+  arguments:
+    parameters:
+      - name: container-path
+        value: /app/outputs
+        ui-hidden: true # Skip the load of the parameter on the UI
+      - name: image
+        value: kyndryl.jfrog.io/kyn-ist-reg-docker-local/ondc-test-artifacts
+        required: true
+        ui-hidden: true
+      - name: image_tag
+        value: latest
+      - name: service-account
+        value: execution-admin-service-account
+        ui-hidden: true
+  imagePullSecrets:
+    - name: artifactory-image-pull-secret
+  nodeSelector:
+    cloud.google.com/compute-class: Performance
+  volumes:
+    - name: workdir
+      emptyDir: {}
+  podSpecPatch: |
+    terminationGracePeriodSeconds: 600 
+  entrypoint: perf-execution-dag
+  onExit: exit-handler
+  templates:
+    - name: perf-execution-dag
+      dag:
+        tasks:
+          - name: execution
+            arguments:
+              parameters:
+                - name: "test"
+                  value: ""
+                  type: single_select
+                  options: []
+                - name: "suite"
+                  value: ""
+                  type: single_select
+                  options: []
+                - name: users
+                  value: "1"
+                  type: number
+                - name: run_time
+                  value: "120"
+                  type: number
+                - name: iterations
+                  value: ""
+                  type: number
+                - name: ramp_up
+                  value: "30"
+                - name: spawn_rate
+                  value: "1"
+                  type: number
+                  required: true
+                - name: wait_min
+                  value: "15"
+                  type: number
+                  required: true
+                - name: wait_max
+                  value: "30"
+                  type: number
+                  required: true
+                - name: timeout
+                  value: "300"
+                  type: number
+                  required: true
+                - name: proxy
+                  value: "false"
+                  type: boolean
+                - name: proxy_type
+                  value: "go-proxy"
+                  type: single_select
+                  options:
+                    - "go-proxy"
+                    - "mitmproxy"
+                - name: capture_har
+                  value: "false"
+                  type: boolean
+                - name: inject_headers_only
+                  value: "false"
+                  type: boolean
+                  description: "Inject headers only when using proxy or har capture extension"
+                - name: environment
+                  value: ""
+                  type: single_select
+                  options: []
+                  required: true
+                - name: execution_id
+                  value: "0"
+                  type: number
+                - name: driver
+                  value: "chrome"
+                  type: single_select
+                  options:
+                    - "chrome"
+                    - "firefox"
+                    - "edge"
+                - name: release
+                  value: ""
+                  required: true
+                  type: string
+                - name: keep_s3_files
+                  value: "false"
+                  type: boolean
+                - name: image
+                  value: "{{workflow.parameters.image}}"
+                - name: image_tag
+                  value: "{{workflow.parameters.image_tag}}"
+                - name: mobile_mode
+                  value: "false"
+                  type: boolean
+                - name: mobile_device
+                  value: ""
+                  type: string
+                - name: record_video
+                  value: ""
+                  type: single_select
+                  options:
+                    - "all"
+                    - "on_failure"
+                - name: include_har_artifacts
+                  value: "false"
+                  boolean: boolean
+                - name: desired_users_per_worker
+                  value: "50"
+                  type: number
+            template: execution-template
+
+    - name: execution-template
+      inputs:
+        parameters:
+          - name: test
+          - name: suite
+          - name: users
+          - name: run_time
+          - name: ramp_up
+          - name: spawn_rate
+          - name: iterations
+          - name: wait_min
+          - name: wait_max
+          - name: timeout
+          - name: proxy
+          - name: proxy_type
+          - name: capture_har
+          - name: inject_headers_only
+          - name: environment
+          - name: execution_id
+          - name: driver
+          - name: release
+          - name: keep_s3_files
+          - name: image
+          - name: image_tag
+          - name: mobile_mode
+          - name: mobile_device
+          - name: record_video
+          - name: include_har_artifacts
+          - name: desired_users_per_worker
+      container:
+        image: "{{inputs.parameters.image}}:{{inputs.parameters.image_tag}}"
+        resources:
+          requests:
+            cpu: "1"
+            memory: 2G
+            ephemeral-storage: 10Gi
+
+        command: 
+          - k8s_runner.py
+          - --cluster
+          - "{{workflow.parameters.workflow_cluster_name}}" # Cluster name injected by the IST App
+          - --provider
+          - "{{workflow.parameters.workflow_cloud_provider}}" # Cloud provider injected by the IST App
+          - --region
+          - "{{workflow.parameters.workflow_region}}" # Region injected by the IST App
+          - --command
+          - |
+            python3 driver.py
+            --test ({{inputs.parameters.test}})
+            --suite ({{inputs.parameters.suite}})
+            --users ({{inputs.parameters.users}})
+            --run-time ({{inputs.parameters.run_time}})
+            --ramp-up ({{inputs.parameters.ramp_up}})
+            --spawn-rate ({{inputs.parameters.spawn_rate}})
+            --iterations ({{inputs.parameters.iterations}})
+            --wait-min ({{inputs.parameters.wait_min}})
+            --wait-max ({{inputs.parameters.wait_max}})
+            --timeout ({{inputs.parameters.timeout}})
+            --proxy {{inputs.parameters.proxy}}
+            --proxy-type ({{inputs.parameters.proxy_type}})
+            --capture-har "({{inputs.parameters.capture_har}})"
+            --inject-headers-only "({{inputs.parameters.inject_headers_only}})"
+            --environment ({{inputs.parameters.environment}})
+            --execution-id ('{{inputs.parameters.execution_id}}')
+            --driver ({{inputs.parameters.driver}})
+            --release ({{inputs.parameters.release}})
+            --mobile-mode {{inputs.parameters.mobile_mode}}
+            --mobile-device ('{{inputs.parameters.mobile_device}}')
+            --record-video ({{inputs.parameters.record_video}})
+            --driver-headless
+            --html {{inputs.parameters.test}}{{inputs.parameters.suite}}-report.html
+            --csv {{inputs.parameters.test}}{{inputs.parameters.suite}}-results.csv
+            --logfile {{inputs.parameters.test}}{{inputs.parameters.suite}}.log
+            --print-stats
+            --exit-code-on-error 0
+            --expect-workers-max-wait 900
+            --upload-artifacts
+            --autostart
+            --autoquit 1
+            --cmd-interval-stats 60
+          - --image-pull-secret
+          - artifactory-image-pull-secret
+          - --image
+          - "{{inputs.parameters.image}}"
+          - --image-tag
+          - "{{inputs.parameters.image_tag}}"
+          - --artifacts-prefix
+          - "{{inputs.parameters.environment}}_{{inputs.parameters.release}}_{{inputs.parameters.test}}{{inputs.parameters.suite}}_{{inputs.parameters.execution_id}}"
+          - --storage-class
+          - nfs-standard-sc
+          - --env-secrets-group
+          - ondc-qa-secrets
+          - --artifacts-storage
+          - "[{\"bucket\": \"ondc-qa-gcp-pipeline-artifacts-repository\", \"path\": \"har\", \"download\": {{inputs.parameters.include_har_artifacts}}}, {\"bucket\":\"ondc-qa-gcp-pipeline-artifacts-repository\", \"path\": \"logs\", \"download\": true}, {\"bucket\": \"ondc-qa-gcp-pipeline-artifacts-repository\", \"path\": \"csv_results\", \"download\": true}, {\"bucket\": \"ondc-qa-gcp-pipeline-artifacts-repository\", \"path\": \"html\", \"download\": true}, {\"bucket\": \"ondc-qa-gcp-pipeline-artifacts-repository\", \"path\": \"screenshots\", \"download\": true}]"
+          - --download-path
+          - "{{workflow.parameters.container-path}}/{{workflow.name}}_{{inputs.parameters.test}}{{inputs.parameters.suite}}"
+          - --keep-artifacts
+          - "{{inputs.parameters.keep_s3_files}}"
+          - --service-account
+          - "{{workflow.parameters.service-account}}"
+          - --ephemeral-storage
+          - 10Gi
+          - --desired-users-per-worker
+          - "{{inputs.parameters.desired_users_per_worker}}"
+        volumeMounts:
+          - name: workdir
+            mountPath: "{{workflow.parameters.container-path}}"
+        imagePullPolicy: Always
+
+      outputs:
+        artifacts:
+          - name: "test-artifacts-output"
+            key: ""
+            optional: true
+            path: "{{workflow.parameters.container-path}}/{{workflow.name}}_{{inputs.parameters.test}}{{inputs.parameters.suite}}"
+            globalName: output-artifacts
+
+    - name: exit-handler
+      steps:
+        - - name: collect-all-artifacts
+            when: "{{workflow.status}} == Succeeded || {{workflow.status}} == Failed"
+            template: collect-artifacts
+            arguments:
+              artifacts:
+                - name: "output"
+                  from: "{{workflow.outputs.artifacts.output-artifacts}}"
+                  optional: true
+
+    - name: collect-artifacts
+      inputs:
+        artifacts:
+          - name: "output"
+            optional: true
+            path: "{{workflow.parameters.container-path}}/{{workflow.name}}"
+
+      container:
+        image: alpine:latest
+        command: [sh, -c]
+        args:
+          - ls -al {{workflow.parameters.container-path}}/{{workflow.name}}/* && sleep 2
+        volumeMounts:
+          - name: workdir
+            mountPath: "{{workflow.parameters.container-path}}"
+        resources:
+          requests:
+            cpu: "1"
+            memory: 2G
+            ephemeral-storage: 10Gi
+      outputs:
+        artifacts:
+          - name: "{{workflow.name}}-all-artifacts"
+            path: "{{workflow.parameters.container-path}}/{{workflow.name}}"
+
+  serviceAccountName: "{{workflow.parameters.service-account}}"
+  podGC:
+    strategy: OnPodCompletion
+  ttlStrategy:
+    secondsAfterCompletion: 864000
+    secondsAfterFailure: 864000
+    secondsAfterSuccess: 864000
+  archiveLogs: true

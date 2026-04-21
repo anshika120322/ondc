@@ -1,0 +1,190 @@
+# ONDC Registry Lookup API - V2 Functional Test Configuration
+# Used for V2 Lookup Functional and Negative Test Scenarios
+
+# UAT Environment (Functional Tests)
+ondcRegistryV2Lookup:
+
+  # ------------------------------------------------------------
+  # Base URL for Registry API (UAT Environment)
+  # ------------------------------------------------------------
+  host: "https://registry-uat.kynondc.net"
+
+
+  # ------------------------------------------------------------
+  # Admin API Authentication (for admin lookup endpoint)
+  # ------------------------------------------------------------
+  admin_username: "admin@ondc.org"
+  admin_password: "Admin@123"
+  admin_auth_url: "https://admin-auth-uat.kynondc.net/api/auth/login"
+
+
+  # ------------------------------------------------------------
+  # V2 / V3 API ED25519 Signature Authentication
+  # Using same test participant as V3 (already registered in UAT)
+  # ------------------------------------------------------------
+  participant_id: "test-v3-lookup-working.participant.ondc"
+  uk_id: "83b68b94-8fb9-44ad-bcd4-b0e89d741290"
+
+  # ED25519 Private Key Seed (32 bytes hex)
+  private_key_seed: "c190934de2c9aea71b47a31bacb8f002b0e4995c083cb457c0d58b9d6ba3670f"
+
+  # ED25519 Public Keys (base64 encoded - raw 32-byte keys)
+  signing_public_key: "rb07mNxVAG9quf/6CJCpNM06FwdG0N/FBn+qcLHvWxs="
+  encryption_public_key: "MOsaXHtJWbQ6Y8W2mAYEHBrYMG/OYl/+y8yCMGQRExw="
+
+
+  # ------------------------------------------------------------
+  # Invalid Authentication Headers for Negative Tests
+  # ------------------------------------------------------------
+  invalid_auth:
+    invalid_signature: "Signature keyId=\"test-qa-0d4b8d2a.participant.ondc|dfd8e222-8edf-4664-a8bd-53f41e59fb87|ed25519\",algorithm=\"ed25519\",created=\"1708964400\",expires=\"1708964700\",headers=\"(created) (expires) digest\",signature=\"INVALID_SIGNATURE_BASE64==\""
+    expired_signature: "Signature keyId=\"test-qa-0d4b8d2a.participant.ondc|dfd8e222-8edf-4664-a8bd-53f41e59fb87|ed25519\",algorithm=\"ed25519\",created=\"1640000000\",expires=\"1640000300\",headers=\"(created) (expires) digest\",signature=\"EXPIRED_SIGNATURE_BASE64==\""
+    subscriber_not_found: "Signature keyId=\"nonexistent.participant.ondc|fake-uk-id|ed25519\",algorithm=\"ed25519\",created=\"1708964400\",expires=\"1708964700\",headers=\"(created) (expires) digest\",signature=\"FAKE_SIGNATURE_BASE64==\""
+
+
+  # ------------------------------------------------------------
+  # Default Lookup Payload Configuration
+  # Used when payload is auto-generated
+  # ------------------------------------------------------------
+  default_lookup_payload:
+
+    country: "IND"
+
+    # Default lookup type
+    type: "BPP"
+
+    # Default city
+    city:
+      - "std:080"
+
+
+  # ------------------------------------------------------------
+  # Lookup Variations
+  # ------------------------------------------------------------
+  lookup_types:
+    - "BPP"
+    - "BAP"
+    - "BG"
+    - "REGISTRY"
+
+  countries:
+    - "IND"
+
+  domains:
+    - "ONDC:RET10"
+    - "ONDC:RET11"
+    - "ONDC:RET12"
+    - "ONDC:LOG10"
+
+  cities:
+    - "std:080"
+    - "std:011"
+    - "std:022"
+    - "std:040"
+
+  np_types:
+    - "buyer"
+    - "seller"
+    - "logistics"
+
+  test_participants:
+    - "test-qa-0d4b8d2a.participant.ondc"
+    - "buyer-1.bap.ondc"
+    - "seller-1.bpp.ondc"
+
+  request_timeout: 30
+  enable_detailed_logging: true
+
+
+# PreProd Environment (try with preprod which may have participants registered)
+ondcRegistryV2LookupProd:
+
+  # ------------------------------------------------------------
+  # Base URL for PreProd Registry API
+  # ------------------------------------------------------------
+  host: "https://preprod.registry.ondc.org"
+
+
+  # ------------------------------------------------------------
+  # Admin API Authentication (for admin lookup endpoint)
+  # ------------------------------------------------------------
+  admin_username: "<admin-user>"
+  admin_password: "admin"
+
+
+  # ------------------------------------------------------------
+  # V2 / V3 API ED25519 Signature Authentication
+  # Using registered participant with valid credentials
+  # ------------------------------------------------------------
+  participant_id: "futuresoftmsnprod.clouddeploy.in"
+  uk_id: "5d080661-182e-4302-be9f-9e8f3ed1ebe1"
+
+  # ED25519 Private Key Seed (32 bytes hex)
+  private_key_seed: "f1adec7bfabf2da168ad388a98816e0534a26a3f2068ecfa19ae184fa35e46df"
+
+  # ED25519 Public Keys (base64 encoded - raw 32-byte keys)
+  signing_public_key: "VXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+  encryption_public_key: "VXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+
+
+  # ------------------------------------------------------------
+  # Invalid Authentication Headers for Negative Tests
+  # ------------------------------------------------------------
+  invalid_auth:
+    invalid_signature: "Signature keyId=\"test-v3-feb2026-fresh.participant.ondc|f4c50520-23e2-4f73-acc6-c026d47e7421|ed25519\",algorithm=\"ed25519\",created=\"1708964400\",expires=\"1708964700\",headers=\"(created) (expires) digest\",signature=\"INVALID_SIGNATURE_BASE64==\""
+    expired_signature: "Signature keyId=\"test-v3-feb2026-fresh.participant.ondc|f4c50520-23e2-4f73-acc6-c026d47e7421|ed25519\",algorithm=\"ed25519\",created=\"1640000000\",expires=\"1640000300\",headers=\"(created) (expires) digest\",signature=\"EXPIRED_SIGNATURE_BASE64==\""
+    subscriber_not_found: "Signature keyId=\"nonexistent.participant.ondc|fake-uk-id|ed25519\",algorithm=\"ed25519\",created=\"1708964400\",expires=\"1708964700\",headers=\"(created) (expires) digest\",signature=\"FAKE_SIGNATURE_BASE64==\""
+
+
+  # ------------------------------------------------------------
+  # Default Lookup Payload Configuration
+  # Used when payload is auto-generated
+  # ------------------------------------------------------------
+  default_lookup_payload:
+
+    country: "IND"
+
+    # Default lookup type
+    type: "BPP"
+
+    # Default city
+    city:
+      - "std:080"
+
+
+  # ------------------------------------------------------------
+  # Lookup Variations
+  # ------------------------------------------------------------
+  lookup_types:
+    - "BPP"
+    - "BAP"
+    - "BG"
+    - "REGISTRY"
+
+  countries:
+    - "IND"
+
+  domains:
+    - "ONDC:RET10"
+    - "ONDC:RET11"
+    - "ONDC:RET12"
+    - "ONDC:LOG10"
+
+  cities:
+    - "std:080"
+    - "std:011"
+    - "std:022"
+    - "std:040"
+
+  np_types:
+    - "buyer"
+    - "seller"
+    - "logistics"
+
+  test_participants:
+    - "test-v3-feb2026-fresh.participant.ondc"
+    - "buyer-1.bap.ondc"
+    - "seller-1.bpp.ondc"
+
+  request_timeout: 30
+  enable_detailed_logging: true

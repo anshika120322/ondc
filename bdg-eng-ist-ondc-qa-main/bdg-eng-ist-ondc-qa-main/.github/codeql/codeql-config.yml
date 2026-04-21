@@ -1,0 +1,11 @@
+name: "ONDC QA CodeQL Configuration"
+
+# SSL certificate validation is intentionally disabled in gateway test scripts
+# because the UAT environment uses self-signed certificates. This is controlled
+# via the ONDC_SSL_VERIFY environment variable (set to "true" for production).
+query-filters:
+  - exclude:
+      id: py/request-without-cert-validation
+      paths:
+        - func_test_scripts/gateway/ondc_gw_search_api_tests.py
+        - func_test_scripts/gateway/ondc_gw_confirm_api_tests.py

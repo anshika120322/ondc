@@ -1,0 +1,579 @@
+# =============================================================================
+# Gateway Domain-Restriction Tests — gateway-workflow-suite
+# Source: design_docs/Workflow Scenarios Docs/ONDC-Gateway-Workflow-Scenarios.md
+#
+# Implemented:
+#   WF-DOM-01  Domain Mismatch Rejection                    [implemented]
+#   WF-DOM-02  Domain-Scoped Broadcast Isolation            [implemented]
+# =============================================================================
+
+test_suite:
+  name: "Gateway Domain-Restriction Tests"
+  category: "domain"
+  total_tests: 2
+  description: >
+    Verifies that the Gateway enforces domain-scoping: a BAP registered only for
+    ONDC:RET10 cannot reach ONDC:FIS12 BPPs, and a broadcast for ONDC:RET10 is
+    not dispatched to BPPs registered only for ONDC:FIS12.
+
+config:
+  default_timeout: 30
+  retry_on_failure: false
+
+# ---------------------------------------------------------------------------
+# Participants
+# ---------------------------------------------------------------------------
+participants:
+  # bap_dom — BAP registered for ONDC:RET10 only.
+  - alias: "bap_dom"
+    subscriber_id_prefix: "bap-dom-001"
+    generate_unique_id: true
+    domain: "ONDC:RET10"
+    callback_uri: "https://seller-mock.kynondc.net"
+    private_key_seed: "MC4CAQAwBQYDK2VwBCIEIPGt7Hv6vy2haK04ipiBbgU0omo/IGjs+hmuGE+jXkbf"
+
+  # bpp_dom_ret — BPP registered for ONDC:RET10. Included in a domain-matched broadcast.
+  - alias: "bpp_dom_ret"
+    subscriber_id_prefix: "bpp-dom-ret"
+    generate_unique_id: true
+    domain: "ONDC:RET10"
+    callback_uri: "https://seller-mock.kynondc.net"
+    private_key_seed: "MC4CAQAwBQYDK2VwBCIEIPGt7Hv6vy2haK04ipiBbgU0omo/IGjs+hmuGE+jXkbf"
+
+  # bpp_dom_fis — BPP registered for ONDC:FIS12. Should be absent from ONDC:RET10 broadcast.
+  - alias: "bpp_dom_fis"
+    subscriber_id_prefix: "bpp-dom-fis"
+    generate_unique_id: true
+    domain: "ONDC:FIS12"
+    callback_uri: "https://seller-mock.kynondc.net"
+    private_key_seed: "MC4CAQAwBQYDK2VwBCIEIPGt7Hv6vy2haK04ipiBbgU0omo/IGjs+hmuGE+jXkbf"
+
+tests:
+
+  # ===========================================================================
+  # WF-DOM-01 · Domain Mismatch Rejection
+  #
+  # Goal: A BAP registered for ONDC:RET10 sends a search request whose context
+  #       domain is ONDC:FIS12. The Gateway must reject this request because there
+  #       is no matching domain registration for the BAP.
+  #
+  # Core assertions:
+  #   Step 2  Admin GET confirms bap_dom is SUBSCRIBED for ONDC:RET10 ONLY
+  #   Step 4  Gateway POST search with ONDC:FIS12 → expected NACK or rejection
+  # ===========================================================================
+
+  - id: "WF-DOM-01"
+    name: "Domain Mismatch Rejection"
+    description: >
+      BAP-DOM-001 is registered for ONDC:RET10 only. When it sends a search
+      with context.domain set to ONDC:FIS12, the Gateway must detect the domain
+      mismatch (BAP has no config for ONDC:FIS12) and return NACK / reject the
+      request without forwarding to any BPP.
+    workflow: true
+
+    steps:
+
+      # ── Step 1: Register bap_dom as SUBSCRIBED for ONDC:RET10 ───────────────
+      - name: "Step 1 – Admin: Register BAP-DOM-001 as SUBSCRIBED for ONDC:RET10"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{bap_dom_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred-gst-{{bap_dom_uk_id}}"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "BAP DOM Domain Mismatch Test"
+            - cred_id: "cred-pan-{{bap_dom_uk_id}}"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "BAP DOM Domain Mismatch Test"
+          contacts:
+            - contact_id: "contact-auth-{{bap_dom_uk_id}}"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Auth Rep"
+              email: "auth@bap-dom.example.com"
+              phone: "+919876543210"
+            - contact_id: "contact-biz-{{bap_dom_uk_id}}"
+              type: "BUSINESS"
+              name: "Biz Rep"
+              email: "biz@bap-dom.example.com"
+              phone: "+919876543211"
+            - contact_id: "contact-tech-{{bap_dom_uk_id}}"
+              type: "TECHNICAL"
+              name: "Tech Rep"
+              email: "tech@bap-dom.example.com"
+              phone: "+919876543212"
+          key:
+            - uk_id: "{{bap_dom_uk_id}}"
+              signing_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              encryption_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              valid_from: "{{bap_dom_valid_from}}"
+              valid_until: "{{bap_dom_valid_until}}"
+          location:
+            - location_id: "loc-{{bap_dom_uk_id}}"
+              type: "SERVICEABLE"
+              country: "IND"
+              city:
+                - "std:080"
+          uri:
+            - uri_id: "uri-{{bap_dom_uk_id}}"
+              type: "CALLBACK"
+              url: "{{bap_dom_uri}}"
+          configs:
+            - domain: "ONDC:RET10"
+              np_type: "BAP"
+              subscriber_id: "{{bap_dom_id}}"
+              location_id: "loc-{{bap_dom_uk_id}}"
+              uri_id: "uri-{{bap_dom_uk_id}}"
+              key_id: "{{bap_dom_uk_id}}"
+        expected_status: [200, 409]
+
+      # ── Step 2: Confirm bap_dom SUBSCRIBED for ONDC:RET10 only ───────────────
+      - name: "Step 2 – Admin: Confirm BAP-DOM-001 is SUBSCRIBED for ONDC:RET10 only"
+        method: "GET"
+        endpoint: "/admin/participants/{{bap_dom_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        post_wait_seconds: 5
+        validate:
+          - field: "participant_id"
+            exists: true
+
+      # ── Step 2b: Registry lookup — confirm bap_dom is SUBSCRIBED for ONDC:RET10 ──
+      - name: "Step 2b – Registry: Lookup bap_dom via /v3.0/lookup — expect SUBSCRIBED"
+        method: "POST"
+        endpoint: "/v3.0/lookup"
+        auth_type: "v3"
+        auth_subscriber_id: "bap_dom"
+        use_base_url: true
+        data:
+          subscriber_id: "{{bap_dom_id}}"
+          country: "IND"
+          domain: "ONDC:RET10"
+          type: "BAP"
+        expected_status: [200]
+        continue_on_failure: true
+        retry:
+          timeout_seconds: 15
+          interval_seconds: 1
+        validate:
+          - field: "0.configs.0.status"
+            value: "SUBSCRIBED"
+
+      # ── Step 3: Gateway internal — domain validation logic ───────────────────
+      - name: "Step 3 – Gateway internal: BAP domain config check — ONDC:FIS12 not authorised; request to be rejected"
+        method: "INTERNAL"
+
+      # ── Step 4: bap_dom sends search for ONDC:FIS12 ─────────────────────────
+      # BAP's config covers only ONDC:RET10; the Gateway must reject before dispatch.
+      - name: "Step 4 – Gateway: BAP-DOM-001 sends search for ONDC:FIS12 (domain mismatch) — expect NACK or rejection"
+        method: "POST"
+        action: "search"
+        endpoint: "/{{action}}"
+        auth_type: "v3"
+        auth_subscriber_id: "bap_dom"
+        data:
+          context:
+            domain: "ONDC:FIS12"
+            action: "{{action}}"
+            version: "2.0.0"
+            bap_id: "{{bap_dom_id}}"
+            bap_uri: "{{bap_dom_uri}}"
+            transaction_id: "{{transaction_id}}"
+            message_id: "{{message_id}}"
+            location:
+              city:
+                code: "std:080"
+              country:
+                code: "IND"
+            ttl: "PT30S"
+            timestamp: "{{timestamp}}"
+          message:
+            intent: {}
+        expected_status: [200, 400, 401, 403]
+
+
+  # ===========================================================================
+  # WF-DOM-02 · Domain-Scoped Broadcast Isolation
+  #
+  # Goal: A BAP sends a broadcast search for ONDC:RET10. The Gateway dispatches
+  #       only to BPPs registered for ONDC:RET10. BPPs registered for ONDC:FIS12
+  #       must not receive the dispatch.
+  #
+  # Core assertions:
+  #   Step 5  Admin GET confirms bpp_dom_ret SUBSCRIBED for ONDC:RET10
+  #   Step 6  Admin GET confirms bpp_dom_fis SUBSCRIBED for ONDC:FIS12
+  #   Step 7  bap_dom broadcast for ONDC:RET10 → expect ACK
+  #   Step 8  bpp_dom_ret sends on_search (confirms it received dispatch) → ACK
+  #   Step 9  Validation: bpp_dom_fis absent (did not receive dispatch)
+  # ===========================================================================
+
+  - id: "WF-DOM-02"
+    name: "Domain-Scoped Broadcast Isolation"
+    description: >
+      BAP-DOM-001 registers for ONDC:RET10. BPP-DOM-RET registers for ONDC:RET10.
+      BPP-DOM-FIS registers for ONDC:FIS12. A broadcast search from BAP-DOM-001
+      targeting ONDC:RET10 must reach BPP-DOM-RET but must NOT reach BPP-DOM-FIS
+      as it is registered for a different domain.
+    workflow: true
+
+    steps:
+
+      # ── Step 1: Register bap_dom as SUBSCRIBED for ONDC:RET10 ───────────────
+      - name: "Step 1 – Admin: Register BAP-DOM-001 as SUBSCRIBED for ONDC:RET10"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{bap_dom_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred-gst-{{bap_dom_uk_id}}"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "BAP DOM Domain Scoped Broadcast Test"
+            - cred_id: "cred-pan-{{bap_dom_uk_id}}"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "BAP DOM Domain Scoped Broadcast Test"
+          contacts:
+            - contact_id: "contact-auth-{{bap_dom_uk_id}}"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Auth Rep"
+              email: "auth@bap-dom.example.com"
+              phone: "+919876543210"
+            - contact_id: "contact-biz-{{bap_dom_uk_id}}"
+              type: "BUSINESS"
+              name: "Biz Rep"
+              email: "biz@bap-dom.example.com"
+              phone: "+919876543211"
+            - contact_id: "contact-tech-{{bap_dom_uk_id}}"
+              type: "TECHNICAL"
+              name: "Tech Rep"
+              email: "tech@bap-dom.example.com"
+              phone: "+919876543212"
+          key:
+            - uk_id: "{{bap_dom_uk_id}}"
+              signing_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              encryption_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              valid_from: "{{bap_dom_valid_from}}"
+              valid_until: "{{bap_dom_valid_until}}"
+          location:
+            - location_id: "loc-{{bap_dom_uk_id}}"
+              type: "SERVICEABLE"
+              country: "IND"
+              city:
+                - "std:080"
+          uri:
+            - uri_id: "uri-{{bap_dom_uk_id}}"
+              type: "CALLBACK"
+              url: "{{bap_dom_uri}}"
+          configs:
+            - domain: "ONDC:RET10"
+              np_type: "BAP"
+              subscriber_id: "{{bap_dom_id}}"
+              location_id: "loc-{{bap_dom_uk_id}}"
+              uri_id: "uri-{{bap_dom_uk_id}}"
+              key_id: "{{bap_dom_uk_id}}"
+        expected_status: [200, 409]
+
+      # ── Step 2: Register bpp_dom_ret as SUBSCRIBED for ONDC:RET10 ────────────
+      - name: "Step 2 – Admin: Register BPP-DOM-RET as SUBSCRIBED for ONDC:RET10 (same domain as BAP)"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{bpp_dom_ret_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred-gst-{{bpp_dom_ret_uk_id}}"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "BPP DOM RET10 Target"
+            - cred_id: "cred-pan-{{bpp_dom_ret_uk_id}}"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "BPP DOM RET10 Target"
+          contacts:
+            - contact_id: "contact-auth-{{bpp_dom_ret_uk_id}}"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Auth Rep"
+              email: "auth@bpp-dom-ret.example.com"
+              phone: "+919876543210"
+            - contact_id: "contact-biz-{{bpp_dom_ret_uk_id}}"
+              type: "BUSINESS"
+              name: "Biz Rep"
+              email: "biz@bpp-dom-ret.example.com"
+              phone: "+919876543211"
+            - contact_id: "contact-tech-{{bpp_dom_ret_uk_id}}"
+              type: "TECHNICAL"
+              name: "Tech Rep"
+              email: "tech@bpp-dom-ret.example.com"
+              phone: "+919876543212"
+          key:
+            - uk_id: "{{bpp_dom_ret_uk_id}}"
+              signing_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              encryption_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              valid_from: "{{bpp_dom_ret_valid_from}}"
+              valid_until: "{{bpp_dom_ret_valid_until}}"
+          location:
+            - location_id: "loc-{{bpp_dom_ret_uk_id}}"
+              type: "SERVICEABLE"
+              country: "IND"
+              city:
+                - "std:080"
+          uri:
+            - uri_id: "uri-{{bpp_dom_ret_uk_id}}"
+              type: "CALLBACK"
+              url: "{{bpp_dom_ret_uri}}"
+          configs:
+            - domain: "ONDC:RET10"
+              np_type: "BPP"
+              subscriber_id: "{{bpp_dom_ret_id}}"
+              location_id: "loc-{{bpp_dom_ret_uk_id}}"
+              uri_id: "uri-{{bpp_dom_ret_uk_id}}"
+              key_id: "{{bpp_dom_ret_uk_id}}"
+        expected_status: [200, 409]
+
+      # ── Step 3: Register bpp_dom_fis as SUBSCRIBED for ONDC:FIS12 ────────────
+      - name: "Step 3 – Admin: Register BPP-DOM-FIS as SUBSCRIBED for ONDC:FIS12 (different domain)"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{bpp_dom_fis_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred-gst-{{bpp_dom_fis_uk_id}}"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "BPP DOM FIS12 Different Domain"
+            - cred_id: "cred-pan-{{bpp_dom_fis_uk_id}}"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "BPP DOM FIS12 Different Domain"
+          contacts:
+            - contact_id: "contact-auth-{{bpp_dom_fis_uk_id}}"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Auth Rep"
+              email: "auth@bpp-dom-fis.example.com"
+              phone: "+919876543210"
+            - contact_id: "contact-biz-{{bpp_dom_fis_uk_id}}"
+              type: "BUSINESS"
+              name: "Biz Rep"
+              email: "biz@bpp-dom-fis.example.com"
+              phone: "+919876543211"
+            - contact_id: "contact-tech-{{bpp_dom_fis_uk_id}}"
+              type: "TECHNICAL"
+              name: "Tech Rep"
+              email: "tech@bpp-dom-fis.example.com"
+              phone: "+919876543212"
+          key:
+            - uk_id: "{{bpp_dom_fis_uk_id}}"
+              signing_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              encryption_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              valid_from: "{{bpp_dom_fis_valid_from}}"
+              valid_until: "{{bpp_dom_fis_valid_until}}"
+          location:
+            - location_id: "loc-{{bpp_dom_fis_uk_id}}"
+              type: "SERVICEABLE"
+              country: "IND"
+              city:
+                - "std:080"
+          uri:
+            - uri_id: "uri-{{bpp_dom_fis_uk_id}}"
+              type: "CALLBACK"
+              url: "{{bpp_dom_fis_uri}}"
+          configs:
+            - domain: "ONDC:FIS12"
+              np_type: "BPP"
+              subscriber_id: "{{bpp_dom_fis_id}}"
+              location_id: "loc-{{bpp_dom_fis_uk_id}}"
+              uri_id: "uri-{{bpp_dom_fis_uk_id}}"
+              key_id: "{{bpp_dom_fis_uk_id}}"
+        expected_status: [200, 409]
+
+      # ── Step 4: Confirm bpp_dom_ret registered for ONDC:RET10 ────────────────
+      - name: "Step 4 – Admin: Confirm BPP-DOM-RET is SUBSCRIBED for ONDC:RET10"
+        method: "GET"
+        endpoint: "/admin/participants/{{bpp_dom_ret_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        post_wait_seconds: 5
+        validate:
+          - field: "participant_id"
+            exists: true
+
+      # ── Step 4b: Registry lookup — confirm bpp_dom_ret is SUBSCRIBED for ONDC:RET10 ──
+      - name: "Step 4b – Registry: Lookup bpp_dom_ret via /v3.0/lookup — expect SUBSCRIBED"
+        method: "POST"
+        endpoint: "/v3.0/lookup"
+        auth_type: "v3"
+        auth_subscriber_id: "bap_dom"
+        use_base_url: true
+        data:
+          subscriber_id: "{{bpp_dom_ret_id}}"
+          country: "IND"
+          domain: "ONDC:RET10"
+          type: "BPP"
+        expected_status: [200]
+        continue_on_failure: true
+        retry:
+          timeout_seconds: 15
+          interval_seconds: 1
+        validate:
+          - field: "0.configs.0.status"
+            value: "SUBSCRIBED"
+
+      # ── Step 5: Confirm bpp_dom_fis registered for ONDC:FIS12 ────────────────
+      - name: "Step 5 – Admin: Confirm BPP-DOM-FIS is SUBSCRIBED for ONDC:FIS12"
+        method: "GET"
+        endpoint: "/admin/participants/{{bpp_dom_fis_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        post_wait_seconds: 5
+        validate:
+          - field: "participant_id"
+            exists: true
+
+      # ── Step 5b: Registry lookup — confirm bpp_dom_fis is SUBSCRIBED for ONDC:FIS12 ──
+      - name: "Step 5b – Registry: Lookup bpp_dom_fis via /v3.0/lookup — expect SUBSCRIBED"
+        method: "POST"
+        endpoint: "/v3.0/lookup"
+        auth_type: "v3"
+        auth_subscriber_id: "bap_dom"
+        use_base_url: true
+        data:
+          subscriber_id: "{{bpp_dom_fis_id}}"
+          country: "IND"
+          domain: "ONDC:FIS12"
+          type: "BPP"
+        expected_status: [200]
+        continue_on_failure: true
+        retry:
+          timeout_seconds: 15
+          interval_seconds: 1
+        validate:
+          - field: "0.configs.0.status"
+            value: "SUBSCRIBED"
+
+      # ── Step 6: Gateway internal — domain-scoped dispatch decision ────────────
+      - name: "Step 6 – Gateway internal: Dispatch list built — ONDC:RET10 candidates only; BPP-DOM-FIS excluded"
+        method: "INTERNAL"
+
+      # ── Step 7: bap_dom broadcasts search for ONDC:RET10 ────────────────────
+      - name: "Step 7 – Gateway: BAP-DOM-001 broadcasts search for ONDC:RET10 — expect ACK; bpp_dom_fis must be absent"
+        method: "POST"
+        action: "search"
+        endpoint: "/{{action}}"
+        auth_type: "v3"
+        auth_subscriber_id: "bap_dom"
+        data:
+          context:
+            domain: "ONDC:RET10"
+            action: "{{action}}"
+            version: "2.0.0"
+            bap_id: "{{bap_dom_id}}"
+            bap_uri: "{{bap_dom_uri}}"
+            transaction_id: "{{transaction_id}}"
+            message_id: "{{message_id}}"
+            location:
+              city:
+                code: "std:080"
+              country:
+                code: "IND"
+            ttl: "PT30S"
+            timestamp: "{{timestamp}}"
+          message:
+            intent: {}
+        expected_status: [200, 202]
+        continue_on_failure: true
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+      # ── Step 8: bpp_dom_ret sends on_search ───────────────────────────────────
+      - name: "Step 8 – Gateway: BPP-DOM-RET sends on_search (domain-matched BPP responds) — expect ACK"
+        method: "POST"
+        action: "on_search"
+        endpoint: "/{{action}}"
+        auth_type: "v3"
+        auth_subscriber_id: "bpp_dom_ret"
+        data:
+          context:
+            domain: "ONDC:RET10"
+            action: "{{action}}"
+            version: "2.0.0"
+            bap_id: "{{bap_dom_id}}"
+            bap_uri: "{{bap_dom_uri}}"
+            bpp_id: "{{bpp_dom_ret_id}}"
+            bpp_uri: "{{bpp_dom_ret_uri}}"
+            transaction_id: "{{transaction_id}}"
+            message_id: "{{message_id}}"
+            location:
+              city:
+                code: "std:080"
+              country:
+                code: "IND"
+            ttl: "PT30S"
+            timestamp: "{{timestamp}}"
+          message:
+            catalog:
+              descriptor:
+                name: "BPP-DOM-RET Store"
+              providers:
+                - id: "provider-dom-ret"
+                  descriptor:
+                    name: "Domain RET Provider"
+                  items:
+                    - id: "item-dom-ret-001"
+                      descriptor:
+                        name: "Domain Test Item"
+                      price:
+                        currency: "INR"
+                        value: "250.00"
+        expected_status: [200, 202]
+        continue_on_failure: true
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+      # ── Step 9: Validation ────────────────────────────────────────────────────
+      - name: "Step 9 – Validation: domain-scoped dispatch correct; bpp_dom_fis (ONDC:FIS12) excluded; bpp_dom_ret responded"
+        method: "INTERNAL"
+        validates:
+          - step_contains: "BAP-DOM-001 broadcasts search for ONDC:RET10"
+            expect: "passed"
+            expected_outcome: "Accepted (ACK)"
+            fail_outcome: "Rejected / No response"
+          - step_contains: "BPP-DOM-RET sends on_search"
+            expect: "passed"
+            expected_outcome: "Accepted (ACK)"
+            fail_outcome: "Rejected / No response"

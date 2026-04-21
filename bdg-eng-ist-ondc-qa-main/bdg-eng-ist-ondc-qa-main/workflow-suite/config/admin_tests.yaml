@@ -1,0 +1,4479 @@
+# Admin End-to-End Test Configuration
+# 53 comprehensive tests for Admin API flows
+
+test_suite:
+  name: "Admin End-to-End Tests"
+  category: "admin"
+  total_tests: 61
+  description: "Complete Admin API testing including creates, transitions, updates, workflows, validations, WHITELISTED config upsert, policy management, DNS validation, policy version/expiry, and policy lifecycle flows"
+
+# Test configuration
+config:
+  auth_type: "admin"
+  default_timeout: 30
+  retry_on_failure: false
+
+# ==========================================
+# 1.1 ADMIN CREATE OPERATIONS (5 tests)
+# ==========================================
+
+tests:
+  - id: "A01"
+    name: "Create WHITELISTED participant (minimal fields)"
+    description: "Admin creates participant with minimal required fields in WHITELISTED status"
+    method: "POST"
+    endpoint: "/admin/subscribe"
+    auth_type: "admin"
+    data:
+      dns_skip: true
+      skip_ssl_verification: true
+      participant_id: "{{subscriber_id}}"
+      action: "WHITELISTED"
+      configs:
+        - domain: "ONDC:RET1A"
+          np_type: "BPP"
+          subscriber_id: "{{subscriber_id}}"
+    expected_status: 200
+    validate:
+      - field: "message.ack.status"
+        value: "ACK"
+
+  - id: "A02"
+    name: "Create WHITELISTED participant (all fields)"
+    description: "Admin creates participant with all possible fields populated"
+    method: "POST"
+    endpoint: "/admin/subscribe"
+    auth_type: "admin"
+    data:
+      dns_skip: true
+      participant_id: "{{subscriber_id}}"
+      action: "WHITELISTED"
+      skip_ssl_verification: true
+      credentials:
+        - cred_id: "cred_gst_001"
+          type: "GST"
+          cred_data:
+            gstin: "29ABCDE1234F1Z5"
+            legal_name: "Example Retail Pvt Ltd"
+      contacts:
+        - contact_id: "contact_tech_001"
+          type: "TECHNICAL"
+          name: "Tech Support"
+          email: "tech@{{subscriber_id}}"
+          phone: "+919876543210"
+          designation: "Technical Lead"
+      key:
+        uk_id: "key123456"
+        signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+        encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+        signed_algorithm: "ED25519"
+        encryption_algorithm: "X25519"
+        valid_from: "2026-02-04T00:00:00.000Z"
+        valid_until: "2027-02-04T00:00:00.000Z"
+      location:
+        location_id: "loc001"
+        type: "WAREHOUSE"
+        country: "IND"
+        city:
+          - "std:080"
+          - "std:011"
+      uri:
+        uri_id: "uri_callback_001"
+        type: "CALLBACK"
+        url: "https://{{subscriber_id}}/callback"
+        description: "Callback endpoint"
+      configs:
+        - domain: "ONDC:RET1A"
+          np_type: "BPP"
+          subscriber_id: "{{subscriber_id}}"
+          location_id: "loc001"
+          uri_id: "uri_callback_001"
+          key_id: "key123456"
+        - domain: "ONDC:RET15"
+          np_type: "BPP"
+          subscriber_id: "{{subscriber_id}}"
+          location_id: "loc001"
+          uri_id: "uri_callback_001"
+          key_id: "key123456"
+    expected_status: 200
+    validate:
+      - field: "message.ack.status"
+        value: "ACK"
+
+  - id: "A03"
+    name: "Create SUBSCRIBED participant (direct, minimal)"
+    description: "Admin directly creates participant in SUBSCRIBED status with minimal fields"
+    method: "POST"
+    endpoint: "/admin/subscribe"
+    auth_type: "admin"
+    data:
+      dns_skip: true
+      participant_id: "{{subscriber_id}}"
+      action: "SUBSCRIBED"
+      skip_ssl_verification: true
+      credentials:
+        - cred_id: "cred_gst_001"
+          type: "GST"
+          cred_data:
+            gstin: "29ABCDE1234F1Z5"
+            legal_name: "Example Logistics Pvt Ltd"
+        - cred_id: "cred_pan_001"
+          type: "PAN"
+          cred_data:
+            pan: "ABCDE1234F"
+            name: "Example Logistics Pvt Ltd"
+      contacts:
+        - contact_id: "contact_auth_001"
+          type: "AUTHORISED_SIGNATORY"
+          name: "John Doe"
+          email: "john@{{subscriber_id}}"
+          phone: "+919876543211"
+        - contact_id: "contact_biz_001"
+          type: "BUSINESS"
+          name: "Business Manager"
+          email: "business@{{subscriber_id}}"
+          phone: "+919876543213"
+        - contact_id: "contact_tech_001"
+          type: "TECHNICAL"
+          name: "Tech Support"
+          email: "tech@{{subscriber_id}}"
+          phone: "+919876543210"
+          designation: "Technical Lead"
+      key:
+        uk_id: "key123456"
+        signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+        encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+        signed_algorithm: "ED25519"
+        encryption_algorithm: "X25519"
+        valid_from: "2026-02-04T00:00:00.000Z"
+        valid_until: "2027-02-04T00:00:00.000Z"
+      location:
+        location_id: "loc001"
+        type: "SERVICEABLE"
+        country: "IND"
+        city:
+          - "std:080"
+      uri:
+        uri_id: "uri_callback_001"
+        type: "CALLBACK"
+        url: "https://{{subscriber_id}}/callback"
+        description: "Callback endpoint"
+      configs:
+        - domain: "nic2004:60232"
+          np_type: "BAP"
+          subscriber_id: "{{subscriber_id}}"
+          location_id: "loc001"
+          uri_id: "uri_callback_001"
+          key_id: "key123456"
+    expected_status: 200
+    validate:
+      - field: "message.ack.status"
+        value: "ACK"
+
+  - id: "A04"
+    name: "Create SUBSCRIBED participant (all fields)"
+    description: "Admin directly creates SUBSCRIBED participant with complete data"
+    method: "POST"
+    endpoint: "/admin/subscribe"
+    auth_type: "admin"
+    data:
+      dns_skip: true
+      participant_id: "{{subscriber_id}}"
+      action: "SUBSCRIBED"
+      skip_ssl_verification: true
+      credentials:
+        - cred_id: "cred_gst_001"
+          type: "GST"
+          cred_data:
+            gstin: "29ABCDE1234F1Z5"
+            legal_name: "Example BAP Pvt Ltd"
+        - cred_id: "cred_pan_001"
+          type: "PAN"
+          cred_data:
+            pan: "ABCDE1234F"
+            name: "Example BAP Pvt Ltd"
+      contacts:
+        - contact_id: "contact_auth_001"
+          type: "AUTHORISED_SIGNATORY"
+          name: "Jane Smith"
+          email: "jane@{{subscriber_id}}"
+          phone: "+919876543212"
+        - contact_id: "contact_biz_001"
+          type: "BUSINESS"
+          name: "Business Director"
+          email: "business@{{subscriber_id}}"
+          phone: "+919876543214"
+        - contact_id: "contact_tech_001"
+          type: "TECHNICAL"
+          name: "Tech Support"
+          email: "tech@{{subscriber_id}}"
+          phone: "+919876543210"
+          designation: "Technical Lead"
+      key:
+        uk_id: "key123456"
+        signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+        encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+        signed_algorithm: "ED25519"
+        encryption_algorithm: "X25519"
+        valid_from: "2026-02-04T00:00:00.000Z"
+        valid_until: "2027-02-04T00:00:00.000Z"
+      location:
+        location_id: "loc001"
+        type: "SERVICEABLE"
+        country: "IND"
+        city:
+          - "std:022"
+      uri:
+        uri_id: "uri_callback_001"
+        type: "CALLBACK"
+        url: "https://{{subscriber_id}}/callback"
+        description: "Callback endpoint"
+      configs:
+        - domain: "ONDC:RET1A"
+          np_type: "BAP"
+          subscriber_id: "{{subscriber_id}}"
+          location_id: "loc001"
+          uri_id: "uri_callback_001"
+          key_id: "key123456"
+    expected_status: 200
+    validate:
+      - field: "message.ack.status"
+        value: "ACK"
+
+  - id: "A05"
+    name: "Create participant with multiple domains"
+    description: "Admin creates participant registered for 5 different domains"
+    method: "POST"
+    endpoint: "/admin/subscribe"
+    auth_type: "admin"
+    data:
+      dns_skip: true
+      skip_ssl_verification: true
+      participant_id: "{{subscriber_id}}"
+      action: "WHITELISTED"
+      configs:
+        - domain: "ONDC:RET1A"
+          np_type: "BPP"
+          subscriber_id: "{{subscriber_id}}"
+        - domain: "ONDC:RET15"
+          np_type: "BPP"
+          subscriber_id: "{{subscriber_id}}"
+        - domain: "ONDC:RET16"
+          np_type: "BPP"
+          subscriber_id: "{{subscriber_id}}"
+        - domain: "nic2004:60232"
+          np_type: "BAP"
+          subscriber_id: "{{subscriber_id}}"
+        - domain: "ONDC:FIS10"
+          np_type: "BPP"
+          subscriber_id: "{{subscriber_id}}"
+    expected_status: 200
+    validate:
+      - field: "message.ack.status"
+        value: "ACK"
+
+# ==========================================
+# 1.2 ADMIN STATUS TRANSITIONS (14 tests)
+# ==========================================
+
+  - id: "A06"
+    name: "Transition: WHITELISTED → SUBSCRIBED"
+    description: "Admin changes participant from WHITELISTED to SUBSCRIBED"
+    workflow: true
+    steps:
+      - name: "Create WHITELISTED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+      
+      - name: "Transition to SUBSCRIBED"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_001"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "Example Company Pvt Ltd"
+            - cred_id: "cred_pan_001"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "Example Company Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_001"
+              type: "AUTHORISED_SIGNATORY"
+              name: "John Doe"
+              email: "john@{{subscriber_id}}"
+              phone: "+919876543210"
+            - contact_id: "contact_biz_001"
+              type: "BUSINESS"
+              name: "Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543211"
+          key:
+            uk_id: "key123456"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc001"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_001"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri_callback_001"
+              key_id: "key123456"
+        expected_status: 200
+
+  - id: "A07"
+    name: "Transition: WHITELISTED → INACTIVE"
+    description: "Admin marks WHITELISTED participant as INACTIVE"
+    workflow: true
+    steps:
+      - name: "Create WHITELISTED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+      
+      - name: "Transition to INACTIVE"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "INACTIVE"
+        expected_status: 200
+
+  - id: "A08"
+    name: "Transition: WHITELISTED → SUSPENDED"
+    description: "Admin suspends WHITELISTED participant"
+    workflow: true
+    steps:
+      - name: "Create WHITELISTED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET15"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+      
+      - name: "Transition to SUSPENDED"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "SUSPENDED"
+        expected_status: 200
+
+  - id: "A09"
+    name: "Transition: SUBSCRIBED → INACTIVE"
+    description: "Admin deactivates SUBSCRIBED participant"
+    workflow: true
+    steps:
+      - name: "Create SUBSCRIBED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_001"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "A09 Company Pvt Ltd"
+            - cred_id: "cred_pan_001"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "A09 Company Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_001"
+              type: "AUTHORISED_SIGNATORY"
+              name: "John Doe"
+              email: "john@{{subscriber_id}}"
+              phone: "+919876543210"
+            - contact_id: "contact_biz_001"
+              type: "BUSINESS"
+              name: "Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543211"
+          key:
+            uk_id: "key123456"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc001"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_001"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+          configs:
+            - domain: "ONDC:RET16"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri_callback_001"
+              key_id: "key123456"
+        expected_status: 200
+      
+      - name: "Transition to INACTIVE"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "INACTIVE"
+        expected_status: 200
+
+  - id: "A10"
+    name: "Transition: SUBSCRIBED → SUSPENDED"
+    description: "Admin suspends SUBSCRIBED participant"
+    workflow: true
+    steps:
+      - name: "Create SUBSCRIBED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_001"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "A10 Logistics Pvt Ltd"
+            - cred_id: "cred_pan_001"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "A10 Logistics Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_001"
+              type: "AUTHORISED_SIGNATORY"
+              name: "John Doe"
+              email: "john@{{subscriber_id}}"
+              phone: "+919876543210"
+            - contact_id: "contact_biz_001"
+              type: "BUSINESS"
+              name: "Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543211"
+          key:
+            uk_id: "key123456"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc001"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_001"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+          configs:
+            - domain: "nic2004:60232"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri_callback_001"
+              key_id: "key123456"
+        expected_status: 200
+      
+      - name: "Transition to SUSPENDED"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "SUSPENDED"
+        expected_status: 200
+
+  - id: "A11"
+    name: "Transition: SUBSCRIBED → UNSUBSCRIBED"
+    description: "Admin unsubscribes active participant"
+    workflow: true
+    steps:
+      - name: "Create SUBSCRIBED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_001"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "A11 Gateway Pvt Ltd"
+            - cred_id: "cred_pan_001"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "A11 Gateway Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_001"
+              type: "AUTHORISED_SIGNATORY"
+              name: "John Doe"
+              email: "john@{{subscriber_id}}"
+              phone: "+919876543210"
+            - contact_id: "contact_biz_001"
+              type: "BUSINESS"
+              name: "Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543211"
+          key:
+            uk_id: "key123456"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc001"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_001"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri_callback_001"
+              key_id: "key123456"
+        expected_status: 200
+      
+      - name: "Transition to UNSUBSCRIBED"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "UNSUBSCRIBED"
+        expected_status: 200
+
+  - id: "A12"
+    name: "Transition: INACTIVE → SUBSCRIBED"
+    description: "Admin restores INACTIVE participant to SUBSCRIBED"
+    workflow: true
+    steps:
+      - name: "Create SUBSCRIBED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_001"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "A12 Company Pvt Ltd"
+            - cred_id: "cred_pan_001"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "A12 Company Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_001"
+              type: "AUTHORISED_SIGNATORY"
+              name: "John Doe"
+              email: "john@{{subscriber_id}}"
+              phone: "+919876543210"
+            - contact_id: "contact_biz_001"
+              type: "BUSINESS"
+              name: "Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543211"
+          key:
+            uk_id: "key123456"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc001"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_001"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+          configs:
+            - domain: "nic2004:60232"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri_callback_001"
+              key_id: "key123456"
+        expected_status: 200
+      
+      - name: "Transition to INACTIVE"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "INACTIVE"
+        expected_status: 200
+      
+      - name: "Restore to SUBSCRIBED"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+        expected_status: 200
+
+  - id: "A13"
+    name: "Transition: INACTIVE → WHITELISTED"
+    description: "Admin resets INACTIVE participant to WHITELISTED"
+    workflow: true
+    steps:
+      - name: "Create WHITELISTED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:SRV10"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+      
+      - name: "Transition to INACTIVE"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "INACTIVE"
+        expected_status: 200
+      
+      - name: "Reset to WHITELISTED"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+        expected_status: 200
+
+  - id: "A14"
+    name: "Transition: INACTIVE → UNSUBSCRIBED"
+    description: "Admin unsubscribes INACTIVE participant"
+    workflow: true
+    steps:
+      - name: "Create WHITELISTED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true  
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:SRV10"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+      
+      - name: "Transition to INACTIVE"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "INACTIVE"
+        expected_status: 200
+      
+      - name: "Transition to UNSUBSCRIBED"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "UNSUBSCRIBED"
+        expected_status: 200
+
+  - id: "A15"
+    name: "Transition: SUSPENDED → SUBSCRIBED"
+    description: "Admin restores SUSPENDED participant"
+    workflow: true
+    steps:
+      - name: "Create SUBSCRIBED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_001"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "A15 Company Pvt Ltd"
+            - cred_id: "cred_pan_001"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "A15 Company Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_001"
+              type: "AUTHORISED_SIGNATORY"
+              name: "John Doe"
+              email: "john@{{subscriber_id}}"
+              phone: "+919876543210"
+            - contact_id: "contact_biz_001"
+              type: "BUSINESS"
+              name: "Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543211"
+          key:
+            uk_id: "key123456"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc001"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_001"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri_callback_001"
+              key_id: "key123456"
+        expected_status: 200
+      
+      - name: "Transition to SUSPENDED"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "SUSPENDED"
+        expected_status: 200
+      
+      - name: "Restore to SUBSCRIBED"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+        expected_status: 200
+
+  - id: "A16"
+    name: "Transition: SUSPENDED → INACTIVE"
+    description: "Admin moves SUSPENDED participant to INACTIVE"
+    workflow: true
+    steps:
+      - name: "Create WHITELISTED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          dns_skip: true
+          skip_ssl_verification: true
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET15"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+      
+      - name: "Transition to SUSPENDED"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "SUSPENDED"
+        expected_status: 200
+      
+      - name: "Transition to INACTIVE"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "INACTIVE"
+        expected_status: 200
+
+  - id: "A17"
+    name: "Transition: SUSPENDED → UNSUBSCRIBED"
+    description: "Admin unsubscribes SUSPENDED participant"
+    workflow: true
+    steps:
+      - name: "Create WHITELISTED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          dns_skip: true
+          skip_ssl_verification: true
+          configs:
+            - domain: "ONDC:RET16"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+      
+      - name: "Transition to SUSPENDED"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "SUSPENDED"
+        expected_status: 200
+      
+      - name: "Transition to UNSUBSCRIBED"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "UNSUBSCRIBED"
+        expected_status: 200
+
+  - id: "A18"
+    name: "Transition: UNSUBSCRIBED → WHITELISTED"
+    description: "Admin re-whitelists UNSUBSCRIBED participant"
+    workflow: true
+    steps:
+      - name: "Create WHITELISTED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          dns_skip: true
+          skip_ssl_verification: true
+          configs:
+            - domain: "nic2004:60232"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+      
+      - name: "Transition to UNSUBSCRIBED"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "UNSUBSCRIBED"
+        expected_status: 200
+      
+      - name: "Re-whitelist"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+        expected_status: 200
+
+  - id: "A19"
+    name: "Transition: UNSUBSCRIBED → SUBSCRIBED"
+    description: "Admin directly resubscribes UNSUBSCRIBED participant"
+    workflow: true
+    steps:
+      - name: "Create SUBSCRIBED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_001"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "A19 Company Pvt Ltd"
+            - cred_id: "cred_pan_001"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "A19 Company Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_001"
+              type: "AUTHORISED_SIGNATORY"
+              name: "John Doe"
+              email: "john@{{subscriber_id}}"
+              phone: "+919876543210"
+            - contact_id: "contact_biz_001"
+              type: "BUSINESS"
+              name: "Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543211"
+          key:
+            uk_id: "key123456"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc001"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_001"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+          configs:
+            - domain: "nic2004:60232"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri_callback_001"
+              key_id: "key123456"
+        expected_status: 200
+      
+      - name: "Transition to UNSUBSCRIBED"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "UNSUBSCRIBED"
+          dns_skip: true
+          skip_ssl_verification: true
+        expected_status: 200
+      
+      - name: "Resubscribe"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          dns_skip: true
+          skip_ssl_verification: true
+        expected_status: 200
+
+# ==========================================
+# 1.3 ADMIN FIELD UPDATES (PATCH) (12 tests)
+# ==========================================
+
+  - id: "A20"
+    name: "Update credentials only"
+    description: "Admin updates participant credentials via PATCH"
+    workflow: true
+    steps:
+      - name: "Create SUBSCRIBED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_001"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "Example Logistics Pvt Ltd"
+            - cred_id: "cred_pan_001"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "Example Logistics Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_001"
+              type: "AUTHORISED_SIGNATORY"
+              name: "John Doe"
+              email: "john@{{subscriber_id}}"
+              phone: "+919876543211"
+            - contact_id: "contact_biz_001"
+              type: "BUSINESS"
+              name: "Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543213"
+            - contact_id: "contact_tech_001"
+              type: "TECHNICAL"
+              name: "Tech Support"
+              email: "tech@{{subscriber_id}}"
+              phone: "+919876543210"
+              designation: "Technical Lead"
+          key:
+            uk_id: "key123456"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc001"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_001"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "Callback endpoint"
+          configs:
+            - domain: "nic2004:60232"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri_callback_001"
+              key_id: "key123456"
+        expected_status: 200
+      
+      - name: "Update credentials"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          credentials:
+            - cred_id: "cred_gst_001"
+              cred_data:
+                legal_name: "A19 Company Pvt Ltd UPDATED"
+            - cred_id: "cred_pan_001"
+              cred_data:
+                pan: "UPCDE1234F"
+        expected_status: 200
+
+  - id: "A21"
+    name: "Update contacts only"
+    description: "Admin updates participant contact information"
+    workflow: true
+    steps:
+      - name: "Create SUBSCRIBED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_001"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "Example Logistics Pvt Ltd"
+            - cred_id: "cred_pan_001"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "Example Logistics Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_001"
+              type: "AUTHORISED_SIGNATORY"
+              name: "John Doe"
+              email: "john@{{subscriber_id}}"
+              phone: "+919876543211"
+            - contact_id: "contact_biz_001"
+              type: "BUSINESS"
+              name: "Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543213"
+            - contact_id: "contact_tech_001"
+              type: "TECHNICAL"
+              name: "Tech Support"
+              email: "tech@{{subscriber_id}}"
+              phone: "+919876543210"
+              designation: "Technical Lead"
+          key:
+            uk_id: "key123456"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc001"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_001"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "Callback endpoint"
+          configs:
+            - domain: "nic2004:60232"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri_callback_001"
+              key_id: "key123456"
+        expected_status: 200
+      
+      - name: "Update contacts"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          contacts:
+            - contact_id: "contact_auth_001"
+              email: "new-support@example.com"
+              phone: "+919123456789"
+        expected_status: 200
+
+  - id: "A22"
+    name: "Update locations only"
+    description: "Admin updates participant location cities"
+    workflow: true
+    steps:
+      - name: "Create SUBSCRIBED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_001"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "Example Logistics Pvt Ltd"
+            - cred_id: "cred_pan_001"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "Example Logistics Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_001"
+              type: "AUTHORISED_SIGNATORY"
+              name: "John Doe"
+              email: "john@{{subscriber_id}}"
+              phone: "+919876543211"
+            - contact_id: "contact_biz_001"
+              type: "BUSINESS"
+              name: "Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543213"
+            - contact_id: "contact_tech_001"
+              type: "TECHNICAL"
+              name: "Tech Support"
+              email: "tech@{{subscriber_id}}"
+              phone: "+919876543210"
+              designation: "Technical Lead"
+          key:
+            uk_id: "key123456"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc001"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_001"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "Callback endpoint"
+          configs:
+            - domain: "nic2004:60232"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri_callback_001"
+              key_id: "key123456"
+        expected_status: 200
+      
+      - name: "Update locations"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          location:
+            location_id: "loc001"
+            city:
+              - "std:080"
+              - "std:044"
+              - "std:022"
+        expected_status: 200
+
+  - id: "A23"
+    name: "Update URIs only"
+    description: "Admin updates participant callback URIs"
+    workflow: true
+    steps:
+      - name: "Create SUBSCRIBED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_001"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "Example Logistics Pvt Ltd"
+            - cred_id: "cred_pan_001"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "Example Logistics Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_001"
+              type: "AUTHORISED_SIGNATORY"
+              name: "John Doe"
+              email: "john@{{subscriber_id}}"
+              phone: "+919876543211"
+            - contact_id: "contact_biz_001"
+              type: "BUSINESS"
+              name: "Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543213"
+            - contact_id: "contact_tech_001"
+              type: "TECHNICAL"
+              name: "Tech Support"
+              email: "tech@{{subscriber_id}}"
+              phone: "+919876543210"
+              designation: "Technical Lead"
+          key:
+            uk_id: "key123456"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc001"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_001"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "Callback endpoint"
+          configs:
+            - domain: "nic2004:60232"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri_callback_001"
+              key_id: "key123456"
+        expected_status: 200
+      
+      - name: "Update URIs"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          uri:
+            uri_id: "uri_callback_001"
+            type: "CALLBACK"
+            url: "https://new-callbackupdate.example.com/v2/webhook"
+        expected_status: 200
+
+  - id: "A24"
+    name: "Update keys only"
+    description: "Admin rotates participant cryptographic keys"
+    workflow: true
+    steps:
+      - name: "Create SUBSCRIBED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_001"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "Example Logistics Pvt Ltd"
+            - cred_id: "cred_pan_001"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "Example Logistics Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_001"
+              type: "AUTHORISED_SIGNATORY"
+              name: "John Doe"
+              email: "john@{{subscriber_id}}"
+              phone: "+919876543211"
+            - contact_id: "contact_biz_001"
+              type: "BUSINESS"
+              name: "Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543213"
+            - contact_id: "contact_tech_001"
+              type: "TECHNICAL"
+              name: "Tech Support"
+              email: "tech@{{subscriber_id}}"
+              phone: "+919876543210"
+              designation: "Technical Lead"
+          key:
+            uk_id: "key123456"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc001"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_001"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "Callback endpoint"
+          configs:
+            - domain: "nic2004:60232"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri_callback_001"
+              key_id: "key123456"
+        expected_status: 200
+      
+      - name: "Update keys"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          key:
+            uk_id: "key123456"
+            signing_public_key: "NEWwBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "NEWwBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            valid_from: "2025-01-01T00:00:00Z"
+            valid_until: "2027-12-31T23:59:59Z"
+        expected_status: 200
+
+  - id: "A25"
+    name: "Update configs only"
+    description: "Admin modifies participant domain configurations"
+    workflow: true
+    steps:
+      - name: "Create SUBSCRIBED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_001"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "Example Logistics Pvt Ltd"
+            - cred_id: "cred_pan_001"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "Example Logistics Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_001"
+              type: "AUTHORISED_SIGNATORY"
+              name: "John Doe"
+              email: "john@{{subscriber_id}}"
+              phone: "+919876543211"
+            - contact_id: "contact_biz_001"
+              type: "BUSINESS"
+              name: "Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543213"
+            - contact_id: "contact_tech_001"
+              type: "TECHNICAL"
+              name: "Tech Support"
+              email: "tech@{{subscriber_id}}"
+              phone: "+919876543210"
+              designation: "Technical Lead"
+          key:
+            uk_id: "key123456"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc001"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_001"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "Callback endpoint"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri_callback_001"
+              key_id: "key123456"
+        expected_status: 200
+      
+      - name: "Update configs"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          uri:
+            uri_id: "uri_callback_002"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "Callback endpoint"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              uri_id: "uri_callback_002"
+        expected_status: 200
+
+  - id: "A26"
+    name: "Update multiple fields simultaneously"
+    description: "Admin updates credentials, contacts, and location in single PATCH"
+    workflow: true
+    steps:
+      - name: "Create SUBSCRIBED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_001"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "Example Logistics Pvt Ltd"
+            - cred_id: "cred_pan_001"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "Example Logistics Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_001"
+              type: "AUTHORISED_SIGNATORY"
+              name: "John Doe"
+              email: "john@{{subscriber_id}}"
+              phone: "+919876543211"
+            - contact_id: "contact_biz_001"
+              type: "BUSINESS"
+              name: "Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543213"
+            - contact_id: "contact_tech_001"
+              type: "TECHNICAL"
+              name: "Tech Support"
+              email: "tech@{{subscriber_id}}"
+              phone: "+919876543210"
+              designation: "Technical Lead"
+          key:
+            uk_id: "key123456"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc001"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_001"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "Callback endpoint"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri_callback_001"
+              key_id: "key123456"
+        expected_status: 200
+      
+      - name: "Update multiple fields"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          credentials:
+            - cred_id: "cred_gst_001"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "updated to Example Logistics Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_001"
+              email: "multi-update@example.com"
+              phone: "+919999888877"
+          location:
+            location_id: "loc001"
+            city:
+              - "std:011"
+        expected_status: 200
+
+  - id: "A27"
+    name: "Add new domain to existing participant"
+    description: "Admin adds additional domain to participant's configs"
+    workflow: true
+    steps:
+      - name: "Create SUBSCRIBED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_001"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "Example Logistics Pvt Ltd"
+            - cred_id: "cred_pan_001"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "Example Logistics Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_001"
+              type: "AUTHORISED_SIGNATORY"
+              name: "John Doe"
+              email: "john@{{subscriber_id}}"
+              phone: "+919876543211"
+            - contact_id: "contact_biz_001"
+              type: "BUSINESS"
+              name: "Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543213"
+            - contact_id: "contact_tech_001"
+              type: "TECHNICAL"
+              name: "Tech Support"
+              email: "tech@{{subscriber_id}}"
+              phone: "+919876543210"
+              designation: "Technical Lead"
+          key:
+            uk_id: "key123456"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc001"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_001"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "Callback endpoint"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri_callback_001"
+              key_id: "key123456"
+        expected_status: 200
+      
+      - name: "Add new domain"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          configs:
+            - domain: "ONDC:RET15"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+            - domain: "ONDC:SRV10"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+
+  - id: "A28"
+    name: "Update domain-specific configs"
+    description: "Admin changes np_type for specific domain"
+    workflow: true
+    steps:
+      - name: "Create SUBSCRIBED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_001"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "Example Logistics Pvt Ltd"
+            - cred_id: "cred_pan_001"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "Example Logistics Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_001"
+              type: "AUTHORISED_SIGNATORY"
+              name: "John Doe"
+              email: "john@{{subscriber_id}}"
+              phone: "+919876543211"
+            - contact_id: "contact_biz_001"
+              type: "BUSINESS"
+              name: "Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543213"
+            - contact_id: "contact_tech_001"
+              type: "TECHNICAL"
+              name: "Tech Support"
+              email: "tech@{{subscriber_id}}"
+              phone: "+919876543210"
+              designation: "Technical Lead"
+          key:
+            uk_id: "key123456"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc001"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_001"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "Callback endpoint"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri_callback_001"
+              key_id: "key123456"
+        expected_status: 200
+      
+      - name: "Update domain configs"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          dns_skip: true
+          skip_ssl_verification: true
+          location:
+            location_id: "loc002"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          configs:
+            - domain: "ONDC:RET15"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc002"
+              uri_id: "uri_callback_001"
+              key_id: "key123456"
+            - domain: "ONDC:RET1A"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc002"
+              uri_id: "uri_callback_001"
+              key_id: "key123456"
+        expected_status: 200
+
+  - id: "A29"
+    name: "Add credential to existing participant"
+    description: "Admin adds new credential type to participant"
+    workflow: true
+    steps:
+      - name: "Create SUBSCRIBED participant with initial credentials"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_001"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "Example Logistics Pvt Ltd"
+            - cred_id: "cred_pan_001"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "Example Logistics Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_001"
+              type: "AUTHORISED_SIGNATORY"
+              name: "John Doe"
+              email: "john@{{subscriber_id}}"
+              phone: "+919876543211"
+            - contact_id: "contact_biz_001"
+              type: "BUSINESS"
+              name: "Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543213"
+            - contact_id: "contact_tech_001"
+              type: "TECHNICAL"
+              name: "Tech Support"
+              email: "tech@{{subscriber_id}}"
+              phone: "+919876543210"
+              designation: "Technical Lead"
+          key:
+            uk_id: "key123456"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc001"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_001"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "Callback endpoint"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri_callback_001"
+              key_id: "key123456"
+        expected_status: 200
+              
+      - name: "Add new credential"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          credentials:
+            - cred_id: "cred_FSSAI_001"
+              type: "FSSAI"
+              cred_data:
+                no: "29ABCDE1234F1Z5"
+                name: "Example Logistics Pvt Ltd"
+            - cred_id: "cred_tm_001"
+              type: "TRADEMARK"
+              cred_data:
+                tm_no: "29ABCDE1234F1Z5"
+        expected_status: 200
+
+# ==========================================
+# 1.4 ADMIN MULTI-STEP WORKFLOWS (8 tests)
+# ==========================================
+
+  - id: "A30"
+    name: "Workflow: Create → Update fields → Change status"
+    description: "Complete flow: create, update data, change status"
+    workflow: true
+    steps:
+      - name: "Create WHITELISTED"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          credentials:
+            - cred_id: "cred_gst_001"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "Example Logistics Pvt Ltd"
+            - cred_id: "cred_pan_001"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "Example Logistics Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_001"
+              type: "AUTHORISED_SIGNATORY"
+              name: "John Doe"
+              email: "john@{{subscriber_id}}"
+              phone: "+919876543211"
+            
+          key:
+            uk_id: "key123456"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          
+          uri:
+            uri_id: "uri_callback_001"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "Callback endpoint"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              uri_id: "uri_callback_001"
+              key_id: "key123456"
+        
+        expected_status: 200
+        
+      - name: "Update contacts and location"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          contacts:
+            - contact_id: "contact_auth_001"
+              type: "AUTHORISED_SIGNATORY"
+              name: "John Doe"
+              email: "john@{{subscriber_id}}"
+              phone: "+919876543211"
+            - contact_id: "contact_biz_001"
+              type: "BUSINESS"
+              name: "Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543213"
+            - contact_id: "contact_tech_001"
+              type: "TECHNICAL"
+              name: "Tech Support"
+              email: "tech@{{subscriber_id}}"
+              phone: "+919876543210"
+              designation: "Technical Lead"
+          key:
+            uk_id: "key123456"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc001"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_001"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "Callback endpoint"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri_callback_001"
+              key_id: "key123456"
+        expected_status: 200
+        
+      - name: "Change to SUBSCRIBED"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+        expected_status: 200
+
+  - id: "A31"
+    name: "Workflow: Suspend → Update → Restore"
+    description: "Admin suspends, updates data, then restores participant"
+    workflow: true
+    steps:
+      - name: "Create SUBSCRIBED"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_001"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "Example Logistics Pvt Ltd"
+            - cred_id: "cred_pan_001"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "Example Logistics Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_001"
+              type: "AUTHORISED_SIGNATORY"
+              name: "John Doe"
+              email: "john@{{subscriber_id}}"
+              phone: "+919876543211"
+            - contact_id: "contact_biz_001"
+              type: "BUSINESS"
+              name: "Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543213"
+            - contact_id: "contact_tech_001"
+              type: "TECHNICAL"
+              name: "Tech Support"
+              email: "tech@{{subscriber_id}}"
+              phone: "+919876543210"
+              designation: "Technical Lead"
+          key:
+            uk_id: "key123456"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc001"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_001"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "Callback endpoint"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri_callback_001"
+              key_id: "key123456"
+        expected_status: 200
+        
+      - name: "Suspend"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "SUSPENDED"
+        expected_status: 200
+        
+      - name: "Update credentials while suspended"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          credentials:
+            - cred_id: "cred_gst_001"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "suspended to Example Logistics Pvt Ltd"
+        expected_status: 200
+        
+      - name: "Restore to SUBSCRIBED"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+        expected_status: 200
+
+  - id: "A32"
+    name: "Workflow: Create multi-domain → Update per domain"
+    description: "Admin creates participant with multiple domains, updates each"
+    workflow: true
+    steps:
+      - name: "Create with 3 domains"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_001"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "Example Logistics Pvt Ltd"
+            - cred_id: "cred_pan_001"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "Example Logistics Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_001"
+              type: "AUTHORISED_SIGNATORY"
+              name: "John Doe"
+              email: "john@{{subscriber_id}}"
+              phone: "+919876543211"
+            - contact_id: "contact_biz_001"
+              type: "BUSINESS"
+              name: "Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543213"
+            - contact_id: "contact_tech_001"
+              type: "TECHNICAL"
+              name: "Tech Support"
+              email: "tech@{{subscriber_id}}"
+              phone: "+919876543210"
+              designation: "Technical Lead"
+          key:
+            uk_id: "key123456"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc001"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_001"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "Callback endpoint"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri_callback_001"
+              key_id: "key123456"
+            - domain: "ONDC:RET15"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri_callback_001"
+              key_id: "key123456"
+            - domain: "ONDC:RET16"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri_callback_001"
+              key_id: "key123456"
+        expected_status: 200
+        
+      - name: "Update first domain np_type"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          location:
+            location_id: "loc002"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_002"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "Callback endpoint"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc002"
+              uri_id: "uri_callback_001"
+              key_id: "key123456"
+            - domain: "ONDC:RET15"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri_callback_002"
+              key_id: "key123456"
+           
+        expected_status: 200
+
+  - id: "A33"
+    name: "Workflow: Full lifecycle"
+    description: "Complete: Whitelist → Subscribe → Inactive → Restore → Unsubscribe"
+    workflow: true
+    steps:
+      - name: "Create WHITELISTED"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          credentials:
+            - cred_id: "cred_gst_001"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "Example Logistics Pvt Ltd"
+            - cred_id: "cred_pan_001"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "Example Logistics Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_001"
+              type: "AUTHORISED_SIGNATORY"
+              name: "John Doe"
+              email: "john@{{subscriber_id}}"
+              phone: "+919876543211"
+            - contact_id: "contact_biz_001"
+              type: "BUSINESS"
+              name: "Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543213"
+            - contact_id: "contact_tech_001"
+              type: "TECHNICAL"
+              name: "Tech Support"
+              email: "tech@{{subscriber_id}}"
+              phone: "+919876543210"
+              designation: "Technical Lead"
+          key:
+            uk_id: "key123456"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc001"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_001"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "Callback endpoint"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri_callback_001"
+              key_id: "key123456"
+            - domain: "ONDC:RET15"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri_callback_001"
+              key_id: "key123456"
+            - domain: "ONDC:RET16"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri_callback_001"
+              key_id: "key123456"
+        expected_status: 200
+        
+      - name: "Transition to SUBSCRIBED"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+        expected_status: 200
+        
+      - name: "Deactivate"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "INACTIVE"
+        expected_status: 200
+        
+      - name: "Restore to SUBSCRIBED"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+        expected_status: 200
+        
+      - name: "Unsubscribe"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "UNSUBSCRIBED"
+        expected_status: 200
+
+  - id: "A34"
+    name: "Workflow: Create → Add domains incrementally"
+    description: "Admin starts with 1 domain, adds more over time"
+    workflow: true
+    steps:
+      - name: "Create with single domain"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_001"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "Example Logistics Pvt Ltd"
+            - cred_id: "cred_pan_001"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "Example Logistics Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_001"
+              type: "AUTHORISED_SIGNATORY"
+              name: "John Doe"
+              email: "john@{{subscriber_id}}"
+              phone: "+919876543211"
+            - contact_id: "contact_biz_001"
+              type: "BUSINESS"
+              name: "Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543213"
+            - contact_id: "contact_tech_001"
+              type: "TECHNICAL"
+              name: "Tech Support"
+              email: "tech@{{subscriber_id}}"
+              phone: "+919876543210"
+              designation: "Technical Lead"
+          key:
+            uk_id: "key123456"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc001"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_001"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "Callback endpoint"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri_callback_001"
+              key_id: "key123456"
+        expected_status: 200
+        
+      - name: "Add second domain"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          configs:
+            - domain: "ONDC:RET15"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri_callback_001"
+              key_id: "key123456"
+        expected_status: 200
+        
+      - name: "Add third domain"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          dns_skip: true
+          skip_ssl_verification: true
+          configs:
+            - domain: "ONDC:RET16"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri_callback_001"
+              key_id: "key123456"
+        expected_status: 200
+
+  
+  - id: "A35"
+    name: "Workflow: Rapid status changes"
+    description: "Test state consistency with rapid transitions"
+    workflow: true
+    steps:
+      - name: "Create WHITELISTED"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          credentials:
+            - cred_id: "cred_gst_001"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "Example Logistics Pvt Ltd"
+            - cred_id: "cred_pan_001"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "Example Logistics Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_001"
+              type: "AUTHORISED_SIGNATORY"
+              name: "John Doe"
+              email: "john@{{subscriber_id}}"
+              phone: "+919876543211"
+            - contact_id: "contact_biz_001"
+              type: "BUSINESS"
+              name: "Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543213"
+            - contact_id: "contact_tech_001"
+              type: "TECHNICAL"
+              name: "Tech Support"
+              email: "tech@{{subscriber_id}}"
+              phone: "+919876543210"
+              designation: "Technical Lead"
+          key:
+            uk_id: "key123456"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc001"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_001"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "Callback endpoint"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri_callback_001"
+              key_id: "key123456"
+        expected_status: 200
+        
+      - name: "To SUBSCRIBED"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+        expected_status: 200
+        
+      - name: "To SUSPENDED"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "SUSPENDED"
+        expected_status: 200
+        
+      - name: "To INACTIVE"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "INACTIVE"
+        expected_status: 200
+        
+      - name: "Back to SUBSCRIBED"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+        expected_status: 200
+
+# ==========================================
+# 1.5 ADMIN ERROR & VALIDATION (6 tests)
+# ==========================================
+
+  - id: "A36"
+    name: "Error: Invalid status transition"
+    description: "Attempt invalid SUBSCRIBED → WHITELISTED transition"
+    method: "POST"
+    endpoint: "/admin/subscribe"
+    auth_type: "admin"
+    setup:
+      action: "SUBSCRIBED"
+      participant_id: "{{subscriber_id}}"
+      configs:
+        - domain: "ONDC:RET1A"
+          np_type: "BPP"
+    data:
+      action: "WHITELISTED"
+    expected_status: 400
+    validate_error: true
+
+  - id: "A37"
+    name: "Error: Create duplicate participant"
+    description: "Attempt to create participant with existing subscriber_id"
+    workflow: true
+    steps:
+      - name: "Create first participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+      
+      - name: "Attempt duplicate creation"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"  # Same ID from step 1
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 409  # Expect conflict error
+
+  - id: "A38"
+    name: "Error: Missing required fields"
+    description: "POST without required configs field"
+    method: "POST"
+    endpoint: "/admin/subscribe"
+    auth_type: "admin"
+    data:
+      action: "WHITELISTED"
+      participant_id: "{{subscriber_id}}"
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status: 400
+
+  - id: "A39"
+    name: "Error: Invalid field formats"
+    description: "Send invalid email and phone formats"
+    method: "POST"
+    endpoint: "/admin/subscribe"
+    auth_type: "admin"
+    data:
+      dns_skip: true
+      skip_ssl_verification: true
+      action: "WHITELISTED"
+      participant_id: "{{subscriber_id}}"
+      configs:
+        - domain: "ONDC:RET1A"
+          np_type: "BPP"
+          subscriber_id: "{{subscriber_id}}"
+      contacts:
+        - email: "not-an-email"
+          phone: "invalid-phone"
+          contact_id: "contact_invalid_001"
+          type: "AUTHORISED_SIGNATORY"
+    expected_status: 400
+
+  - id: "A40"
+    name: "Error: Invalid domain format"
+    description: "Use malformed domain name"
+    method: "POST"
+    endpoint: "/admin/subscribe"
+    auth_type: "admin"
+    data:
+      dns_skip: true
+      skip_ssl_verification: true
+      action: "WHITELISTED"
+      participant_id: "{{subscriber_id}}"
+      configs:
+        - domain: "INVALID_DOMAIN"
+          np_type: "BPP"
+          subscriber_id: "{{subscriber_id}}"
+    expected_status: 400
+
+  - id: "A41"
+    name: "Error: Unauthorized (no JWT token)"
+    description: "Attempt admin operation without authentication"
+    method: "POST"
+    endpoint: "/admin/subscribe"
+    auth_type: "none"
+    data:
+      dns_skip: true
+      skip_ssl_verification: true
+      action: "WHITELISTED"
+      participant_id: "{{subscriber_id}}"
+      configs:
+        - domain: "ONDC:RET1A"
+          np_type: "BPP"
+          subscriber_id: "{{subscriber_id}}"
+    expected_status: 401
+
+# ==========================================
+# 1.6 ADMIN WHITELISTED CONFIG UPSERT (7 tests)
+# ==========================================
+
+  - id: "A42"
+    name: "Add new WHITELISTED config to SUBSCRIBED participant (minimal)"
+    description: "Add minimal WHITELISTED config to existing SUBSCRIBED participant"
+    workflow: true
+    steps:
+      - name: "Create SUBSCRIBED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_001"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "Example Logistics Pvt Ltd"
+            - cred_id: "cred_pan_001"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "Example Logistics Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_001"
+              type: "AUTHORISED_SIGNATORY"
+              name: "John Doe"
+              email: "john@{{subscriber_id}}"
+              phone: "+919876543211"
+            - contact_id: "contact_biz_001"
+              type: "BUSINESS"
+              name: "Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543212"
+          key:
+            uk_id: "key123456"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          uri:
+            uri_id: "uri_callback_001"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "Callback endpoint"
+          location:
+            location_id: "loc001"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri_callback_001"
+              key_id: "key123456"
+        expected_status: 200
+      
+      - name: "Add new WHITELISTED config"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "nic2004:60232"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+
+  - id: "A43"
+    name: "Add new WHITELISTED config with new entities"
+    description: "Add WHITELISTED config with new location, URI, and key entities"
+    workflow: true
+    steps:
+      - name: "Create SUBSCRIBED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_001"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "Example Logistics Pvt Ltd"
+            - cred_id: "cred_pan_001"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "Example Logistics Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_001"
+              type: "AUTHORISED_SIGNATORY"
+              name: "John Doe"
+              email: "john@{{subscriber_id}}"
+              phone: "+919876543211"
+            - contact_id: "contact_biz_001"
+              type: "BUSINESS"
+              name: "Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543212"
+          key:
+            uk_id: "key123456"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          uri:
+            uri_id: "uri_callback_001"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "Callback endpoint"
+          location:
+            location_id: "loc001"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri_callback_001"
+              key_id: "key123456"
+        expected_status: 200
+      
+      - name: "Add WHITELISTED config with entities"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          key:
+            uk_id: "key_logistics_001"
+            signing_public_key: "MCowBQYDK2VwAyEAabcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdef=="
+            encryption_public_key: "MCowBQYDK2VwAyEAZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba0123456789ab=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-03-01T00:00:00.000Z"
+            valid_until: "2027-03-01T00:00:00.000Z"
+          location:
+            location_id: "loc_logistics_001"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+              - "std:011"
+          uri:
+            uri_id: "uri_logistics_001"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/logistics/callback"
+            description: "Logistics callback endpoint"
+          configs:
+            - domain: "nic2004:60232"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_logistics_001"
+              uri_id: "uri_logistics_001"
+              key_id: "key_logistics_001"
+        expected_status: 200
+
+  - id: "A44"
+    name: "Update existing config entity references"
+    description: "Update entity references (location, URI, key) of existing SUBSCRIBED config"
+    workflow: true
+    steps:
+      - name: "Create SUBSCRIBED participant with config"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_pan_001"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "Example Logistics Pvt Ltd"
+            - cred_id: "cred_gst_001"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "Example Logistics Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_001"
+              type: "AUTHORISED_SIGNATORY"
+              name: "John Doe"
+              email: "john@{{subscriber_id}}"
+              phone: "+919876543211"
+            - contact_id: "contact_biz_001"
+              type: "BUSINESS"
+              name: "Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543212"
+          key:
+            uk_id: "key123456"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc001"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_001"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "Callback endpoint"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri_callback_001"
+              key_id: "key123456"
+        expected_status: 200
+      
+      - name: "Create new entities for reference update"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          key:
+            uk_id: "key_updated_001"
+            signing_public_key: "MCowBQYDK2VwAyEAupdatedkey1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP=="
+            encryption_public_key: "MCowBQYDK2VwAyEAupdatedenc9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsr=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-04-01T00:00:00.000Z"
+            valid_until: "2027-04-01T00:00:00.000Z"
+          location:
+            location_id: "loc_updated_001"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+              - "std:022"
+          uri:
+            uri_id: "uri_updated_001"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/updated/callback"
+            description: "Updated callback endpoint"
+        expected_status: 200
+      
+      - name: "Update config entity references using WHITELISTED action"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_updated_001"
+              uri_id: "uri_updated_001"
+              key_id: "key_updated_001"
+        expected_status: 200
+
+  - id: "A45"
+    name: "Mixed operation: Create new config + Update existing config"
+    description: "Add one new WHITELISTED config and update entity references of existing config"
+    workflow: true
+    steps:
+      - name: "Create SUBSCRIBED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_pan_001"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "Example Logistics Pvt Ltd"
+            - cred_id: "cred_gst_001"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "Example Logistics Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_001"
+              type: "AUTHORISED_SIGNATORY"
+              name: "John Doe"
+              email: "john@{{subscriber_id}}"
+              phone: "+919876543211"
+            - contact_id: "contact_biz_001"
+              type: "BUSINESS"
+              name: "Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543212"
+          key:
+            uk_id: "key123456"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc001"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_001"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "Callback endpoint"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri_callback_001"
+              key_id: "key123456"
+        expected_status: 200
+      
+      - name: "Mixed operation: Add new config + Update existing"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          location:
+            location_id: "loc_multi_001"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:022"
+          uri:
+            uri_id: "uri_multi_001"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/multi/callback"
+            description: "Multi operation callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_multi_001"
+              uri_id: "uri_multi_001"
+              key_id: "key123456"
+            - domain: "nic2004:60232"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+
+  - id: "A46"
+    name: "Error: WHITELISTED action without configs array"
+    description: "PATCH with action=WHITELISTED but missing configs field"
+    workflow: true
+    steps:
+      - name: "Create SUBSCRIBED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          dns_skip: true
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_001"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "Example Logistics Pvt Ltd"
+            - cred_id: "cred_pan_001"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "Example Logistics Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_001"
+              type: "AUTHORISED_SIGNATORY"
+              name: "John Doe"
+              email: "john@{{subscriber_id}}"
+              phone: "+919876543211"
+            - contact_id: "contact_biz_001"
+              type: "BUSINESS"
+              name: "Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543212"
+          key:
+            uk_id: "key123456"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc001"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_001"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "Callback endpoint"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri_callback_001"
+              key_id: "key123456"
+        expected_status: 200
+      
+      - name: "Attempt WHITELISTED action without configs"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          credentials:
+            - cred_id: "cred_gst_001"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "Example Logistics Pvt Ltd"
+        expected_status: 200
+
+  - id: "A47"
+    name: "Error: Config missing required fields"
+    description: "WHITELISTED config missing domain or np_type"
+    workflow: true
+    steps:
+      - name: "Create participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_001"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "Example Logistics Pvt Ltd"
+            - cred_id: "cred_pan_001"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "Example Logistics Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_001"
+              type: "AUTHORISED_SIGNATORY"
+              name: "John Doe"
+              email: "john@{{subscriber_id}}"
+              phone: "+919876543211"
+            - contact_id: "contact_biz_001"
+              type: "BUSINESS"
+              name: "Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543212"
+          key:
+            uk_id: "key123456"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc001"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_001"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "Callback endpoint"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri_callback_001"
+              key_id: "key123456"
+        expected_status: 200
+      
+      - name: "Attempt config with missing domain"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          configs:
+            - np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 400
+
+  - id: "A48"
+    name: "Verify status preservation: SUBSCRIBED stays SUBSCRIBED"
+    description: "Confirm existing config status is preserved when updating entity references"
+    workflow: true
+    steps:
+      - name: "Create SUBSCRIBED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_001"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "Example Logistics Pvt Ltd"
+            - cred_id: "cred_pan_001"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "Example Logistics Pvt Ltd"
+          contacts:
+            - contact_id: "contact_auth_001"
+              type: "AUTHORISED_SIGNATORY"
+              name: "John Doe"
+              email: "john@{{subscriber_id}}"
+              phone: "+919876543211"
+            - contact_id: "contact_biz_001"
+              type: "BUSINESS"
+              name: "Business Manager"
+              email: "business@{{subscriber_id}}"
+              phone: "+919876543212"
+          key:
+            uk_id: "key123456"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc001"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_callback_001"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "Callback endpoint"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc001"
+              uri_id: "uri_callback_001"
+              key_id: "key123456"
+        expected_status: 200
+      
+      - name: "Create new location entity"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          location:
+            location_id: "loc_new_001"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:022"
+        expected_status: 200
+      
+      - name: "Update config entity ref with WHITELISTED action"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_new_001"
+              uri_id: "uri_callback_001"
+              key_id: "key123456"
+        expected_status: 200
+      
+      - name: "Verify config still SUBSCRIBED"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "[0].status"
+            value: "SUBSCRIBED"
+          - field: "[0].location_id"
+            value: "loc_new_001"
+
+# ==========================================
+# POLICY MANAGEMENT TESTS (4 tests)
+# ==========================================
+
+  - id: "A49"
+    name: "Admin subscribe rejects top-level policy_id"
+    description: "Validate that top-level policy_id is no longer accepted in admin subscribe payload"
+    method: "POST"
+    endpoint: "/admin/subscribe"
+    auth_type: "admin"
+    data:
+      participant_id: "{{subscriber_id}}"
+      action: "WHITELISTED"
+      policy_id: "550e8400-e29b-41d4-a716-446655440000"
+      configs:
+        - domain: "ONDC:RET1A"
+          np_type: "BPP"
+          subscriber_id: "{{subscriber_id}}"
+    expected_status: 400
+    validate:
+      - field: "message.ack.status"
+        value: "NACK"
+
+  - id: "A50"
+    name: "Admin subscribe with Policy object (upsert new)"
+    description: "Create new NETWORK routing policy via upsert and link to participant"
+    method: "POST"
+    endpoint: "/admin/subscribe"
+    auth_type: "admin"
+    data:
+      dns_skip: true
+      skip_ssl_verification: true
+      participant_id: "{{subscriber_id}}"
+      action: "WHITELISTED"
+      policy:
+        policy_id: "550e8400-e29b-41d4-a716-446655440010"
+        name: "GW System Policy {{timestamp}}"
+        type: "NETWORK"
+        rule_definition:
+          rules:
+            - id: "550e8400-e29b-41d4-a716-446655440001"
+              description: "Route all RET10 search requests to GCR"
+              priority: 100
+              status: "ENABLED"
+              match_condition:
+                domain: "ONDC:RET10"
+                action: "search"
+              action_to_take:
+                action_type: "ROUTING"
+                target_url: "https://preprod.gcr.ondc.org/search"
+        metadata:
+          version: "1.0"
+          approval_status: "APPROVED"
+          effective_from: "2026-02-26T00:00:00Z"
+          created_by: "admin-system"
+      configs:
+        - domain: "ONDC:RET1A"
+          np_type: "BPP"
+          subscriber_id: "{{subscriber_id}}"
+    expected_status: 200
+    validate:
+      - field: "message.ack.status"
+        value: "ACK"
+
+  - id: "A51"
+    name: "Admin subscribe with Policy object (upsert existing)"
+    description: "Update existing NETWORK_PARTICIPANT whitelist policy via upsert by name and link to participant"
+    method: "POST"
+    endpoint: "/admin/subscribe"
+    auth_type: "admin"
+    data:
+      dns_skip: true
+      skip_ssl_verification: true
+      participant_id: "{{subscriber_id}}"
+      action: "SUBSCRIBED"
+      policy:
+        policy_id: "550e8400-e29b-41d4-a716-446655440011"
+        name: "Whitelist Policy {{timestamp}}"
+        type: "NETWORK_PARTICIPANT"
+        rule_definition:
+          rules:
+            - id: "550e8400-e29b-41d4-a716-446655440002"
+              description: "Allow RET10 from specific BPP"
+              priority: 100
+              status: "ENABLED"
+              match_condition:
+                domain: "ONDC:RET10"
+                action: "search"
+                bpp_id: "acme-retail.ondc.org"
+              action_to_take:
+                action_type: "ALLOW"
+            - id: "550e8400-e29b-41d4-a716-446655440003"
+              description: "Block RET11 from specific BPP"
+              priority: 100
+              status: "ENABLED"
+              match_condition:
+                domain: "ONDC:RET11"
+                action: "search"
+                bpp_id: "acme-retail.ondc.org"
+              action_to_take:
+                action_type: "NOT_ALLOW"
+        metadata:
+          version: "1.2"
+          approval_status: "APPROVED"
+          created_by: "acme-retail.ondc.org"
+          updated_at: "2026-02-26T14:00:00Z"
+      credentials:
+        - cred_id: "cred_gst_001"
+          type: "GST"
+          cred_data:
+            gstin: "29ABCDE1234F1Z5"
+            legal_name: "Test Company Ltd"
+        - cred_id: "cred_pan_001"
+          type: "PAN"
+          cred_data:
+            pan: "ABCDE1234F"
+            name: "Test Company Ltd"
+      contacts:
+        - contact_id: "contact_auth_001"
+          type: "AUTHORISED_SIGNATORY"
+          name: "John Doe"
+          email: "john@{{subscriber_id}}"
+          phone: "+919876543211"
+        - contact_id: "contact_biz_001"
+          type: "BUSINESS"
+          name: "Business Manager"
+          email: "business@{{subscriber_id}}"
+          phone: "+919876543212"
+      key:
+        uk_id: "key123456"
+        signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+        encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+        signed_algorithm: "ED25519"
+        encryption_algorithm: "X25519"
+        valid_from: "2026-02-04T00:00:00.000Z"
+        valid_until: "2027-02-04T00:00:00.000Z"
+      location:
+        location_id: "loc001"
+        type: "SERVICEABLE"
+        country: "IND"
+        city:
+          - "std:080"
+      uri:
+        uri_id: "uri_callback_001"
+        type: "CALLBACK"
+        url: "https://{{subscriber_id}}/callback"
+      configs:
+        - domain: "ONDC:RET1A"
+          np_type: "BPP"
+          subscriber_id: "{{subscriber_id}}"
+          location_id: "loc001"
+          uri_id: "uri_callback_001"
+          key_id: "key123456"
+    expected_status: 200
+    validate:
+      - field: "message.ack.status"
+        value: "ACK"
+
+  - id: "A52"
+    name: "Admin subscribe with Policy object only"
+    description: "Upsert policy using policy object only and link to participant"
+    method: "POST"
+    endpoint: "/admin/subscribe"
+    auth_type: "admin"
+    data:
+      dns_skip: true
+      skip_ssl_verification: true
+      participant_id: "{{subscriber_id}}"
+      action: "WHITELISTED"
+      policy:
+        policy_id: "550e8400-e29b-41d4-a716-446655440012"
+        name: "Combined Policy Test {{timestamp}}"
+        type: "NETWORK"
+        rule_definition:
+          rules:
+            - id: "550e8400-e29b-41d4-a716-446655440004"
+              description: "Route RET12 search to specific gateway"
+              priority: 100
+              status: "ENABLED"
+              match_condition:
+                domain: "ONDC:RET12"
+                action: "search"
+              action_to_take:
+                action_type: "ROUTING"
+                target_url: "https://gateway.example.com/search"
+        metadata:
+          source: "combined_test"
+          created_by: "admin"
+          version: "1.0"
+      configs:
+        - domain: "ONDC:RET1A"
+          np_type: "BPP"
+          subscriber_id: "{{subscriber_id}}"
+    expected_status: 200
+    validate:
+      - field: "message.ack.status"
+        value: "ACK"
+
+# ==========================================
+# 1.8 DNS VALIDATION TESTS (1 test)
+# ==========================================
+
+  - id: "A53"
+    name: "Create SUBSCRIBED participant with DNS validation enabled"
+    description: "Admin creates SUBSCRIBED participant with dns_skip=false to exercise real DNS TXT record validation for signing/encryption keys (buyerapp.kynondc.net)"
+    method: "POST"
+    endpoint: "/admin/subscribe"
+    auth_type: "admin"
+    # request_id MUST match what was signed when publishing ondc-signature TXT record to DNS:
+    #   buyerapp.kynondc.net  IN TXT "ondc-signature=<base64(ed25519.Sign(privateKey, []byte(request_id)))>"
+    # Replace with the actual UUID used when generating the DNS TXT record
+    request_id: "fc3ee82a-f6fc-4358-8aab-e37ca60b8b5c"
+    data:
+      participant_id: "buyerapp1.kynondc.net"
+      action: "SUBSCRIBED"
+      skip_ssl_verification: true
+      dns_skip: true
+      credentials:
+        - cred_id: "cred_gst_001"
+          type: "GST"
+          cred_data:
+            gstin: "29ABCDE1234F1Z5"
+            legal_name: "Example Retail Pvt Ltd"
+            business_address: "123 MG Road, Bangalore, Karnataka 560001"
+        - cred_id: "cred_pan_001"
+          type: "PAN"
+          cred_data:
+            pan_number: "ABCDE1234F"
+            name_on_pan: "Example Retail Pvt Ltd"
+      contacts:
+        - contact_id: "contact_tech_001"
+          type: "AUTHORISED_SIGNATORY"
+          name: "Rajesh Kumar"
+          email: "tech@seller.example.com"
+          phone: "+919876543210"
+          designation: "CTO"
+          is_primary: true
+        - contact_id: "contact_biz_001"
+          type: "BUSINESS"
+          name: "Priya Sharma"
+          email: "business@seller.example.com"
+          phone: "+919876543211"
+          designation: "Business Head"
+          additional_data:
+            alternate_phone: "+919876543212"
+            preferred_contact_time: "10:00-18:00 IST"
+      key:
+        uk_id: "afc754a6-d66e-4337-86ea-cd469ddafc40"
+        signing_public_key: "gUN6hYEXqihsSryDkvye/O8KmolTijG7yd2B8uRwnSs="
+        encryption_public_key: "MCowBQYDK2VuAyEAXh1+a02x1+AX74RPZkYBmGEsdMLu05KLlfgt3icTLAI="
+        signed_algorithm: "ED25519"
+        encryption_algorithm: "X25519"
+        valid_from: "2026-03-11T06:00:54.764103Z"
+        valid_until: "2028-03-10T06:00:54.764103Z"
+      location:
+        location_id: "loc_india_bangalore"
+        type: "SERVICEABLE"
+        country: "IND"
+        city:
+          - "std:080"
+        description: "Bangalore serviceable area"
+      uri:
+        uri_id: "uri_callback_001"
+        type: "CALLBACK"
+        url: "https://buyerapp.kynondc.net/ondc/callback"
+        description: "Primary ONDC callback endpoint"
+      configs:
+        - domain: "ONDC:RET10"
+          np_type: "BAP"
+          subscriber_id: "buyerapp1.kynondc.net"
+          location_id: "loc_india_bangalore"
+          uri_id: "uri_callback_001"
+          key_id: "afc754a6-d66e-4337-86ea-cd469ddafc40"
+    expected_status: 200
+    validate:
+      - field: "message.ack.status"
+        value: "ACK"
+
+# ==========================================
+# CONFIG DEDUPLICATION REGRESSION TEST
+# ==========================================
+
+  - id: "A54"
+    name: "WHITELISTED->SUBSCRIBED must not duplicate config rows"
+    description: |
+      Regression test: create a participant with exactly 1 WHITELISTED config,
+      verify 1 config exists, then PATCH to SUBSCRIBED (with full entity data for
+      the same config), and verify the config table still contains exactly 1 record
+      for this participant.  Before the fix, adminUpsertEntitiesAndTransition
+      would blindly INSERT a second config row (no unique constraint on the table),
+      so the final GET would return 2 records instead of 1.
+    workflow: true
+    steps:
+      - name: "Step 1 – Create minimal WHITELISTED participant (1 config, no entity refs)"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET10"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+      - name: "Step 2 – Verify exactly 1 config row exists after WHITELISTED create"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: ""
+            array_length: 1
+
+      - name: "Step 3 – PATCH to SUBSCRIBED with full entity data for the same config"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_a54"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "A54 Dedup Test Company"
+            - cred_id: "cred_pan_a54"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "A54 Dedup Test Company"
+          contacts:
+            - contact_id: "contact_auth_a54"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Auth Signatory A54"
+              email: "auth@{{subscriber_id}}"
+              phone: "+919876540054"
+            - contact_id: "contact_biz_a54"
+              type: "BUSINESS"
+              name: "Business Contact A54"
+              email: "biz@{{subscriber_id}}"
+              phone: "+919876540154"
+          key:
+            uk_id: "uk_a54_key"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_a54"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_a54"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "Callback endpoint"
+          # Same domain/np_type/subscriber_id as the WHITELISTED config above –
+          # this must UPDATE the existing row, not INSERT a second one.
+          configs:
+            - domain: "ONDC:RET10"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_a54"
+              uri_id: "uri_a54"
+              key_id: "uk_a54_key"
+        expected_status: 200
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+      - name: "Step 4 – Verify still exactly 1 config row (no duplicate created)"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          # Must remain 1 – if the bug is present this returns 2 and the test fails.
+          - field: ""
+            array_length: 1
+          # The single config must now be SUBSCRIBED
+          - field: "0.status"
+            value: "SUBSCRIBED"
+  
+  - id: "A55"
+    name: "WHITELISTED->SUBSCRIBED must not duplicate config rows"
+    description: |
+      Regression test: create a participant with exactly 1 WHITELISTED config,
+      verify 1 config exists, then PATCH to SUBSCRIBED (with full entity data for
+      the same config), and verify the config table still contains exactly 1 record
+      for this participant.  Before the fix, adminUpsertEntitiesAndTransition
+      would blindly INSERT a second config row (no unique constraint on the table),
+      so the final GET would return 2 records instead of 1.
+    workflow: true
+    steps:
+      - name: "Step 1 – Create minimal WHITELISTED participant (1 config, no entity refs)"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET10"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+      - name: "Step 2 – Verify exactly 1 config row exists after WHITELISTED create"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: ""
+            array_length: 1
+
+      - name: "Step 3 – PATCH to SUBSCRIBED with full entity data for the same config and location not with servicable type"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_a54"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "A54 Dedup Test Company"
+            - cred_id: "cred_pan_a54"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "A54 Dedup Test Company"
+          contacts:
+            - contact_id: "contact_auth_a54"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Auth Signatory A54"
+              email: "auth@{{subscriber_id}}"
+              phone: "+919876540054"
+            - contact_id: "contact_biz_a54"
+              type: "BUSINESS"
+              name: "Business Contact A54"
+              email: "biz@{{subscriber_id}}"
+              phone: "+919876540154"
+          key:
+            uk_id: "uk_a54_key"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_a54"
+            type: "WAREHOUSE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_a54"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "Callback endpoint"
+          # Same domain/np_type/subscriber_id as the WHITELISTED config above –
+          # this must UPDATE the existing row, not INSERT a second one.
+          configs:
+            - domain: "ONDC:RET10"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_a54"
+              uri_id: "uri_a54"
+              key_id: "uk_a54_key"
+        expected_status: 400
+        validate:
+          - field: "message.ack.status"
+            value: "NACK"
+
+      - name: "Step 4 – Verify still exactly 1 config row (no duplicate created) it needs to be WHITELISTED only"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          # Must remain 1 – if the bug is present this returns 2 and the test fails.
+          - field: ""
+            array_length: 1
+          # The single config must now be WHITELISTED
+          - field: "0.status"
+            value: "WHITELISTED"
+
+
+      - name: "Step 5 – PATCH to SUBSCRIBED with full entity data for the same config and location with REGISTRATION type"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_a54"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "A54 Dedup Test Company"
+            - cred_id: "cred_pan_a54"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "A54 Dedup Test Company"
+          contacts:
+            - contact_id: "contact_auth_a54"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Auth Signatory A54"
+              email: "auth@{{subscriber_id}}"
+              phone: "+919876540054"
+            - contact_id: "contact_biz_a54"
+              type: "BUSINESS"
+              name: "Business Contact A54"
+              email: "biz@{{subscriber_id}}"
+              phone: "+919876540154"
+          key:
+            uk_id: "uk_a54_key"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_a54"
+            type: "REGISTRATION"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_a54"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "Callback endpoint"
+          # Same domain/np_type/subscriber_id as the WHITELISTED config above –
+          # this must UPDATE the existing row, not INSERT a second one.
+          configs:
+            - domain: "ONDC:RET10"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_a54"
+              uri_id: "uri_a54"
+              key_id: "uk_a54_key"
+        expected_status: 400
+        validate:
+          - field: "message.ack.status"
+            value: "NACK"
+
+      - name: "Step 6 – Verify still exactly 1 config row (no duplicate created)"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          # Must remain 1 – if the bug is present this returns 2 and the test fails.
+          - field: ""
+            array_length: 1
+          # The single config must now be WHITELISTED
+          - field: "0.status"
+            value: "WHITELISTED"
+
+      - name: "Step 7 – PATCH to SUBSCRIBED with full entity data for the same config and location with serviceable type"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_a54"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "A54 Dedup Test Company"
+            - cred_id: "cred_pan_a54"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "A54 Dedup Test Company"
+          contacts:
+            - contact_id: "contact_auth_a54"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Auth Signatory A54"
+              email: "auth@{{subscriber_id}}"
+              phone: "+919876540054"
+            - contact_id: "contact_biz_a54"
+              type: "BUSINESS"
+              name: "Business Contact A54"
+              email: "biz@{{subscriber_id}}"
+              phone: "+919876540154"
+          key:
+            uk_id: "uk_a54_key"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_a54"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_a54"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "Callback endpoint"
+          # Same domain/np_type/subscriber_id as the WHITELISTED config above –
+          # this must UPDATE the existing row, not INSERT a second one.
+          configs:
+            - domain: "ONDC:RET10"
+              np_type: "BAP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_a54"
+              uri_id: "uri_a54"
+              key_id: "uk_a54_key"
+        expected_status: 200
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+      - name: "Step 8 – Verify still exactly 1 config row (no duplicate created)"
+        method: "GET"
+        endpoint: "/admin/configs/participant/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          # Must remain 1 – if the bug is present this returns 2 and the test fails.
+          - field: ""
+            array_length: 1
+          # The single config must now be SUBSCRIBED
+          - field: "0.status"
+            value: "SUBSCRIBED"
+
+# ==========================================
+# 1.9 POLICY LIFECYCLE FLOWS (3 tests)
+# ==========================================
+
+  - id: "A56"
+    name: "Policy lifecycle: Active → Inactive (with version tracking)"
+    description: |
+      Creates a participant with an active policy (version=1), verifies initial state,
+      patches is_active to false, then verifies is_active=false and version incremented to 2.
+    workflow: true
+    steps:
+      - name: "Step 1 – Create participant with active policy"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          policy:
+            policy_id: "550e8400-e29b-41d4-a716-446655440056"
+            name: "A56 Active-to-Inactive Policy {{timestamp}}"
+            type: "NETWORK"
+            is_active: true
+            rule_definition:
+              rules:
+                - id: "550e8400-e29b-41d4-a716-446655440056"
+            metadata:
+              created_by: "admin"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+      - name: "Step 2 – Verify policy is active with version=1"
+        method: "GET"
+        endpoint: "/admin/participants/{{subscriber_id}}/policies/550e8400-e29b-41d4-a716-446655440056"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "is_active"
+            value: true
+          - field: "is_expired"
+            value: false
+          - field: "version"
+            value: 1
+
+      - name: "Step 3 – PATCH policy is_active to false"
+        method: "PATCH"
+        endpoint: "/admin/participants/{{subscriber_id}}/policies/550e8400-e29b-41d4-a716-446655440056"
+        auth_type: "admin"
+        data:
+          is_active: false
+        expected_status: 200
+
+      - name: "Step 4 – Verify policy is inactive, version incremented to 2"
+        method: "GET"
+        endpoint: "/admin/participants/{{subscriber_id}}/policies/550e8400-e29b-41d4-a716-446655440056"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "is_active"
+            value: false
+          - field: "is_expired"
+            value: false
+          - field: "version"
+            value: 2
+
+  - id: "A57"
+    name: "Policy lifecycle: Inactive → Active (with version tracking)"
+    description: |
+      Creates a participant with an inactive policy (version=1), verifies initial state,
+      patches is_active to true, then verifies is_active=true and version incremented to 2.
+    workflow: true
+    steps:
+      - name: "Step 1 – Create participant with inactive policy"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          policy:
+            policy_id: "550e8400-e29b-41d4-a716-446655440057"
+            name: "A57 Inactive-to-Active Policy {{timestamp}}"
+            type: "NETWORK"
+            is_active: false
+            rule_definition:
+              rules:
+                - id: "550e8400-e29b-41d4-a716-446655440057"
+            metadata:
+              created_by: "admin"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+      - name: "Step 2 – Verify policy is inactive with version=1"
+        method: "GET"
+        endpoint: "/admin/participants/{{subscriber_id}}/policies/550e8400-e29b-41d4-a716-446655440057"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "is_active"
+            value: false
+          - field: "is_expired"
+            value: false
+          - field: "version"
+            value: 1
+
+      - name: "Step 3 – PATCH policy is_active to true"
+        method: "PATCH"
+        endpoint: "/admin/participants/{{subscriber_id}}/policies/550e8400-e29b-41d4-a716-446655440057"
+        auth_type: "admin"
+        data:
+          is_active: true
+        expected_status: 200
+
+      - name: "Step 4 – Verify policy is active, version incremented to 2"
+        method: "GET"
+        endpoint: "/admin/participants/{{subscriber_id}}/policies/550e8400-e29b-41d4-a716-446655440057"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "is_active"
+            value: true
+          - field: "is_expired"
+            value: false
+          - field: "version"
+            value: 2
+
+  - id: "A58"
+    name: "Policy lifecycle: Active → Expired + immutability check (with version tracking)"
+    description: |
+      Creates a participant with an active policy (version=1), verifies initial state,
+      patches is_expired to true (forces is_active=false, version→2), verifies the expired state,
+      then attempts a second PATCH which must be rejected with 409 Conflict (expired policies are immutable).
+    workflow: true
+    steps:
+      - name: "Step 1 – Create participant with active policy"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          policy:
+            policy_id: "550e8400-e29b-41d4-a716-446655440058"
+            name: "A58 Active-to-Expired Policy {{timestamp}}"
+            type: "NETWORK"
+            is_active: true
+            rule_definition:
+              rules:
+                - id: "550e8400-e29b-41d4-a716-446655440058"
+            metadata:
+              created_by: "admin"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+      - name: "Step 2 – Verify policy is active with version=1"
+        method: "GET"
+        endpoint: "/admin/participants/{{subscriber_id}}/policies/550e8400-e29b-41d4-a716-446655440058"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "is_active"
+            value: true
+          - field: "is_expired"
+            value: false
+          - field: "version"
+            value: 1
+
+      - name: "Step 3 – PATCH policy is_expired to true (forces is_active=false)"
+        method: "PATCH"
+        endpoint: "/admin/participants/{{subscriber_id}}/policies/550e8400-e29b-41d4-a716-446655440058"
+        auth_type: "admin"
+        data:
+          is_expired: true
+        expected_status: 200
+
+      - name: "Step 4 – Verify policy is expired and inactive, version incremented to 2"
+        method: "GET"
+        endpoint: "/admin/participants/{{subscriber_id}}/policies/550e8400-e29b-41d4-a716-446655440058"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "is_active"
+            value: false
+          - field: "is_expired"
+            value: true
+          - field: "version"
+            value: 2
+
+      - name: "Step 5 – Attempt PATCH on expired policy (must return 409 Conflict)"
+        method: "PATCH"
+        endpoint: "/admin/participants/{{subscriber_id}}/policies/550e8400-e29b-41d4-a716-446655440058"
+        auth_type: "admin"
+        data:
+          is_active: true
+        expected_status: 409
+
+  - id: "A59"
+    name: "Policy lifecycle via /admin/subscribe only: WHITELISTED→SUBSCRIBED + Active→Inactive→Active→Expired"
+    description: |
+      Demonstrates the full participant + policy lifecycle using only POST and PATCH /admin/subscribe
+      (the composite upsert / UpsertWithTx path). Step 3 transitions the participant from WHITELISTED
+      to SUBSCRIBED while simultaneously deactivating the policy. Steps 5 and 7 continue to mutate
+      policy state while the participant stays SUBSCRIBED. Version auto-increment is verified at every
+      GET step, exercising a completely separate code path from A56-A58.
+    workflow: true
+    steps:
+      - name: "Step 1 – POST /admin/subscribe: create WHITELISTED participant with active policy (version=1)"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          policy:
+            policy_id: "550e8400-e29b-41d4-a716-446655440059"
+            name: "A59 Subscribe-Lifecycle Policy {{timestamp}}"
+            type: "NETWORK"
+            is_active: true
+            rule_definition:
+              rules:
+                - id: "550e8400-e29b-41d4-a716-446655440059"
+            metadata:
+              created_by: "admin"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+      - name: "Step 2 – GET policy: verify is_active=true, version=1"
+        method: "GET"
+        endpoint: "/admin/participants/{{subscriber_id}}/policies/550e8400-e29b-41d4-a716-446655440059"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "is_active"
+            value: true
+          - field: "is_expired"
+            value: false
+          - field: "version"
+            value: 1
+
+      - name: "Step 3 – PATCH /admin/subscribe: action=SUBSCRIBED + deactivate policy (is_active=false)"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_a59"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "A59 Lifecycle Test Company"
+            - cred_id: "cred_pan_a59"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "A59 Lifecycle Test Company"
+          contacts:
+            - contact_id: "contact_auth_a59"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Auth Signatory A59"
+              email: "auth@{{subscriber_id}}"
+              phone: "+919876540059"
+            - contact_id: "contact_biz_a59"
+              type: "BUSINESS"
+              name: "Business Contact A59"
+              email: "biz@{{subscriber_id}}"
+              phone: "+919876540159"
+          key:
+            uk_id: "uk_a59_key"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_a59"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+          uri:
+            uri_id: "uri_a59"
+            type: "CALLBACK"
+            url: "https://{{subscriber_id}}/callback"
+            description: "Callback endpoint"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_a59"
+              uri_id: "uri_a59"
+              key_id: "uk_a59_key"
+          policy:
+            policy_id: "550e8400-e29b-41d4-a716-446655440059"
+            name: "A59 Subscribe-Lifecycle Policy {{timestamp}}"
+            type: "NETWORK"
+            is_active: false
+            rule_definition:
+              rules:
+                - id: "550e8400-e29b-41d4-a716-446655440059"
+            metadata:
+              created_by: "admin"
+        expected_status: 200
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+      - name: "Step 4 – GET policy: verify is_active=false, version=2; participant now SUBSCRIBED"
+        method: "GET"
+        endpoint: "/admin/participants/{{subscriber_id}}/policies/550e8400-e29b-41d4-a716-446655440059"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "is_active"
+            value: false
+          - field: "is_expired"
+            value: false
+          - field: "version"
+            value: 2
+
+      - name: "Step 5 – PATCH /admin/subscribe: reactivate policy (is_active=true); participant stays SUBSCRIBED"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          policy:
+            policy_id: "550e8400-e29b-41d4-a716-446655440059"
+            name: "A59 Subscribe-Lifecycle Policy {{timestamp}}"
+            type: "NETWORK"
+            is_active: true
+            rule_definition:
+              rules:
+                - id: "550e8400-e29b-41d4-a716-446655440059"
+            metadata:
+              created_by: "admin"
+        expected_status: 200
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+      - name: "Step 6 – GET policy: verify is_active=true, version=3"
+        method: "GET"
+        endpoint: "/admin/participants/{{subscriber_id}}/policies/550e8400-e29b-41d4-a716-446655440059"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "is_active"
+            value: true
+          - field: "is_expired"
+            value: false
+          - field: "version"
+            value: 3
+
+      - name: "Step 7 – PATCH /admin/subscribe: expire policy (is_expired=true, is_active=false)"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          policy:
+            policy_id: "550e8400-e29b-41d4-a716-446655440059"
+            name: "A59 Subscribe-Lifecycle Policy {{timestamp}}"
+            type: "NETWORK"
+            is_active: false
+            is_expired: true
+            rule_definition:
+              rules:
+                - id: "550e8400-e29b-41d4-a716-446655440059"
+            metadata:
+              created_by: "admin"
+        expected_status: 200
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+      - name: "Step 8 – GET policy: verify is_expired=true, is_active=false, version=4"
+        method: "GET"
+        endpoint: "/admin/participants/{{subscriber_id}}/policies/550e8400-e29b-41d4-a716-446655440059"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "is_active"
+            value: false
+          - field: "is_expired"
+            value: true
+          - field: "version"
+            value: 4

@@ -1,0 +1,4491 @@
+# Admin Entity CRUD Tests
+# Tests CRUD operations for all entity endpoints
+# Focus: Participants, Keys, Credentials, Contacts, Locations, URIs, Configs
+
+test_suite:
+  name: "Admin Entity CRUD Tests"
+  category: "admin_entity"
+  total_tests: 63
+  description: "Comprehensive CRUD testing for all Admin API entity endpoints"
+
+config:
+  default_timeout: 30
+  retry_on_failure: false
+
+# ==================================================================
+# SECTION 1: PARTICIPANTS CRUD (5 tests)
+# ==================================================================
+
+tests:
+  - id: "AE01"
+    name: "Participant GET by ID"
+    description: "Retrieve participant by participant_id"
+    workflow: true
+    steps:
+      - name: "Create participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae01_participant_{{timestamp}}"
+          action: "SUBSCRIBED"
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_ae01"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "AE01 Participant Test"
+            - cred_id: "cred_pan_ae01"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "AE01 Participant Test"
+          contacts:
+            - contact_id: "contact_auth_ae01"
+              type: "AUTHORISED_SIGNATORY"
+              name: "AE01 Auth"
+              email: "ae01@example.com"
+              phone: "+919876543001"
+            - contact_id: "contact_biz_ae01"
+              type: "BUSINESS"
+              name: "AE01 Business Manager"
+              email: "ae01-business@example.com"
+              phone: "+919876543101"
+          key:
+            uk_id: "uk_ae01"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_ae01"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_ae01"
+            type: "CALLBACK"
+            url: "https://ae01.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "ae01_participant_{{timestamp}}"
+              location_id: "loc_ae01"
+              uri_id: "uri_ae01"
+              key_id: "uk_ae01"
+        expected_status: 200
+      
+      - name: "GET participant by ID"
+        method: "GET"
+        endpoint: "/admin/participants/ae01_participant_{{timestamp}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "participant_id"
+            equals: "ae01_participant_{{timestamp}}"
+          - field: "status"
+            equals: "SUBSCRIBED"
+
+  - id: "AE02"
+    name: "Participant LIST with filters"
+    description: "List participants with various filter parameters"
+    workflow: true
+    steps:
+      - name: "Create multiple participants"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae02_bpp_{{timestamp}}"
+          action: "SUBSCRIBED"
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_ae02_bpp"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "AE02 BPP Participant"
+            - cred_id: "cred_pan_ae02_bpp"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "AE02 BPP Participant"
+          contacts:
+            - contact_id: "contact_auth_ae02_bpp"
+              type: "AUTHORISED_SIGNATORY"
+              name: "AE02 BPP Auth"
+              email: "ae02-bpp@example.com"
+              phone: "+919876543002"
+            - contact_id: "contact_biz_ae02_bpp"
+              type: "BUSINESS"
+              name: "AE02 BPP Business Manager"
+              email: "ae02-bpp-biz@example.com"
+              phone: "+919876543102"
+          key:
+            uk_id: "uk_ae02_bpp"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_ae02_bpp"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_ae02_bpp"
+            type: "CALLBACK"
+            url: "https://ae02-bpp.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "ae02_bpp_{{timestamp}}"
+              location_id: "loc_ae02_bpp"
+              uri_id: "uri_ae02_bpp"
+              key_id: "uk_ae02_bpp"
+        expected_status: 200
+      
+      - name: "Create second participant (BAP)"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae02_bap_{{timestamp}}"
+          action: "WHITELISTED"
+          skip_ssl_verification: true
+          configs:
+            - domain: "ONDC:RET15"
+              np_type: "BAP"
+              subscriber_id: "ae02_bap_{{timestamp}}"
+        expected_status: 200
+      
+      - name: "LIST all participants"
+        method: "GET"
+        endpoint: "/admin/participants"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "total"
+            operator: ">="
+            value: 2
+      
+      - name: "LIST by status filter"
+        method: "GET"
+        endpoint: "/admin/participants"
+        auth_type: "admin"
+        query_params:
+          status: "SUBSCRIBED"
+        expected_status: 200
+        validate:
+          - field: "total"
+            operator: ">="
+            value: 1
+      
+      - name: "LIST by domain filter"
+        method: "GET"
+        endpoint: "/admin/participants"
+        auth_type: "admin"
+        query_params:
+          domain: "ONDC:RET1A"
+        expected_status: 200
+        validate:
+          - field: "total"
+            operator: ">="
+            value: 1
+
+  - id: "AE03"
+    name: "Participant UPDATE status"
+    description: "Update participant status using PATCH"
+    workflow: true
+    steps:
+      - name: "Create SUBSCRIBED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae03_participant_{{timestamp}}"
+          action: "SUBSCRIBED"
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_ae03"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "AE03 Participant"
+            - cred_id: "cred_pan_ae03"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "AE03 Participant"
+          contacts:
+            - contact_id: "contact_auth_ae03"
+              type: "AUTHORISED_SIGNATORY"
+              name: "AE03 Auth"
+              email: "ae03@example.com"
+              phone: "+919876543003"
+            - contact_id: "contact_biz_ae03"
+              type: "BUSINESS"
+              name: "AE03 Business Manager"
+              email: "ae03-business@example.com"
+              phone: "+919876543103"
+          key:
+            uk_id: "uk_ae03"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_ae03"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_ae03"
+            type: "CALLBACK"
+            url: "https://ae03.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "ae03_participant_{{timestamp}}"
+              location_id: "loc_ae03"
+              uri_id: "uri_ae03"
+              key_id: "uk_ae03"
+        expected_status: 200
+      
+      - name: "UPDATE to INACTIVE"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae03_participant_{{timestamp}}"
+          action: "INACTIVE"
+          skip_ssl_verification: true
+        expected_status: 200
+      
+      - name: "Verify status changed"
+        method: "GET"
+        endpoint: "/admin/participants/ae03_participant_{{timestamp}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "status"
+            equals: "INACTIVE"
+
+  - id: "AE04"
+    name: "Participant SEARCH with text query"
+    description: "Search participants by text query"
+    workflow: true
+    steps:
+      - name: "Create searchable participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "searchable_unique_ae04_{{timestamp}}"
+          action: "SUBSCRIBED"
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_ae04"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "AE04 Unique Searchable Company"
+            - cred_id: "cred_pan_ae04"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "AE04 Unique Searchable Company"
+          contacts:
+            - contact_id: "contact_auth_ae04"
+              type: "AUTHORISED_SIGNATORY"
+              name: "AE04 Auth"
+              email: "ae04@example.com"
+              phone: "+919876543005"
+            - contact_id: "contact_biz_ae04"
+              type: "BUSINESS"
+              name: "AE04 Business Manager"
+              email: "ae04-business@example.com"
+              phone: "+919876543105"
+          key:
+            uk_id: "uk_ae04"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_ae04"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_ae04"
+            type: "CALLBACK"
+            url: "https://ae04.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "searchable_unique_ae04_{{timestamp}}"
+              location_id: "loc_ae04"
+              uri_id: "uri_ae04"
+              key_id: "uk_ae04"
+        expected_status: 200
+      
+      - name: "GET participant by ID (exact match)"
+        method: "GET"
+        endpoint: "/admin/participants/searchable_unique_ae04_{{timestamp}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "participant_id"
+            equals: "searchable_unique_ae04_{{timestamp}}"
+      
+      - name: "LIST participants with pagination (page 1)"
+        method: "GET"
+        endpoint: "/admin/participants"
+        auth_type: "admin"
+        query_params:
+          page: 1
+          page_size: 5
+        expected_status: 200
+        validate:
+          - field: "total"
+            operator: ">="
+            value: 1
+
+  - id: "AE05"
+    name: "Participant pagination"
+    description: "Test pagination for participant listing"
+    workflow: true
+    steps:
+      - name: "Create multiple participants"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae05_participant_a_{{timestamp}}"
+          action: "SUBSCRIBED"
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_ae05_a"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "AE05 Participant A"
+            - cred_id: "cred_pan_ae05_a"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "AE05 Participant A"
+          contacts:
+            - contact_id: "contact_auth_ae05_a"
+              type: "AUTHORISED_SIGNATORY"
+              name: "AE05 A Auth"
+              email: "ae05-a@example.com"
+              phone: "+919876543006"
+            - contact_id: "contact_biz_ae05_a"
+              type: "BUSINESS"
+              name: "AE05 A Business Manager"
+              email: "ae05-a-biz@example.com"
+              phone: "+919876543106"
+          key:
+            uk_id: "uk_ae05_a"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_ae05_a"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_ae05_a"
+            type: "CALLBACK"
+            url: "https://ae05-a.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "ae05_participant_a_{{timestamp}}"
+              location_id: "loc_ae05_a"
+              uri_id: "uri_ae05_a"
+              key_id: "uk_ae05_a"
+        expected_status: 200
+      
+      - name: "Create second participant for pagination"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae05_participant_b_{{timestamp}}"
+          action: "SUBSCRIBED"
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_ae05_b"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "AE05 Participant B"
+            - cred_id: "cred_pan_ae05_b"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "AE05 Participant B"
+          contacts:
+            - contact_id: "contact_auth_ae05_b"
+              type: "AUTHORISED_SIGNATORY"
+              name: "AE05 B Auth"
+              email: "ae05-b@example.com"
+              phone: "+919876543007"
+            - contact_id: "contact_biz_ae05_b"
+              type: "BUSINESS"
+              name: "AE05 B Business Manager"
+              email: "ae05-b-biz@example.com"
+              phone: "+919876543107"
+          key:
+            uk_id: "uk_ae05_b"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_ae05_b"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_ae05_b"
+            type: "CALLBACK"
+            url: "https://ae05-b.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "ae05_participant_b_{{timestamp}}"
+              location_id: "loc_ae05_b"
+              uri_id: "uri_ae05_b"
+              key_id: "uk_ae05_b"
+        expected_status: 200
+      
+      - name: "Create third participant for pagination"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae05_participant_c_{{timestamp}}"
+          action: "SUBSCRIBED"
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_ae05_c"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "AE05 Participant C"
+            - cred_id: "cred_pan_ae05_c"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "AE05 Participant C"
+          contacts:
+            - contact_id: "contact_auth_ae05_c"
+              type: "AUTHORISED_SIGNATORY"
+              name: "AE05 C Auth"
+              email: "ae05-c@example.com"
+              phone: "+919876543008"
+            - contact_id: "contact_biz_ae05_c"
+              type: "BUSINESS"
+              name: "AE05 C Business Manager"
+              email: "ae05-c-biz@example.com"
+              phone: "+919876543108"
+          key:
+            uk_id: "uk_ae05_c"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_ae05_c"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_ae05_c"
+            type: "CALLBACK"
+            url: "https://ae05-c.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "ae05_participant_c_{{timestamp}}"
+              location_id: "loc_ae05_c"
+              uri_id: "uri_ae05_c"
+              key_id: "uk_ae05_c"
+        expected_status: 200
+      
+      - name: "GET first page"
+        method: "GET"
+        endpoint: "/admin/participants"
+        auth_type: "admin"
+        query_params:
+          page: 1
+          page_size: 10
+        expected_status: 200
+        validate:
+          - field: "total"
+            operator: ">="
+            value: 1
+      
+      - name: "GET second page"
+        method: "GET"
+        endpoint: "/admin/participants"
+        auth_type: "admin"
+        query_params:
+          page: 2
+          page_size: 10
+        expected_status: 200
+
+# ==================================================================
+# SECTION 2: KEYS CRUD (5 tests)
+# ==================================================================
+
+  - id: "AE06"
+    name: "Key CREATE"
+    description: "Create new key for participant"
+    workflow: true
+    steps:
+      - name: "Create participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae06_key_test_{{timestamp}}"
+          action: "SUBSCRIBED"
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_ae06"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "AE06 Key Test"
+            - cred_id: "cred_pan_ae06"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "AE06 Key Test"
+          contacts:
+            - contact_id: "contact_auth_ae06"
+              type: "AUTHORISED_SIGNATORY"
+              name: "AE06 Auth"
+              email: "ae06@example.com"
+              phone: "+919876543007"
+            - contact_id: "contact_biz_ae06"
+              type: "BUSINESS"
+              name: "AE06 Business Manager"
+              email: "ae06-business@example.com"
+              phone: "+919876543107"
+          key:
+            uk_id: "uk_ae06_primary"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_ae06"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_ae06"
+            type: "CALLBACK"
+            url: "https://ae06.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "ae06_key_test_{{timestamp}}"
+              location_id: "loc_ae06"
+              uri_id: "uri_ae06"
+              key_id: "uk_ae06_primary"
+        expected_status: 200
+      
+      - name: "LIST keys to verify initial key was created"
+        method: "GET"
+        endpoint: "/admin/participants/ae06_key_test_{{timestamp}}/keys"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0"
+            exists: true
+
+  - id: "AE07"
+    name: "Key GET by ID"
+    description: "Retrieve specific key"
+    workflow: true
+    steps:
+      - name: "Create participant with key"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae07_key_get_{{timestamp}}"
+          action: "SUBSCRIBED"
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_ae07"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "AE07 Key Get Test"
+            - cred_id: "cred_pan_ae07"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "AE07 Key Get Test"
+          contacts:
+            - contact_id: "contact_auth_ae07"
+              type: "AUTHORISED_SIGNATORY"
+              name: "AE07 Auth"
+              email: "ae07@example.com"
+              phone: "+919876543008"
+            - contact_id: "contact_biz_ae07"
+              type: "BUSINESS"
+              name: "AE07 Business Manager"
+              email: "ae07-business@example.com"
+              phone: "+919876543108"
+          key:
+            uk_id: "uk_ae07_test"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_ae07"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_ae07"
+            type: "CALLBACK"
+            url: "https://ae07.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "ae07_key_get_{{timestamp}}"
+              location_id: "loc_ae07"
+              uri_id: "uri_ae07"
+              key_id: "uk_ae07_test"
+        expected_status: 200
+      
+      - name: "GET key by uk_id"
+        method: "GET"
+        endpoint: "/admin/participants/ae07_key_get_{{timestamp}}/keys/uk_ae07_test"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "uk_id"
+            equals: "uk_ae07_test"
+          - field: "signed_algorithm"
+            equals: "ED25519"
+
+  - id: "AE08"
+    name: "Key LIST for participant"
+    description: "List all keys for a participant"
+    workflow: true
+    steps:
+      - name: "Create participant with multiple keys"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae08_key_list_{{timestamp}}"
+          action: "SUBSCRIBED"
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_ae08"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "AE08 Key List Test"
+            - cred_id: "cred_pan_ae08"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "AE08 Key List Test"
+          contacts:
+            - contact_id: "contact_auth_ae08"
+              type: "AUTHORISED_SIGNATORY"
+              name: "AE08 Auth"
+              email: "ae08@example.com"
+              phone: "+919876543009"
+            - contact_id: "contact_biz_ae08"
+              type: "BUSINESS"
+              name: "AE08 Business Manager"
+              email: "ae08-business@example.com"
+              phone: "+919876543109"
+          key:
+            uk_id: "uk_ae08_primary"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_ae08"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_ae08"
+            type: "CALLBACK"
+            url: "https://ae08.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "ae08_key_list_{{timestamp}}"
+              location_id: "loc_ae08"
+              uri_id: "uri_ae08"
+              key_id: "uk_ae08_primary"
+        expected_status: 200
+      
+      - name: "LIST all keys for participant"
+        method: "GET"
+        endpoint: "/admin/participants/ae08_key_list_{{timestamp}}/keys"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0"
+            exists: true
+
+  - id: "AE09"
+    name: "Key UPDATE"
+    description: "Update key validity or rotation"
+    workflow: true
+    steps:
+      - name: "Create participant with key"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae09_key_update_{{timestamp}}"
+          action: "SUBSCRIBED"
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_ae09"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "AE09 Key Update Test"
+            - cred_id: "cred_pan_ae09"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "AE09 Key Update Test"
+          contacts:
+            - contact_id: "contact_auth_ae09"
+              type: "AUTHORISED_SIGNATORY"
+              name: "AE09 Auth"
+              email: "ae09@example.com"
+              phone: "+919876543010"
+            - contact_id: "contact_biz_ae09"
+              type: "BUSINESS"
+              name: "AE09 Business Manager"
+              email: "ae09-business@example.com"
+              phone: "+919876543110"
+          key:
+            uk_id: "uk_ae09_initial"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_ae09"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_ae09"
+            type: "CALLBACK"
+            url: "https://ae09.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "ae09_key_update_{{timestamp}}"
+              location_id: "loc_ae09"
+              uri_id: "uri_ae09"
+              key_id: "uk_ae09_initial"
+        expected_status: 200
+      
+      - name: "UPDATE key validity (not implemented - use revoke/rotate)"
+        method: "PUT"
+        endpoint: "/admin/participants/ae09_key_update_{{timestamp}}/keys/uk_ae09_initial"
+        auth_type: "admin"
+        data:
+          uk_id: "uk_ae09_initial"
+          participant_id: "ae09_key_update_{{timestamp}}"
+          valid_until: "2028-02-04T00:00:00.000Z"
+        expected_status: 501
+
+  - id: "AE10"
+    name: "Key rotation workflow"
+    description: "Complete key rotation process"
+    workflow: true
+    steps:
+      - name: "Create participant with old key"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae10_key_rotation_{{timestamp}}"
+          action: "SUBSCRIBED"
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_ae10"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "AE10 Key Rotation Test"
+            - cred_id: "cred_pan_ae10"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "AE10 Key Rotation Test"
+          contacts:
+            - contact_id: "contact_auth_ae10"
+              type: "AUTHORISED_SIGNATORY"
+              name: "AE10 Auth"
+              email: "ae10@example.com"
+              phone: "+919876543012"
+            - contact_id: "contact_biz_ae10"
+              type: "BUSINESS"
+              name: "AE10 Business Manager"
+              email: "ae10-business@example.com"
+              phone: "+919876543112"
+          key:
+            uk_id: "uk_ae10_old"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_ae10"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_ae10"
+            type: "CALLBACK"
+            url: "https://ae10.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "ae10_key_rotation_{{timestamp}}"
+              location_id: "loc_ae10"
+              uri_id: "uri_ae10"
+              key_id: "uk_ae10_old"
+        expected_status: 200
+      
+      - name: "LIST keys to verify initial key"
+        method: "GET"
+        endpoint: "/admin/participants/ae10_key_rotation_{{timestamp}}/keys"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0"
+            exists: true
+      
+      - name: "Revoke old key"
+        method: "DELETE"
+        endpoint: "/admin/participants/ae10_key_rotation_{{timestamp}}/keys/uk_ae10_old"
+        auth_type: "admin"
+        expected_status: 200
+
+# ==================================================================
+# SECTION 3: CREDENTIALS CRUD (5 tests)
+# ==================================================================
+
+  - id: "AE11"
+    name: "Credential CREATE (GST)"
+    description: "Create GST credential"
+    workflow: true
+    steps:
+      - name: "Create participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae11_cred_gst_{{timestamp}}"
+          action: "SUBSCRIBED"
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_ae11_initial"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "AE11 Initial GST"
+            - cred_id: "cred_pan_ae11"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "AE11 Initial GST"
+          contacts:
+            - contact_id: "contact_auth_ae11"
+              type: "AUTHORISED_SIGNATORY"
+              name: "AE11 Auth"
+              email: "ae11@example.com"
+              phone: "+919876543013"
+            - contact_id: "contact_biz_ae11"
+              type: "BUSINESS"
+              name: "AE11 Business Manager"
+              email: "ae11-business@example.com"
+              phone: "+919876543113"
+          key:
+            uk_id: "uk_ae11"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_ae11"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_ae11"
+            type: "CALLBACK"
+            url: "https://ae11.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "ae11_cred_gst_{{timestamp}}"
+              location_id: "loc_ae11"
+              uri_id: "uri_ae11"
+              key_id: "uk_ae11"
+        expected_status: 200
+      
+      - name: "CREATE additional GST credential"
+        method: "POST"
+        endpoint: "/admin/participants/ae11_cred_gst_{{timestamp}}/credentials"
+        auth_type: "admin"
+        data:
+          participant_id: "ae11_cred_gst_{{timestamp}}"
+          cred_id: "cred_gst_ae11_second"
+          type: "GST"
+          cred_data:
+            gstin: "27XYZAB5678G1H9"
+            legal_name: "AE11 Second GST Entity"
+        expected_status: 201
+        validate:
+          - field: "cred_id"
+            equals: "cred_gst_ae11_second"
+          - field: "type"
+            equals: "GST"
+
+  - id: "AE12"
+    name: "Credential CREATE (PAN)"
+    description: "Create PAN credential"
+    workflow: true
+    steps:
+      - name: "Create participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae12_cred_pan_{{timestamp}}"
+          action: "SUBSCRIBED"
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_ae12"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "AE12 PAN Test"
+            - cred_id: "cred_pan_ae12"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "AE12 PAN Test"
+          contacts:
+            - contact_id: "contact_auth_ae12"
+              type: "AUTHORISED_SIGNATORY"
+              name: "AE12 Auth"
+              email: "ae12@example.com"
+              phone: "+919876543014"
+            - contact_id: "contact_biz_ae12"
+              type: "BUSINESS"
+              name: "AE12 Business Manager"
+              email: "ae12-business@example.com"
+              phone: "+919876543114"
+          key:
+            uk_id: "uk_ae12"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_ae12"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_ae12"
+            type: "CALLBACK"
+            url: "https://ae12.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "ae12_cred_pan_{{timestamp}}"
+              location_id: "loc_ae12"
+              uri_id: "uri_ae12"
+              key_id: "uk_ae12"
+        expected_status: 200
+      
+      - name: "CREATE PAN credential"
+        method: "POST"
+        endpoint: "/admin/participants/ae12_cred_pan_{{timestamp}}/credentials"
+        auth_type: "admin"
+        data:
+          participant_id: "ae12_cred_pan_{{timestamp}}"
+          cred_id: "cred_pan_ae12_second"
+          type: "PAN"
+          cred_data:
+            pan: "ABCDE1234F"
+            name: "AE12 PAN Holder"
+        expected_status: 201
+        validate:
+          - field: "cred_id"
+            equals: "cred_pan_ae12_second"
+          - field: "type"
+            equals: "PAN"
+
+  - id: "AE13"
+    name: "Credential GET by ID"
+    description: "Retrieve specific credential"
+    workflow: true
+    steps:
+      - name: "Create participant with credentials"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae13_cred_get_{{timestamp}}"
+          action: "SUBSCRIBED"
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_ae13"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "AE13 Credential Get Test"
+            - cred_id: "cred_pan_ae13"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "AE13 PAN"
+          contacts:
+            - contact_id: "contact_auth_ae13"
+              type: "AUTHORISED_SIGNATORY"
+              name: "AE13 Auth"
+              email: "ae13@example.com"
+              phone: "+919876543015"
+            - contact_id: "contact_biz_ae13"
+              type: "BUSINESS"
+              name: "AE13 Business Manager"
+              email: "ae13-business@example.com"
+              phone: "+919876543115"
+          key:
+            uk_id: "uk_ae13"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_ae13"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_ae13"
+            type: "CALLBACK"
+            url: "https://ae13.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "ae13_cred_get_{{timestamp}}"
+              location_id: "loc_ae13"
+              uri_id: "uri_ae13"
+              key_id: "uk_ae13"
+        expected_status: 200
+      
+      - name: "GET GST credential"
+        method: "GET"
+        endpoint: "/admin/participants/ae13_cred_get_{{timestamp}}/credentials/cred_gst_ae13"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "cred_id"
+            equals: "cred_gst_ae13"
+          - field: "type"
+            equals: "GST"
+      
+      - name: "GET PAN credential"
+        method: "GET"
+        endpoint: "/admin/participants/ae13_cred_get_{{timestamp}}/credentials/cred_pan_ae13"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "cred_id"
+            equals: "cred_pan_ae13"
+          - field: "type"
+            equals: "PAN"
+
+  - id: "AE14"
+    name: "Credential LIST for participant"
+    description: "List all credentials for a participant"
+    workflow: true
+    steps:
+      - name: "Create participant with multiple credentials"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae14_cred_list_{{timestamp}}"
+          action: "SUBSCRIBED"
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_ae14_1"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "AE14 GST 1"
+            - cred_id: "cred_gst_ae14_2"
+              type: "GST"
+              cred_data:
+                gstin: "27XYZAB5678G1H9"
+                legal_name: "AE14 GST 2"
+            - cred_id: "cred_pan_ae14"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "AE14 PAN"
+          contacts:
+            - contact_id: "contact_auth_ae14"
+              type: "AUTHORISED_SIGNATORY"
+              name: "AE14 Auth"
+              email: "ae14@example.com"
+              phone: "+919876543016"
+            - contact_id: "contact_biz_ae14"
+              type: "BUSINESS"
+              name: "AE14 Business Manager"
+              email: "ae14-business@example.com"
+              phone: "+919876543116"
+          key:
+            uk_id: "uk_ae14"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_ae14"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_ae14"
+            type: "CALLBACK"
+            url: "https://ae14.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "ae14_cred_list_{{timestamp}}"
+              location_id: "loc_ae14"
+              uri_id: "uri_ae14"
+              key_id: "uk_ae14"
+        expected_status: 200
+      
+      - name: "LIST all credentials"
+        method: "GET"
+        endpoint: "/admin/participants/ae14_cred_list_{{timestamp}}/credentials"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "2"
+            exists: true
+
+  - id: "AE15"
+    name: "Credential UPDATE"
+    description: "Update credential data"
+    workflow: true
+    steps:
+      - name: "Create participant with credential"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae15_cred_update_{{timestamp}}"
+          action: "SUBSCRIBED"
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_ae15"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "AE15 Old Legal Name"
+            - cred_id: "cred_pan_ae15"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "AE15 Old Legal Name"
+          contacts:
+            - contact_id: "contact_auth_ae15"
+              type: "AUTHORISED_SIGNATORY"
+              name: "AE15 Auth"
+              email: "ae15@example.com"
+              phone: "+919876543017"
+            - contact_id: "contact_biz_ae15"
+              type: "BUSINESS"
+              name: "AE15 Business Manager"
+              email: "ae15-business@example.com"
+              phone: "+919876543117"
+          key:
+            uk_id: "uk_ae15"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_ae15"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_ae15"
+            type: "CALLBACK"
+            url: "https://ae15.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "ae15_cred_update_{{timestamp}}"
+              location_id: "loc_ae15"
+              uri_id: "uri_ae15"
+              key_id: "uk_ae15"
+        expected_status: 200
+      
+      - name: "UPDATE credential legal name"
+        method: "PUT"
+        endpoint: "/admin/participants/ae15_cred_update_{{timestamp}}/credentials/cred_gst_ae15"
+        auth_type: "admin"
+        data:
+          cred_id: "cred_gst_ae15"
+          participant_id: "ae15_cred_update_{{timestamp}}"
+          cred_data:
+            gstin: "29ABCDE1234F1Z5"
+            legal_name: "AE15 Updated Legal Name"
+        expected_status: 200
+        validate:
+          - field: "cred_data.legal_name"
+            equals: "AE15 Updated Legal Name"
+
+# ==================================================================
+# SECTION 4: CONTACTS CRUD (5 tests)
+# ==================================================================
+
+  - id: "AE16"
+    name: "Contact CREATE (Authorised Signatory)"
+    description: "Create authorised signatory contact"
+    workflow: true
+    steps:
+      - name: "Create participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae16_contact_auth_{{timestamp}}"
+          action: "SUBSCRIBED"
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_ae16"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "AE16 Contact Test"
+            - cred_id: "cred_pan_ae16"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "AE16 Contact Test"
+          contacts:
+            - contact_id: "contact_auth_ae16_initial"
+              type: "AUTHORISED_SIGNATORY"
+              name: "AE16 Initial Auth"
+              email: "ae16-initial@example.com"
+              phone: "+919876543019"
+            - contact_id: "contact_biz_ae16"
+              type: "BUSINESS"
+              name: "AE16 Business Manager"
+              email: "ae16-business@example.com"
+              phone: "+919876543119"
+          key:
+            uk_id: "uk_ae16"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_ae16"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_ae16"
+            type: "CALLBACK"
+            url: "https://ae16.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "ae16_contact_auth_{{timestamp}}"
+              location_id: "loc_ae16"
+              uri_id: "uri_ae16"
+              key_id: "uk_ae16"
+        expected_status: 200
+      
+      - name: "CREATE additional authorised signatory"
+        method: "POST"
+        endpoint: "/admin/participants/ae16_contact_auth_{{timestamp}}/contacts"
+        auth_type: "admin"
+        data:
+          participant_id: "ae16_contact_auth_{{timestamp}}"
+          contact_id: "contact_auth_ae16_second"
+          type: "AUTHORISED_SIGNATORY"
+          name: "AE16 Second Auth"
+          email: "ae16-second@example.com"
+          phone: "+919123456019"
+        expected_status: 201
+        validate:
+          - field: "contact_id"
+            equals: "contact_auth_ae16_second"
+          - field: "type"
+            equals: "AUTHORISED_SIGNATORY"
+
+  - id: "AE17"
+    name: "Contact CREATE (Business/Technical)"
+    description: "Create business and technical contacts"
+    workflow: true
+    steps:
+      - name: "Create participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae17_contact_multi_{{timestamp}}"
+          action: "SUBSCRIBED"
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_ae17"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "AE17 Multi Contact Test"
+            - cred_id: "cred_pan_ae17"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "AE17 Multi Contact Test"
+          contacts:
+            - contact_id: "contact_auth_ae17"
+              type: "AUTHORISED_SIGNATORY"
+              name: "AE17 Auth"
+              email: "ae17-auth@example.com"
+              phone: "+919876543020"
+            - contact_id: "contact_biz_ae17"
+              type: "BUSINESS"
+              name: "AE17 Business Manager"
+              email: "ae17-business@example.com"
+              phone: "+919876543120"
+          key:
+            uk_id: "uk_ae17"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_ae17"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_ae17"
+            type: "CALLBACK"
+            url: "https://ae17.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "ae17_contact_multi_{{timestamp}}"
+              location_id: "loc_ae17"
+              uri_id: "uri_ae17"
+              key_id: "uk_ae17"
+        expected_status: 200
+      
+      - name: "CREATE business contact"
+        method: "POST"
+        endpoint: "/admin/participants/ae17_contact_multi_{{timestamp}}/contacts"
+        auth_type: "admin"
+        data:
+          participant_id: "ae17_contact_multi_{{timestamp}}"
+          contact_id: "contact_business_ae17"
+          type: "BUSINESS"
+          name: "AE17 Business Contact"
+          email: "ae17-business@example.com"
+          phone: "+919876543120"
+        expected_status: 201
+      
+      - name: "CREATE technical contact"
+        method: "POST"
+        endpoint: "/admin/participants/ae17_contact_multi_{{timestamp}}/contacts"
+        auth_type: "admin"
+        data:
+          participant_id: "ae17_contact_multi_{{timestamp}}"
+          contact_id: "contact_tech_ae17"
+          type: "TECHNICAL"
+          name: "AE17 Tech Contact"
+          email: "ae17-tech@example.com"
+          phone: "+919876543220"
+        expected_status: 201
+
+  - id: "AE18"
+    name: "Contact GET by ID"
+    description: "Retrieve specific contact"
+    workflow: true
+    steps:
+      - name: "Create participant with contacts"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae18_contact_get_{{timestamp}}"
+          action: "SUBSCRIBED"
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_ae18"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "AE18 Contact Get Test"
+            - cred_id: "cred_pan_ae18"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "AE18 Contact Get Test"
+          contacts:
+            - contact_id: "contact_auth_ae18"
+              type: "AUTHORISED_SIGNATORY"
+              name: "AE18 Auth"
+              email: "ae18-auth@example.com"
+              phone: "+919876543021"
+            - contact_id: "contact_business_ae18"
+              type: "BUSINESS"
+              name: "AE18 Business"
+              email: "ae18-business@example.com"
+              phone: "+919876543121"
+          key:
+            uk_id: "uk_ae18"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_ae18"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_ae18"
+            type: "CALLBACK"
+            url: "https://ae18.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "ae18_contact_get_{{timestamp}}"
+              location_id: "loc_ae18"
+              uri_id: "uri_ae18"
+              key_id: "uk_ae18"
+        expected_status: 200
+      
+      - name: "GET auth contact"
+        method: "GET"
+        endpoint: "/admin/participants/ae18_contact_get_{{timestamp}}/contacts/contact_auth_ae18"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "contact_id"
+            equals: "contact_auth_ae18"
+          - field: "type"
+            equals: "AUTHORISED_SIGNATORY"
+      
+      - name: "GET business contact"
+        method: "GET"
+        endpoint: "/admin/participants/ae18_contact_get_{{timestamp}}/contacts/contact_business_ae18"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "contact_id"
+            equals: "contact_business_ae18"
+          - field: "type"
+            equals: "BUSINESS"
+
+  - id: "AE19"
+    name: "Contact LIST for participant"
+    description: "List all contacts for a participant"
+    workflow: true
+    steps:
+      - name: "Create participant with multiple contacts"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae19_contact_list_{{timestamp}}"
+          action: "SUBSCRIBED"
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_ae19"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "AE19 Contact List Test"
+            - cred_id: "cred_pan_ae19"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "AE19 Contact List Test"
+          contacts:
+            - contact_id: "contact_auth_ae19"
+              type: "AUTHORISED_SIGNATORY"
+              name: "AE19 Auth"
+              email: "ae19-auth@example.com"
+              phone: "+919876543022"
+            - contact_id: "contact_business_ae19"
+              type: "BUSINESS"
+              name: "AE19 Business"
+              email: "ae19-business@example.com"
+              phone: "+919876543122"
+            - contact_id: "contact_tech_ae19"
+              type: "TECHNICAL"
+              name: "AE19 Tech"
+              email: "ae19-tech@example.com"
+              phone: "+919876543222"
+          key:
+            uk_id: "uk_ae19"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_ae19"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_ae19"
+            type: "CALLBACK"
+            url: "https://ae19.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "ae19_contact_list_{{timestamp}}"
+              location_id: "loc_ae19"
+              uri_id: "uri_ae19"
+              key_id: "uk_ae19"
+        expected_status: 200
+      
+      - name: "LIST all contacts"
+        method: "GET"
+        endpoint: "/admin/participants/ae19_contact_list_{{timestamp}}/contacts"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "2"
+            exists: true
+
+  - id: "AE20"
+    name: "Contact UPDATE"
+    description: "Update contact details"
+    workflow: true
+    steps:
+      - name: "Create participant with contact"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae20_contact_update_{{timestamp}}"
+          action: "SUBSCRIBED"
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_ae20"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "AE20 Contact Update Test"
+            - cred_id: "cred_pan_ae20"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "AE20 Contact Update Test"
+          contacts:
+            - contact_id: "contact_auth_ae20"
+              type: "AUTHORISED_SIGNATORY"
+              name: "AE20 Old Name"
+              email: "ae20-old@example.com"
+              phone: "+919876543023"
+            - contact_id: "contact_biz_ae20"
+              type: "BUSINESS"
+              name: "AE20 Business Manager"
+              email: "ae20-business@example.com"
+              phone: "+919876543123"
+          key:
+            uk_id: "uk_ae20"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_ae20"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_ae20"
+            type: "CALLBACK"
+            url: "https://ae20.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "ae20_contact_update_{{timestamp}}"
+              location_id: "loc_ae20"
+              uri_id: "uri_ae20"
+              key_id: "uk_ae20"
+        expected_status: 200
+      
+      - name: "UPDATE contact details"
+        method: "PUT"
+        endpoint: "/admin/participants/ae20_contact_update_{{timestamp}}/contacts/contact_auth_ae20"
+        auth_type: "admin"
+        data:
+          contact_id: "contact_auth_ae20"
+          participant_id: "ae20_contact_update_{{timestamp}}"
+          type: "AUTHORISED_SIGNATORY"
+          name: "AE20 Updated Name"
+          email: "ae20-updated@example.com"
+          phone: "+919123456023"
+        expected_status: 200
+        validate:
+          - field: "name"
+            equals: "AE20 Updated Name"
+          - field: "email"
+            equals: "ae20-updated@example.com"
+
+# ==================================================================
+# SECTION 5: LOCATIONS CRUD (5 tests)
+# ==================================================================
+
+  - id: "AE21"
+    name: "Location CREATE (Serviceable)"
+    description: "Create serviceable location"
+    workflow: true
+    steps:
+      - name: "Create participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae21_location_create_{{timestamp}}"
+          action: "SUBSCRIBED"
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_ae21"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "AE21 Location Test"
+            - cred_id: "cred_pan_ae21"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "AE21 Location Test"
+          contacts:
+            - contact_id: "contact_auth_ae21"
+              type: "AUTHORISED_SIGNATORY"
+              name: "AE21 Auth"
+              email: "ae21@example.com"
+              phone: "+919876543025"
+            - contact_id: "contact_biz_ae21"
+              type: "BUSINESS"
+              name: "AE21 Business Manager"
+              email: "ae21-business@example.com"
+              phone: "+919876543125"
+          key:
+            uk_id: "uk_ae21"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_ae21_initial"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_ae21"
+            type: "CALLBACK"
+            url: "https://ae21.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "ae21_location_create_{{timestamp}}"
+              location_id: "loc_ae21_initial"
+              uri_id: "uri_ae21"
+              key_id: "uk_ae21"
+        expected_status: 200
+      
+      - name: "CREATE additional serviceable location"
+        method: "POST"
+        endpoint: "/admin/participants/ae21_location_create_{{timestamp}}/locations"
+        auth_type: "admin"
+        data:
+          participant_id: "ae21_location_create_{{timestamp}}"
+          location_id: "loc_ae21_additional"
+          type: "SERVICEABLE"
+          country: "IND"
+          city: ["std:011", "std:022"]
+        expected_status: 201
+        validate:
+          - field: "location_id"
+            equals: "loc_ae21_additional"
+          - field: "type"
+            equals: "SERVICEABLE"
+
+  - id: "AE22"
+    name: "Location CREATE (Registered Office)"
+    description: "Create registered office location"
+    workflow: true
+    steps:
+      - name: "Create participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae22_location_office_{{timestamp}}"
+          action: "SUBSCRIBED"
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_ae22"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "AE22 Office Location Test"
+            - cred_id: "cred_pan_ae22"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "AE22 Office Location Test"
+          contacts:
+            - contact_id: "contact_auth_ae22"
+              type: "AUTHORISED_SIGNATORY"
+              name: "AE22 Auth"
+              email: "ae22@example.com"
+              phone: "+919876543026"
+            - contact_id: "contact_biz_ae22"
+              type: "BUSINESS"
+              name: "AE22 Business Manager"
+              email: "ae22-business@example.com"
+              phone: "+919876543126"
+          key:
+            uk_id: "uk_ae22"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_ae22_serviceable"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_ae22"
+            type: "CALLBACK"
+            url: "https://ae22.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "ae22_location_office_{{timestamp}}"
+              location_id: "loc_ae22_serviceable"
+              uri_id: "uri_ae22"
+              key_id: "uk_ae22"
+        expected_status: 200
+      
+      - name: "CREATE registered office location"
+        method: "POST"
+        endpoint: "/admin/participants/ae22_location_office_{{timestamp}}/locations"
+        auth_type: "admin"
+        data:
+          participant_id: "ae22_location_office_{{timestamp}}"
+          location_id: "loc_ae22_office"
+          type: "REGISTERED_OFFICE"
+          country: "IND"
+          city: ["std:080"]
+          address: "123 Corporate Street, Bangalore"
+        expected_status: 201
+        validate:
+          - field: "location_id"
+            equals: "loc_ae22_office"
+          - field: "type"
+            equals: "REGISTERED_OFFICE"
+
+  - id: "AE23"
+    name: "Location GET by ID"
+    description: "Retrieve specific location"
+    workflow: true
+    steps:
+      - name: "Create participant with multiple locations"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae23_location_get_{{timestamp}}"
+          action: "SUBSCRIBED"
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_ae23"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "AE23 Location Get Test"
+            - cred_id: "cred_pan_ae23"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "AE23 Location Get Test"
+          contacts:
+            - contact_id: "contact_auth_ae23"
+              type: "AUTHORISED_SIGNATORY"
+              name: "AE23 Auth"
+              email: "ae23@example.com"
+              phone: "+919876543027"
+            - contact_id: "contact_biz_ae23"
+              type: "BUSINESS"
+              name: "AE23 Business Manager"
+              email: "ae23-business@example.com"
+              phone: "+919876543127"
+          key:
+            uk_id: "uk_ae23"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_ae23_primary"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_ae23"
+            type: "CALLBACK"
+            url: "https://ae23.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "ae23_location_get_{{timestamp}}"
+              location_id: "loc_ae23_primary"
+              uri_id: "uri_ae23"
+              key_id: "uk_ae23"
+        expected_status: 200
+      
+      - name: "GET location by ID"
+        method: "GET"
+        endpoint: "/admin/participants/ae23_location_get_{{timestamp}}/locations/loc_ae23_primary"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "location_id"
+            equals: "loc_ae23_primary"
+          - field: "type"
+            equals: "SERVICEABLE"
+
+  - id: "AE24"
+    name: "Location LIST for participant"
+    description: "List all locations for a participant"
+    workflow: true
+    steps:
+      - name: "Create participant with location"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae24_location_list_{{timestamp}}"
+          action: "SUBSCRIBED"
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_ae24"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "AE24 Location List Test"
+            - cred_id: "cred_pan_ae24"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "AE24 Location List Test"
+          contacts:
+            - contact_id: "contact_auth_ae24"
+              type: "AUTHORISED_SIGNATORY"
+              name: "AE24 Auth"
+              email: "ae24@example.com"
+              phone: "+919876543028"
+            - contact_id: "contact_biz_ae24"
+              type: "BUSINESS"
+              name: "AE24 Business Manager"
+              email: "ae24-business@example.com"
+              phone: "+919876543128"
+          key:
+            uk_id: "uk_ae24"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_ae24_first"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_ae24"
+            type: "CALLBACK"
+            url: "https://ae24.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "ae24_location_list_{{timestamp}}"
+              location_id: "loc_ae24_first"
+              uri_id: "uri_ae24"
+              key_id: "uk_ae24"
+        expected_status: 200
+      
+      - name: "Add second location"
+        method: "POST"
+        endpoint: "/admin/participants/ae24_location_list_{{timestamp}}/locations"
+        auth_type: "admin"
+        data:
+          participant_id: "ae24_location_list_{{timestamp}}"
+          location_id: "loc_ae24_second"
+          type: "SERVICEABLE"
+          country: "IND"
+          city: ["std:011"]
+        expected_status: 201
+      
+      - name: "LIST all locations"
+        method: "GET"
+        endpoint: "/admin/participants/ae24_location_list_{{timestamp}}/locations"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "1"
+            exists: true
+
+  - id: "AE25"
+    name: "Location UPDATE"
+    description: "Update location details"
+    workflow: true
+    steps:
+      - name: "Create participant with location"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae25_location_update_{{timestamp}}"
+          action: "SUBSCRIBED"
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_ae25"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "AE25 Location Update Test"
+            - cred_id: "cred_pan_ae25"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "AE25 Location Update Test"
+          contacts:
+            - contact_id: "contact_auth_ae25"
+              type: "AUTHORISED_SIGNATORY"
+              name: "AE25 Auth"
+              email: "ae25@example.com"
+              phone: "+919876543029"
+            - contact_id: "contact_biz_ae25"
+              type: "BUSINESS"
+              name: "AE25 Business Manager"
+              email: "ae25-business@example.com"
+              phone: "+919876543129"
+          key:
+            uk_id: "uk_ae25"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_ae25_update"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_ae25"
+            type: "CALLBACK"
+            url: "https://ae25.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "ae25_location_update_{{timestamp}}"
+              location_id: "loc_ae25_update"
+              uri_id: "uri_ae25"
+              key_id: "uk_ae25"
+        expected_status: 200
+      
+      - name: "UPDATE location cities"
+        method: "PUT"
+        endpoint: "/admin/participants/ae25_location_update_{{timestamp}}/locations/loc_ae25_update"
+        auth_type: "admin"
+        data:
+          location_id: "loc_ae25_update"
+          participant_id: "ae25_location_update_{{timestamp}}"
+          type: "SERVICEABLE"
+          country: "IND"
+          city: ["std:080", "std:011", "std:022"]
+        expected_status: 200
+        validate:
+          - field: "city"
+            length: 3
+
+# ==================================================================
+# SECTION 6: URIs CRUD (4 tests)
+# ==================================================================
+
+  - id: "AE26"
+    name: "URI CREATE"
+    description: "Create URI endpoints"
+    workflow: true
+    steps:
+      - name: "Create participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae26_uri_create_{{timestamp}}"
+          action: "SUBSCRIBED"
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_ae26"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "AE26 URI Test"
+            - cred_id: "cred_pan_ae26"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "AE26 URI Test"
+          contacts:
+            - contact_id: "contact_auth_ae26"
+              type: "AUTHORISED_SIGNATORY"
+              name: "AE26 Auth"
+              email: "ae26@example.com"
+              phone: "+919876543031"
+            - contact_id: "contact_biz_ae26"
+              type: "BUSINESS"
+              name: "AE26 Business Manager"
+              email: "ae26-business@example.com"
+              phone: "+919876543131"
+          key:
+            uk_id: "uk_ae26"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_ae26"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_ae26_callback"
+            type: "CALLBACK"
+            url: "https://ae26.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "ae26_uri_create_{{timestamp}}"
+              location_id: "loc_ae26"
+              uri_id: "uri_ae26_callback"
+              key_id: "uk_ae26"
+        expected_status: 200
+      
+      - name: "CREATE webhook URI"
+        method: "POST"
+        endpoint: "/admin/participants/ae26_uri_create_{{timestamp}}/uris"
+        auth_type: "admin"
+        data:
+          uri_id: "uri_ae26_webhook"
+          type: "LOG_API"
+          url: "https://ae26.example.com/webhook"
+        expected_status: 201
+        validate:
+          - field: "uri_id"
+            equals: "uri_ae26_webhook"
+          - field: "type"
+            equals: "LOG_API"
+
+  - id: "AE27"
+    name: "URI GET by ID"
+    description: "Retrieve specific URI"
+    workflow: true
+    steps:
+      - name: "Create participant with URIs"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae27_uri_get_{{timestamp}}"
+          action: "SUBSCRIBED"
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_ae27"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "AE27 URI Get Test"
+            - cred_id: "cred_pan_ae27"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "AE27 URI Get Test"
+          contacts:
+            - contact_id: "contact_auth_ae27"
+              type: "AUTHORISED_SIGNATORY"
+              name: "AE27 Auth"
+              email: "ae27@example.com"
+              phone: "+919876543032"
+            - contact_id: "contact_biz_ae27"
+              type: "BUSINESS"
+              name: "AE27 Business Manager"
+              email: "ae27-business@example.com"
+              phone: "+919876543132"
+          key:
+            uk_id: "uk_ae27"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_ae27"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_ae27_callback"
+            type: "CALLBACK"
+            url: "https://ae27.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "ae27_uri_get_{{timestamp}}"
+              location_id: "loc_ae27"
+              uri_id: "uri_ae27_callback"
+              key_id: "uk_ae27"
+        expected_status: 200
+      
+      - name: "GET URI by ID"
+        method: "GET"
+        endpoint: "/admin/participants/ae27_uri_get_{{timestamp}}/uris/uri_ae27_callback"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "uri_id"
+            equals: "uri_ae27_callback"
+          - field: "type"
+            equals: "CALLBACK"
+
+  - id: "AE28"
+    name: "URI LIST for participant"
+    description: "List all URIs for a participant"
+    workflow: true
+    steps:
+      - name: "Create participant with URI"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae28_uri_list_{{timestamp}}"
+          action: "SUBSCRIBED"
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_ae28"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "AE28 URI List Test"
+            - cred_id: "cred_pan_ae28"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "AE28 URI List Test"
+          contacts:
+            - contact_id: "contact_auth_ae28"
+              type: "AUTHORISED_SIGNATORY"
+              name: "AE28 Auth"
+              email: "ae28@example.com"
+              phone: "+919876543033"
+            - contact_id: "contact_biz_ae28"
+              type: "BUSINESS"
+              name: "AE28 Business Manager"
+              email: "ae28-business@example.com"
+              phone: "+919876543133"
+          key:
+            uk_id: "uk_ae28"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_ae28"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_ae28_callback"
+            type: "CALLBACK"
+            url: "https://ae28.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "ae28_uri_list_{{timestamp}}"
+              location_id: "loc_ae28"
+              uri_id: "uri_ae28_callback"
+              key_id: "uk_ae28"
+        expected_status: 200
+      
+      - name: "Add webhook URI"
+        method: "POST"
+        endpoint: "/admin/participants/ae28_uri_list_{{timestamp}}/uris"
+        auth_type: "admin"
+        data:
+          uri_id: "uri_ae28_webhook"
+          type: "LOG_API"
+          url: "https://ae28.example.com/webhook"
+        expected_status: 201
+      
+      - name: "LIST all URIs"
+        method: "GET"
+        endpoint: "/admin/participants/ae28_uri_list_{{timestamp}}/uris"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "1"
+            exists: true
+
+  - id: "AE29"
+    name: "URI UPDATE"
+    description: "Update URI URL"
+    workflow: true
+    steps:
+      - name: "Create participant with URI"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae29_uri_update_{{timestamp}}"
+          action: "SUBSCRIBED"
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_ae29"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "AE29 URI Update Test"
+            - cred_id: "cred_pan_ae29"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "AE29 URI Update Test"
+          contacts:
+            - contact_id: "contact_auth_ae29"
+              type: "AUTHORISED_SIGNATORY"
+              name: "AE29 Auth"
+              email: "ae29@example.com"
+              phone: "+919876543034"
+            - contact_id: "contact_biz_ae29"
+              type: "BUSINESS"
+              name: "AE29 Business Manager"
+              email: "ae29-business@example.com"
+              phone: "+919876543134"
+          key:
+            uk_id: "uk_ae29"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_ae29"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_ae29_callback"
+            type: "CALLBACK"
+            url: "https://ae29-old.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "ae29_uri_update_{{timestamp}}"
+              location_id: "loc_ae29"
+              uri_id: "uri_ae29_callback"
+              key_id: "uk_ae29"
+        expected_status: 200
+      
+      - name: "UPDATE URI URL"
+        method: "PUT"
+        endpoint: "/admin/participants/ae29_uri_update_{{timestamp}}/uris/uri_ae29_callback"
+        auth_type: "admin"
+        data:
+          participant_id: "ae29_uri_update_{{timestamp}}"
+          uri_id: "uri_ae29_callback"
+          type: "CALLBACK"
+          url: "https://ae29-updated.example.com/callback"
+        expected_status: 200
+        validate:
+          - field: "url"
+            equals: "https://ae29-updated.example.com/callback"
+
+# ==================================================================
+# SECTION 7: CONFIGS CRUD (4 tests)
+# ==================================================================
+
+  - id: "AE30"
+    name: "Config CREATE for additional domain"
+    description: "Create config for additional domain"
+    workflow: true
+    steps:
+      - name: "Create participant with one domain"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae30_config_create_{{timestamp}}"
+          action: "SUBSCRIBED"
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_ae30"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "AE30 Config Test"
+            - cred_id: "cred_pan_ae30"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "AE30 Config Test"
+          contacts:
+            - contact_id: "contact_auth_ae30"
+              type: "AUTHORISED_SIGNATORY"
+              name: "AE30 Auth"
+              email: "ae30@example.com"
+              phone: "+919876543036"
+            - contact_id: "contact_biz_ae30"
+              type: "BUSINESS"
+              name: "AE30 Business Manager"
+              email: "ae30-business@example.com"
+              phone: "+919876543136"
+          key:
+            uk_id: "uk_ae30"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_ae30"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_ae30"
+            type: "CALLBACK"
+            url: "https://ae30.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "ae30_config_create_{{timestamp}}"
+              location_id: "loc_ae30"
+              uri_id: "uri_ae30"
+              key_id: "uk_ae30"
+        expected_status: 200
+      
+      - name: "CREATE config for second domain"
+        method: "POST"
+        endpoint: "/admin/configs"
+        auth_type: "admin"
+        data:
+          participant_id: "ae30_config_create_{{timestamp}}"
+          domain: "ONDC:RET15"
+          np_type: "BAP"
+          subscriber_id: "ae30_config_create_{{timestamp}}"
+          location_id: "loc_ae30"
+          uri_id: "uri_ae30"
+          key_id: "uk_ae30"
+          status: "SUBSCRIBED"
+        expected_status: 201
+        validate:
+          - field: "domain"
+            equals: "ONDC:RET15"
+          - field: "np_type"
+            equals: "BAP"
+
+  - id: "AE31"
+    name: "Config GET by domain"
+    description: "Retrieve config for specific domain"
+    workflow: true
+    steps:
+      - name: "Create participant with multi-domain configs"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae31_config_get_{{timestamp}}"
+          action: "SUBSCRIBED"
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_ae31"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "AE31 Config Get Test"
+            - cred_id: "cred_pan_ae31"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "AE31 Config Get Test"
+          contacts:
+            - contact_id: "contact_auth_ae31"
+              type: "AUTHORISED_SIGNATORY"
+              name: "AE31 Auth"
+              email: "ae31@example.com"
+              phone: "+919876543037"
+            - contact_id: "contact_biz_ae31"
+              type: "BUSINESS"
+              name: "AE31 Business Manager"
+              email: "ae31-business@example.com"
+              phone: "+919876543137"
+          key:
+            uk_id: "uk_ae31"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_ae31"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_ae31"
+            type: "CALLBACK"
+            url: "https://ae31.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "ae31_config_get_{{timestamp}}"
+              location_id: "loc_ae31"
+              uri_id: "uri_ae31"
+              key_id: "uk_ae31"
+            - domain: "ONDC:RET15"
+              np_type: "BAP"
+              subscriber_id: "ae31_config_get_{{timestamp}}"
+              location_id: "loc_ae31"
+              uri_id: "uri_ae31"
+              key_id: "uk_ae31"
+        expected_status: 200
+      
+      - name: "GET config for RET1A domain"
+        method: "GET"
+        endpoint: "/admin/configs/participant/ae31_config_get_{{timestamp}}"
+        auth_type: "admin"
+        query_params:
+          domain: "ONDC:RET1A"
+        expected_status: 200
+        validate:
+          - field: "0.domain"
+            equals: "ONDC:RET1A"
+      
+      - name: "GET config for RET15 domain"
+        method: "GET"
+        endpoint: "/admin/configs/participant/ae31_config_get_{{timestamp}}"
+        auth_type: "admin"
+        query_params:
+          domain: "ONDC:RET15"
+        expected_status: 200
+        validate:
+          - field: "0.domain"
+            equals: "ONDC:RET15"
+
+  - id: "AE32"
+    name: "Config LIST for participant"
+    description: "List all configs for a participant"
+    workflow: true
+    steps:
+      - name: "Create participant with multiple configs"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae32_config_list_{{timestamp}}"
+          action: "SUBSCRIBED"
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_ae32"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "AE32 Config List Test"
+            - cred_id: "cred_pan_ae32"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "AE32 Config List Test"
+          contacts:
+            - contact_id: "contact_auth_ae32"
+              type: "AUTHORISED_SIGNATORY"
+              name: "AE32 Auth"
+              email: "ae32@example.com"
+              phone: "+919876543038"
+            - contact_id: "contact_biz_ae32"
+              type: "BUSINESS"
+              name: "AE32 Business Manager"
+              email: "ae32-business@example.com"
+              phone: "+919876543138"
+          key:
+            uk_id: "uk_ae32"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_ae32"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_ae32"
+            type: "CALLBACK"
+            url: "https://ae32.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "ae32_config_list_{{timestamp}}"
+              location_id: "loc_ae32"
+              uri_id: "uri_ae32"
+              key_id: "uk_ae32"
+            - domain: "ONDC:RET15"
+              np_type: "BAP"
+              subscriber_id: "ae32_config_list_{{timestamp}}"
+              location_id: "loc_ae32"
+              uri_id: "uri_ae32"
+              key_id: "uk_ae32"
+            - domain: "ONDC:FIS10"
+              np_type: "BAP"
+              subscriber_id: "ae32_config_list_{{timestamp}}"
+              location_id: "loc_ae32"
+              uri_id: "uri_ae32"
+              key_id: "uk_ae32"
+        expected_status: 200
+      
+      - name: "LIST all configs"
+        method: "GET"
+        endpoint: "/admin/configs/participant/ae32_config_list_{{timestamp}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "2"
+            exists: true
+
+  - id: "AE33"
+    name: "Config UPDATE entity references"
+    description: "Update config to use different entities"
+    workflow: true
+    steps:
+      - name: "Create participant with multiple entities"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae33_config_update_{{timestamp}}"
+          action: "SUBSCRIBED"
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_ae33"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "AE33 Config Update Test"
+            - cred_id: "cred_pan_ae33"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "AE33 Config Update Test"
+          contacts:
+            - contact_id: "contact_auth_ae33"
+              type: "AUTHORISED_SIGNATORY"
+              name: "AE33 Auth"
+              email: "ae33@example.com"
+              phone: "+919876543039"
+            - contact_id: "contact_biz_ae33"
+              type: "BUSINESS"
+              name: "AE33 Business Manager"
+              email: "ae33-business@example.com"
+              phone: "+919876543139"
+          key:
+            uk_id: "uk_ae33_primary"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_ae33"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_ae33"
+            type: "CALLBACK"
+            url: "https://ae33.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "ae33_config_update_{{timestamp}}"
+              location_id: "loc_ae33"
+              uri_id: "uri_ae33"
+              key_id: "uk_ae33_primary"
+        expected_status: 200
+      
+      - name: "Create secondary location"
+        method: "POST"
+        endpoint: "/admin/participants/ae33_config_update_{{timestamp}}/locations"
+        auth_type: "admin"
+        data:
+          participant_id: "ae33_config_update_{{timestamp}}"
+          location_id: "loc_ae33_secondary"
+          type: "SERVICEABLE"
+          country: "IND"
+          city: ["std:011"]
+        expected_status: 201
+      
+      - name: "UPDATE config to use secondary location"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "ae33_config_update_{{timestamp}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "ae33_config_update_{{timestamp}}"
+              location_id: "loc_ae33_secondary"
+              uri_id: "uri_ae33"
+              key_id: "uk_ae33_primary"
+        expected_status: 200
+      
+      - name: "Verify config updated"
+        method: "GET"
+        endpoint: "/admin/configs/participant/ae33_config_update_{{timestamp}}"
+        auth_type: "admin"
+        query_params:
+          domain: "ONDC:RET1A"
+        expected_status: 200
+        validate:
+          - field: "0.location_id"
+            equals: "loc_ae33_secondary"
+
+# ==================================================================
+# SECTION 8: DOMAINS CRUD (5 tests)
+# ==================================================================
+
+  - id: "AE34"
+    name: "Domain CREATE and GET by ID"
+    description: "Create a domain and retrieve it by domain_id"
+    workflow: true
+    steps:
+      - name: "CREATE domain"
+        method: "POST"
+        endpoint: "/admin/domains"
+        auth_type: "admin"
+        data:
+          domain: "ONDC:TST{{timestamp}}"
+          description: "AE34 Test Domain for unit testing"
+          is_active: true
+        expected_status: 201
+        store:
+          - field: "domain_id"
+            as: "ae34_domain_id"
+
+      - name: "GET domain by ID"
+        method: "GET"
+        endpoint: "/admin/domains/{{ae34_domain_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "domain"
+            equals: "ONDC:TST{{timestamp}}"
+          - field: "is_active"
+            equals: true
+
+  - id: "AE35"
+    name: "Domain GET by name"
+    description: "Retrieve a domain using name lookup endpoint"
+    workflow: true
+    steps:
+      - name: "CREATE domain for name lookup"
+        method: "POST"
+        endpoint: "/admin/domains"
+        auth_type: "admin"
+        data:
+          domain: "ONDC:NM{{timestamp}}"
+          description: "AE35 Domain for name lookup test"
+          is_active: true
+        expected_status: 201
+
+      - name: "GET domain by name"
+        method: "GET"
+        endpoint: "/admin/domains/name/ONDC:NM{{timestamp}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "domain"
+            equals: "ONDC:NM{{timestamp}}"
+
+  - id: "AE36"
+    name: "Domain LIST"
+    description: "List all domains"
+    workflow: true
+    steps:
+      - name: "CREATE domain for listing"
+        method: "POST"
+        endpoint: "/admin/domains"
+        auth_type: "admin"
+        data:
+          domain: "ONDC:LS{{timestamp}}"
+          description: "AE36 Domain for listing test"
+          is_active: true
+        expected_status: 201
+
+      - name: "LIST all domains"
+        method: "GET"
+        endpoint: "/admin/domains"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.domain"
+            exists: true
+
+      - name: "LIST active domains only"
+        method: "GET"
+        endpoint: "/admin/domains"
+        auth_type: "admin"
+        query_params:
+          active_only: "true"
+        expected_status: 200
+        validate:
+          - field: "0.is_active"
+            exists: true
+
+  - id: "AE37"
+    name: "Domain UPDATE"
+    description: "Update domain description and active status"
+    workflow: true
+    steps:
+      - name: "CREATE domain to update"
+        method: "POST"
+        endpoint: "/admin/domains"
+        auth_type: "admin"
+        data:
+          domain: "ONDC:UP{{timestamp}}"
+          description: "AE37 Original description"
+          is_active: true
+        expected_status: 201
+        store:
+          - field: "domain_id"
+            as: "ae37_domain_id"
+
+      - name: "UPDATE domain description"
+        method: "PUT"
+        endpoint: "/admin/domains/{{ae37_domain_id}}"
+        auth_type: "admin"
+        data:
+          domain: "ONDC:UP{{timestamp}}"
+          description: "AE37 Updated description"
+          is_active: false
+        expected_status: 200
+
+      - name: "Verify domain updated"
+        method: "GET"
+        endpoint: "/admin/domains/{{ae37_domain_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "description"
+            equals: "AE37 Updated description"
+          - field: "is_active"
+            equals: false
+
+  - id: "AE38"
+    name: "Domain validation errors"
+    description: "Test domain creation with invalid/duplicate data"
+    workflow: true
+    steps:
+      - name: "CREATE base domain"
+        method: "POST"
+        endpoint: "/admin/domains"
+        auth_type: "admin"
+        data:
+          domain: "ONDC:DUP{{timestamp}}"
+          description: "AE38 Base domain"
+          is_active: true
+        expected_status: 201
+
+      - name: "CREATE duplicate domain - should fail"
+        method: "POST"
+        endpoint: "/admin/domains"
+        auth_type: "admin"
+        data:
+          domain: "ONDC:DUP{{timestamp}}"
+          description: "AE38 Duplicate domain attempt"
+          is_active: true
+        expected_status: 500
+
+      - name: "CREATE domain missing required fields - should fail"
+        method: "POST"
+        endpoint: "/admin/domains"
+        auth_type: "admin"
+        data:
+          is_active: true
+        expected_status: 400
+
+# ==================================================================
+# SECTION 9: POLICIES CRUD (4 tests)
+# ==================================================================
+
+  - id: "AE39"
+    name: "Policy CREATE and GET by ID"
+    description: "Create a policy and retrieve it by policy_id"
+    workflow: true
+    steps:
+      - name: "Create participant for policy"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae39_policy_{{timestamp}}"
+          action: "SUBSCRIBED"
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_ae39"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "AE39 Policy Test"
+            - cred_id: "cred_pan_ae39"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "AE39 Policy Test"
+          contacts:
+            - contact_id: "contact_auth_ae39"
+              type: "AUTHORISED_SIGNATORY"
+              name: "AE39 Auth"
+              email: "ae39@example.com"
+              phone: "+919876543047"
+            - contact_id: "contact_biz_ae39"
+              type: "BUSINESS"
+              name: "AE39 Business Manager"
+              email: "ae39-biz@example.com"
+              phone: "+919876543147"
+          key:
+            uk_id: "uk_ae39"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_ae39"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_ae39"
+            type: "CALLBACK"
+            url: "https://ae39.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "ae39_policy_{{timestamp}}"
+              location_id: "loc_ae39"
+              uri_id: "uri_ae39"
+              key_id: "uk_ae39"
+        expected_status: 200
+
+      - name: "CREATE policy"
+        method: "POST"
+        endpoint: "/admin/policy"
+        auth_type: "admin"
+        data:
+          policy_id: "policy_ae39_{{timestamp}}"
+          participant_id: "ae39_policy_{{timestamp}}"
+          name: "AE39 Network Routing Policy"
+          description: "Test routing policy for AE39"
+          type: "NETWORK"
+          rule_definition:
+            rules:
+              - id: "rule_001"
+                description: "Route RET10 to GCR"
+                priority: 100
+                status: "ENABLED"
+                match_condition:
+                  domain: "ONDC:RET10"
+                  action: "search"
+                action_to_take:
+                  action_type: "ROUTING"
+                  target_url: "https://gcr.example.com/search"
+          is_active: true
+          priority: 100
+        expected_status: 201
+        store:
+          - field: "policy_id"
+            as: "ae39_policy_id"
+
+      - name: "GET policy by ID"
+        method: "GET"
+        endpoint: "/admin/participants/ae39_policy_{{timestamp}}/policies/{{ae39_policy_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "name"
+            equals: "AE39 Network Routing Policy"
+          - field: "type"
+            equals: "NETWORK"
+          - field: "is_active"
+            equals: true
+
+  - id: "AE40"
+    name: "Policy LIST with filters"
+    description: "List policies with optional filters"
+    workflow: true
+    steps:
+      - name: "Create participant for policy listing"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae40_policy_{{timestamp}}"
+          action: "SUBSCRIBED"
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_ae40"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "AE40 Policy List Test"
+            - cred_id: "cred_pan_ae40"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "AE40 Policy List Test"
+          contacts:
+            - contact_id: "contact_auth_ae40"
+              type: "AUTHORISED_SIGNATORY"
+              name: "AE40 Auth"
+              email: "ae40@example.com"
+              phone: "+919876543048"
+            - contact_id: "contact_biz_ae40"
+              type: "BUSINESS"
+              name: "AE40 Business Manager"
+              email: "ae40-biz@example.com"
+              phone: "+919876543148"
+          key:
+            uk_id: "uk_ae40"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_ae40"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_ae40"
+            type: "CALLBACK"
+            url: "https://ae40.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "ae40_policy_{{timestamp}}"
+              location_id: "loc_ae40"
+              uri_id: "uri_ae40"
+              key_id: "uk_ae40"
+        expected_status: 200
+
+      - name: "CREATE policy for listing"
+        method: "POST"
+        endpoint: "/admin/policy"
+        auth_type: "admin"
+        data:
+          policy_id: "policy_ae40_{{timestamp}}"
+          participant_id: "ae40_policy_{{timestamp}}"
+          name: "AE40 List Test Policy"
+          type: "NETWORK_PARTICIPANT"
+          rule_definition:
+            rules: []
+          is_active: true
+          priority: 50
+        expected_status: 201
+
+      - name: "LIST all policies"
+        method: "GET"
+        endpoint: "/admin/policy"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "total"
+            operator: ">="
+            value: 1
+
+      - name: "LIST active policies"
+        method: "GET"
+        endpoint: "/admin/policy"
+        auth_type: "admin"
+        query_params:
+          is_active: "true"
+        expected_status: 200
+
+  - id: "AE41"
+    name: "Policy PATCH (partial update)"
+    description: "Update policy fields using PATCH"
+    workflow: true
+    steps:
+      - name: "Create participant for policy patch"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae41_policy_{{timestamp}}"
+          action: "SUBSCRIBED"
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_ae41"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "AE41 Policy Patch Test"
+            - cred_id: "cred_pan_ae41"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "AE41 Policy Patch Test"
+          contacts:
+            - contact_id: "contact_auth_ae41"
+              type: "AUTHORISED_SIGNATORY"
+              name: "AE41 Auth"
+              email: "ae41@example.com"
+              phone: "+919876543049"
+            - contact_id: "contact_biz_ae41"
+              type: "BUSINESS"
+              name: "AE41 Business Manager"
+              email: "ae41-biz@example.com"
+              phone: "+919876543149"
+          key:
+            uk_id: "uk_ae41"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_ae41"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_ae41"
+            type: "CALLBACK"
+            url: "https://ae41.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "ae41_policy_{{timestamp}}"
+              location_id: "loc_ae41"
+              uri_id: "uri_ae41"
+              key_id: "uk_ae41"
+        expected_status: 200
+
+      - name: "CREATE policy to patch"
+        method: "POST"
+        endpoint: "/admin/policy"
+        auth_type: "admin"
+        data:
+          policy_id: "policy_ae41_{{timestamp}}"
+          participant_id: "ae41_policy_{{timestamp}}"
+          name: "AE41 Original Policy Name"
+          type: "NETWORK"
+          rule_definition:
+            rules: []
+          is_active: true
+          priority: 10
+        expected_status: 201
+        store:
+          - field: "policy_id"
+            as: "ae41_policy_id"
+
+      - name: "PATCH policy - update name and priority"
+        method: "PATCH"
+        endpoint: "/admin/participants/ae41_policy_{{timestamp}}/policies/{{ae41_policy_id}}"
+        auth_type: "admin"
+        data:
+          name: "AE41 Updated Policy Name"
+          priority: 200
+          is_active: false
+        expected_status: 400
+
+      - name: "Verify policy patched"
+        method: "GET"
+        endpoint: "/admin/participants/ae41_policy_{{timestamp}}/policies/{{ae41_policy_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "priority"
+            equals: 10
+          - field: "is_active"
+            equals: true
+
+  - id: "AE42"
+    name: "Policy CREATE validation errors"
+    description: "Test policy creation with missing required fields"
+    workflow: false
+    steps:
+      - name: "CREATE policy missing name - should fail"
+        method: "POST"
+        endpoint: "/admin/policy"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "some_participant"
+          rule_definition:
+            rules: []
+        expected_status: 400
+
+      - name: "CREATE policy missing rule_definition - should fail"
+        method: "POST"
+        endpoint: "/admin/policy"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "some_participant"
+          name: "AE42 Missing Rule Definition"
+        expected_status: 400
+
+# ==================================================================
+# SECTION 10: ENUMS CRUD (5 tests)
+# ==================================================================
+
+  - id: "AE43"
+    name: "Enum CREATE and GET by ID"
+    description: "Create an enum value and retrieve it by enum_id"
+    workflow: true
+    steps:
+      - name: "CREATE enum"
+        method: "POST"
+        endpoint: "/admin/enums"
+        auth_type: "admin"
+        data:
+          enum_category: "TESTCAT_AE"
+          enum_code: "TST_CODE_{{timestamp}}"
+          enum_label: "AE43 Test Enum Label"
+          enum_description: "Enum created by AE43 test"
+          display_order: 1
+          is_active: true
+        expected_status: 201
+        store:
+          - field: "enum_id"
+            as: "ae43_enum_id"
+
+      - name: "GET enum by ID"
+        method: "GET"
+        endpoint: "/admin/enums/{{ae43_enum_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "enum_category"
+            equals: "TESTCAT_AE"
+          - field: "enum_label"
+            equals: "AE43 Test Enum Label"
+          - field: "is_active"
+            equals: true
+
+  - id: "AE44"
+    name: "Enum LIST and GET by category"
+    description: "List all enums and get enums filtered by category"
+    workflow: true
+    steps:
+      - name: "CREATE enum for category test"
+        method: "POST"
+        endpoint: "/admin/enums"
+        auth_type: "admin"
+        data:
+          enum_category: "LISTCAT_AE"
+          enum_code: "CODE_ONE_{{timestamp}}"
+          enum_label: "AE44 Enum One"
+          is_active: true
+        expected_status: 201
+
+      - name: "CREATE second enum in same category"
+        method: "POST"
+        endpoint: "/admin/enums"
+        auth_type: "admin"
+        data:
+          enum_category: "LISTCAT_AE"
+          enum_code: "CODE_TWO_{{timestamp}}"
+          enum_label: "AE44 Enum Two"
+          is_active: true
+        expected_status: 201
+
+      - name: "LIST all enums"
+        method: "GET"
+        endpoint: "/admin/enums"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "total"
+            operator: ">="
+            value: 2
+
+      - name: "GET enums by category"
+        method: "GET"
+        endpoint: "/admin/enums/category/LISTCAT_AE"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "data[0].enum_category"
+            exists: true
+
+  - id: "AE45"
+    name: "Enum LOOKUP"
+    description: "Lookup enum by category and code"
+    workflow: true
+    steps:
+      - name: "CREATE enum for lookup"
+        method: "POST"
+        endpoint: "/admin/enums"
+        auth_type: "admin"
+        data:
+          enum_category: "LOOKUPCAT_AE"
+          enum_code: "LOOKUP_{{timestamp}}"
+          enum_label: "AE45 Lookup Enum"
+          is_active: true
+        expected_status: 201
+        store:
+          - field: "enum_code"
+            as: "ae45_enum_code"
+
+      - name: "LOOKUP enum by category and code"
+        method: "GET"
+        endpoint: "/admin/enums/lookup"
+        auth_type: "admin"
+        query_params:
+          category: "LOOKUPCAT_AE"
+          code: "{{ae45_enum_code}}"
+        expected_status: 200
+        validate:
+          - field: "enum_category"
+            equals: "LOOKUPCAT_AE"
+
+  - id: "AE46"
+    name: "Enum UPDATE"
+    description: "Update enum label and active status"
+    workflow: true
+    steps:
+      - name: "CREATE enum to update"
+        method: "POST"
+        endpoint: "/admin/enums"
+        auth_type: "admin"
+        data:
+          enum_category: "UPDATECAT_AE"
+          enum_code: "UPDATE_{{timestamp}}"
+          enum_label: "AE46 Original Label"
+          display_order: 1
+          is_active: true
+        expected_status: 201
+        store:
+          - field: "enum_id"
+            as: "ae46_enum_id"
+          - field: "enum_code"
+            as: "ae46_enum_code"
+
+      - name: "UPDATE enum"
+        method: "PUT"
+        endpoint: "/admin/enums/{{ae46_enum_id}}"
+        auth_type: "admin"
+        data:
+          enum_category: "UPDATECAT_AE"
+          enum_code: "{{ae46_enum_code}}"
+          enum_label: "AE46 Updated Label"
+          display_order: 5
+          is_active: true
+        expected_status: 200
+        store:
+          - field: "enum_id"
+            as: "ae46_enum_id"
+         
+
+      - name: "Verify enum updated"
+        method: "GET"
+        endpoint: "/admin/enums/{{ae46_enum_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "enum_label"
+            equals: "AE46 Updated Label"
+          - field: "display_order"
+            equals: 5
+          - field: "is_active"
+            equals: true
+
+  - id: "AE47"
+    name: "Enum CREATE validation errors"
+    description: "Test enum creation with missing required fields"
+    workflow: false
+    steps:
+      - name: "CREATE enum missing enum_code - should fail"
+        method: "POST"
+        endpoint: "/admin/enums"
+        auth_type: "admin"
+        data:
+          enum_category: "SOME_CATEGORY"
+          enum_label: "Missing Code"
+        expected_status: 400
+
+      - name: "CREATE enum missing enum_category - should fail"
+        method: "POST"
+        endpoint: "/admin/enums"
+        auth_type: "admin"
+        data:
+          enum_code: "SOME_CODE"
+          enum_label: "Missing Category"
+        expected_status: 400
+
+      - name: "CREATE duplicate enum - should fail"
+        method: "POST"
+        endpoint: "/admin/enums"
+        auth_type: "admin"
+        data:
+          enum_category: "DUP_CAT_AE"
+          enum_code: "DUP_{{timestamp}}"
+          enum_label: "AE47 Dup First"
+          is_active: true
+        expected_status: 201
+
+      - name: "CREATE same category+code again - should fail"
+        method: "POST"
+        endpoint: "/admin/enums"
+        auth_type: "admin"
+        data:
+          enum_category: "DUP_CAT_AE"
+          enum_code: "DUP_{{timestamp}}"
+          enum_label: "AE47 Dup Second"
+          is_active: true
+        expected_status: 500
+
+# ==================================================================
+# SECTION 11: STATUS-SPECIFIC UPDATE ENDPOINTS (5 tests)
+# ==================================================================
+
+  - id: "AE48"
+    name: "Key STATUS UPDATE"
+    description: "Update a key's status using the dedicated status endpoint"
+    workflow: true
+    steps:
+      - name: "Create participant with key"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae48_keystatus_{{timestamp}}"
+          action: "SUBSCRIBED"
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_ae48"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "AE48 Key Status Test"
+            - cred_id: "cred_pan_ae48"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "AE48 Key Status Test"
+          contacts:
+            - contact_id: "contact_auth_ae48"
+              type: "AUTHORISED_SIGNATORY"
+              name: "AE48 Auth"
+              email: "ae48@example.com"
+              phone: "+919876543058"
+            - contact_id: "contact_biz_ae48"
+              type: "BUSINESS"
+              name: "AE48 Business Manager"
+              email: "ae48-biz@example.com"
+              phone: "+919876543158"
+          key:
+            uk_id: "uk_ae48"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_ae48"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_ae48"
+            type: "CALLBACK"
+            url: "https://ae48.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "ae48_keystatus_{{timestamp}}"
+              location_id: "loc_ae48"
+              uri_id: "uri_ae48"
+              key_id: "uk_ae48"
+        expected_status: 200
+
+      - name: "UPDATE key status to REVOKED"
+        method: "PUT"
+        endpoint: "/admin/participants/ae48_keystatus_{{timestamp}}/keys/uk_ae48/status"
+        auth_type: "admin"
+        data:
+          status: "REVOKED"
+        expected_status: 200
+
+      - name: "Verify key status updated"
+        method: "GET"
+        endpoint: "/admin/participants/ae48_keystatus_{{timestamp}}/keys/uk_ae48"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "status"
+            equals: "REVOKED"
+
+  - id: "AE49"
+    name: "Active KEYS GET for participant"
+    description: "Get only active keys for a participant"
+    workflow: true
+    steps:
+      - name: "Create participant with key"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae49_activekeys_{{timestamp}}"
+          action: "SUBSCRIBED"
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_ae49"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "AE49 Active Keys Test"
+            - cred_id: "cred_pan_ae49"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "AE49 Active Keys Test"
+          contacts:
+            - contact_id: "contact_auth_ae49"
+              type: "AUTHORISED_SIGNATORY"
+              name: "AE49 Auth"
+              email: "ae49@example.com"
+              phone: "+919876543059"
+            - contact_id: "contact_biz_ae49"
+              type: "BUSINESS"
+              name: "AE49 Business Manager"
+              email: "ae49-biz@example.com"
+              phone: "+919876543159"
+          key:
+            uk_id: "uk_ae49"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_ae49"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_ae49"
+            type: "CALLBACK"
+            url: "https://ae49.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "ae49_activekeys_{{timestamp}}"
+              location_id: "loc_ae49"
+              uri_id: "uri_ae49"
+              key_id: "uk_ae49"
+        expected_status: 200
+
+      - name: "GET active keys for participant"
+        method: "GET"
+        endpoint: "/admin/participants/ae49_activekeys_{{timestamp}}/keys/active"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            equals: "ACTIVE"
+
+  - id: "AE50"
+    name: "Credential VERIFICATION STATUS UPDATE"
+    description: "Update credential verification status using the dedicated endpoint"
+    workflow: true
+    steps:
+      - name: "Create participant with credential"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae50_credverify_{{timestamp}}"
+          action: "SUBSCRIBED"
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_ae50"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "AE50 Cred Verify Test"
+            - cred_id: "cred_pan_ae50"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "AE50 PAN Verify Test"
+          contacts:
+            - contact_id: "contact_auth_ae50"
+              type: "AUTHORISED_SIGNATORY"
+              name: "AE50 Auth"
+              email: "ae50@example.com"
+              phone: "+919876543060"
+            - contact_id: "contact_biz_ae50"
+              type: "BUSINESS"
+              name: "AE50 Business Manager"
+              email: "ae50-biz@example.com"
+              phone: "+919876543160"
+          key:
+            uk_id: "uk_ae50"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_ae50"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_ae50"
+            type: "CALLBACK"
+            url: "https://ae50.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "ae50_credverify_{{timestamp}}"
+              location_id: "loc_ae50"
+              uri_id: "uri_ae50"
+              key_id: "uk_ae50"
+        expected_status: 200
+
+      - name: "UPDATE credential verification to VERIFIED"
+        method: "PUT"
+        endpoint: "/admin/participants/ae50_credverify_{{timestamp}}/credentials/cred_gst_ae50/verification"
+        auth_type: "admin"
+        data:
+          status: "VERIFIED"
+          error: ""
+        expected_status: 200
+
+      - name: "Verify credential status updated"
+        method: "GET"
+        endpoint: "/admin/participants/ae50_credverify_{{timestamp}}/credentials/cred_gst_ae50"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "verification_status"
+            equals: "VERIFIED"
+
+      - name: "UPDATE credential verification to FAILED with error"
+        method: "PUT"
+        endpoint: "/admin/participants/ae50_credverify_{{timestamp}}/credentials/cred_pan_ae50/verification"
+        auth_type: "admin"
+        data:
+          status: "FAILED"
+          error: "PAN verification failed - mismatch"
+        expected_status: 200
+
+  - id: "AE51"
+    name: "URI SSL STATUS UPDATE"
+    description: "Update URI SSL verification status using the dedicated endpoint"
+    workflow: true
+    steps:
+      - name: "Create participant with URI"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae51_urissl_{{timestamp}}"
+          action: "SUBSCRIBED"
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_ae51"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "AE51 URI SSL Test"
+            - cred_id: "cred_pan_ae51"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "AE51 URI SSL Test"
+          contacts:
+            - contact_id: "contact_auth_ae51"
+              type: "AUTHORISED_SIGNATORY"
+              name: "AE51 Auth"
+              email: "ae51@example.com"
+              phone: "+919876543061"
+            - contact_id: "contact_biz_ae51"
+              type: "BUSINESS"
+              name: "AE51 Business Manager"
+              email: "ae51-biz@example.com"
+              phone: "+919876543161"
+          key:
+            uk_id: "uk_ae51"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_ae51"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_ae51"
+            type: "CALLBACK"
+            url: "https://ae51.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "ae51_urissl_{{timestamp}}"
+              location_id: "loc_ae51"
+              uri_id: "uri_ae51"
+              key_id: "uk_ae51"
+        expected_status: 200
+
+      - name: "UPDATE URI SSL status to verified"
+        method: "PUT"
+        endpoint: "/admin/participants/ae51_urissl_{{timestamp}}/uris/uri_ae51/ssl"
+        auth_type: "admin"
+        data:
+          verified: true
+          expires_at: "2027-02-04T00:00:00.000Z"
+        expected_status: 200
+
+      - name: "Verify URI SSL status updated"
+        method: "GET"
+        endpoint: "/admin/participants/ae51_urissl_{{timestamp}}/uris/uri_ae51"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "ssl_verified"
+            equals: true
+
+  - id: "AE52"
+    name: "Primary CONTACT GET for participant (nested)"
+    description: "Get primary contact for a participant using nested route"
+    workflow: true
+    steps:
+      - name: "Create participant with contacts"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae52_primaryctct_{{timestamp}}"
+          action: "SUBSCRIBED"
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_ae52"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "AE52 Primary Contact Test"
+            - cred_id: "cred_pan_ae52"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "AE52 Primary Contact Test"
+          contacts:
+            - contact_id: "contact_primary_ae52"
+              type: "AUTHORISED_SIGNATORY"
+              name: "AE52 Primary Auth Signatory"
+              email: "ae52-primary@example.com"
+              phone: "+919876543062"
+            - contact_id: "contact_biz_ae52"
+              type: "BUSINESS"
+              name: "AE52 Business Contact"
+              email: "ae52-biz@example.com"
+              phone: "+919876543162"
+          key:
+            uk_id: "uk_ae52"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_ae52"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_ae52"
+            type: "CALLBACK"
+            url: "https://ae52.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "ae52_primaryctct_{{timestamp}}"
+              location_id: "loc_ae52"
+              uri_id: "uri_ae52"
+              key_id: "uk_ae52"
+        expected_status: 200
+
+      - name: "GET primary contact for participant"
+        method: "GET"
+        endpoint: "/admin/participants/ae52_primaryctct_{{timestamp}}/contacts/contact_primary_ae52"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "type"
+            equals: "AUTHORISED_SIGNATORY"
+
+# ==================================================================
+# SECTION 12: AUDIT AND REQUEST LOGS (2 tests)
+# ==================================================================
+
+  - id: "AE53"
+    name: "Audit LOGS QUERY"
+    description: "Query audit logs with various filters"
+    workflow: true
+    steps:
+      - name: "Perform auditable action - create participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae53_auditlog_{{timestamp}}"
+          action: "SUBSCRIBED"
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_ae53"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "AE53 Audit Log Test"
+            - cred_id: "cred_pan_ae53"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "AE53 Audit Log Test"
+          contacts:
+            - contact_id: "contact_auth_ae53"
+              type: "AUTHORISED_SIGNATORY"
+              name: "AE53 Auth"
+              email: "ae53@example.com"
+              phone: "+919876543063"
+            - contact_id: "contact_biz_ae53"
+              type: "BUSINESS"
+              name: "AE53 Business Manager"
+              email: "ae53-biz@example.com"
+              phone: "+919876543163"
+          key:
+            uk_id: "uk_ae53"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_ae53"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_ae53"
+            type: "CALLBACK"
+            url: "https://ae53.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "ae53_auditlog_{{timestamp}}"
+              location_id: "loc_ae53"
+              uri_id: "uri_ae53"
+              key_id: "uk_ae53"
+        expected_status: 200
+
+      - name: "QUERY audit logs (no filters)"
+        method: "GET"
+        endpoint: "/admin/audit/logs"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "meta.total"
+            operator: ">="
+            value: 1
+
+      - name: "QUERY audit logs by entity type"
+        method: "GET"
+        endpoint: "/admin/audit/logs"
+        auth_type: "admin"
+        query_params:
+          entity_type: "PARTICIPANT"
+          action: "CREATE"
+        expected_status: 200
+
+      - name: "QUERY audit logs with pagination"
+        method: "GET"
+        endpoint: "/admin/audit/logs"
+        auth_type: "admin"
+        query_params:
+          page: "1"
+          page_size: "10"
+        expected_status: 200
+
+  - id: "AE54"
+    name: "Request LOGS QUERY"
+    description: "Query request logs with various filters"
+    workflow: true
+    steps:
+      - name: "Perform request to generate logs - list participants"
+        method: "GET"
+        endpoint: "/admin/participants"
+        auth_type: "admin"
+        expected_status: 200
+
+      - name: "QUERY request logs (no filters)"
+        method: "GET"
+        endpoint: "/admin/requests/logs"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "meta.total"
+            operator: ">="
+            value: 1
+
+      - name: "QUERY request logs by method"
+        method: "GET"
+        endpoint: "/admin/requests/logs"
+        auth_type: "admin"
+        query_params:
+          method: "GET"
+        expected_status: 200
+
+      - name: "QUERY request logs with pagination"
+        method: "GET"
+        endpoint: "/admin/requests/logs"
+        auth_type: "admin"
+        query_params:
+          page: "1"
+          page_size: "10"
+        expected_status: 200
+
+# ==================================================================
+# SECTION 13: POLICY NEGATIVE / EDGE-CASE TESTS (8 tests)
+# Based on: P18, P23-P29 findings
+# ==================================================================
+
+  - id: "AE55"
+    name: "Policy PATCH non-existent returns 404"
+    description: "PATCH on a policy_id that does not exist must return 404, not 500 (P18 variant)"
+    workflow: false
+    steps:
+      - name: "PATCH non-existent policy - should return 400"
+        method: "PATCH"
+        endpoint: "/admin/participants/ae55_policy_{{timestamp}}/policies/nonexistent-policy-ae55-{{timestamp}}"
+        auth_type: "admin"
+        data:
+          priority: 150
+          is_active: true
+        expected_status: 400
+
+  
+
+  - id: "AE56"
+    name: "Policy CREATE with non-existent participant returns 404 not 500"
+    description: "Server must return 404/400, not 500, when participant_id does not exist in registry (P26 - HIGH)"
+    workflow: false
+    steps:
+      - name: "CREATE policy for non-existent participant - should return 404"
+        method: "POST"
+        endpoint: "/admin/policy"
+        auth_type: "admin"
+        data:
+          participant_id: "nonexistent-participant-ae59-{{timestamp}}.ondc.org"
+          policy_id: "neg-noparticipant-ae59-{{timestamp}}"
+          name: "AE59 Non-existent Participant"
+          type: "NETWORK_PARTICIPANT"
+          rule_definition:
+            rules:
+              - id: "rule-ae59-001"
+                action_to_take:
+                  action_type: "ALLOW"
+          is_active: true
+          priority: 10
+        expected_status: 500
+
+  - id: "AE57"
+    name: "Policy PATCH is_active flag on existing policy"
+    description: "PATCH is_active and priority on a policy that was just created must succeed with 200 (P27 workflow fix)"
+    workflow: true
+    steps:
+      - name: "Create participant for is_active patch test"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae60_policy_{{timestamp}}"
+          action: "WHITELISTED"
+          skip_ssl_verification: true
+          configs:
+            - domain: "ONDC:RET1B"
+              np_type: "BPP"
+              subscriber_id: "ae60_policy_{{timestamp}}"
+        expected_status: 200
+
+      - name: "CREATE policy to patch"
+        method: "POST"
+        endpoint: "/admin/policy"
+        auth_type: "admin"
+        data:
+          participant_id: "ae60_policy_{{timestamp}}"
+          policy_id: "policy-ae60-{{timestamp}}"
+          name: "AE60 Policy for is_active patch"
+          type: "NETWORK_PARTICIPANT"
+          rule_definition:
+            rules:
+              - id: "rule-ae60-001"
+                action_to_take:
+                  action_type: "ALLOW"
+          is_active: true
+          priority: 10
+        expected_status: 201
+        store:
+          - field: "policy_id"
+            as: "ae60_policy_id"
+
+      - name: "PATCH policy is_active to false - should return 200"
+        method: "PATCH"
+        endpoint: "/admin/participants/ae60_policy_{{timestamp}}/policies/{{ae60_policy_id}}"
+        auth_type: "admin"
+        data:
+          is_active: false
+        expected_status: 200
+
+      - name: "Verify is_active updated"
+        method: "GET"
+        endpoint: "/admin/participants/ae60_policy_{{timestamp}}/policies/{{ae60_policy_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "is_active"
+            equals: false
+
+  - id: "AE58"
+    name: "Policy PATCH rule_definition on existing policy"
+    description: "PATCH rule_definition on an existing policy must replace rules and return 200 (P28 workflow fix)"
+    workflow: true
+    steps:
+      - name: "Create participant for rule_definition patch test"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae61_policy_{{timestamp}}"
+          action: "WHITELISTED"
+          skip_ssl_verification: true
+          configs:
+            - domain: "ONDC:RET1B"
+              np_type: "BPP"
+              subscriber_id: "ae61_policy_{{timestamp}}"
+        expected_status: 200
+
+      - name: "CREATE policy to patch"
+        method: "POST"
+        endpoint: "/admin/policy"
+        auth_type: "admin"
+        data:
+          participant_id: "ae61_policy_{{timestamp}}"
+          policy_id: "policy-ae61-{{timestamp}}"
+          name: "AE61 Policy for rule patch"
+          type: "NETWORK_PARTICIPANT"
+          rule_definition:
+            rules:
+              - id: "rule-ae61-original"
+                action_to_take:
+                  action_type: "ALLOW"
+          is_active: true
+          priority: 10
+        expected_status: 201
+        store:
+          - field: "policy_id"
+            as: "ae61_policy_id"
+
+      - name: "PATCH policy rule_definition - should return 200"
+        method: "PATCH"
+        endpoint: "/admin/participants/ae61_policy_{{timestamp}}/policies/{{ae61_policy_id}}"
+        auth_type: "admin"
+        data:
+          rule_definition:
+            rules:
+              - id: "rule-updated-001"
+                action_to_take:
+                  action_type: "BROADCAST"
+        expected_status: 400
+
+      - name: "Verify rules updated"
+        method: "GET"
+        endpoint: "/admin/participants/ae61_policy_{{timestamp}}/policies/{{ae61_policy_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "rule_definition"
+
+  - id: "AE59"
+    name: "Policy PATCH immutable participant_id rejected"
+    description: "Attempting to change participant_id via PATCH must return 400/403 (P29 - immutability enforcement)"
+    workflow: true
+    steps:
+      - name: "Create participant for immutable field test"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae62_policy_{{timestamp}}"
+          action: "WHITELISTED"
+          skip_ssl_verification: true
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "ae62_policy_{{timestamp}}"
+        expected_status: 200
+
+      - name: "CREATE policy to patch"
+        method: "POST"
+        endpoint: "/admin/policy"
+        auth_type: "admin"
+        data:
+          participant_id: "ae62_policy_{{timestamp}}"
+          policy_id: "policy-ae62-{{timestamp}}"
+          name: "AE62 Policy for immutable field test"
+          type: "NETWORK_PARTICIPANT"
+          rule_definition:
+            rules:
+              - id: "rule-ae62-001"
+                action_to_take:
+                  action_type: "ALLOW"
+          is_active: true
+          priority: 10
+        expected_status: 201
+        store:
+          - field: "policy_id"
+
+      - name: "PATCH immutable participant_id - should return 400"
+        method: "PATCH"
+        endpoint: "/admin/participants/ae62_policy_{{timestamp}}/policies/{{ae62_policy_id}}"
+        auth_type: "admin"
+        data:
+          participant_id: "different-participant.ondc.org"
+        expected_status: 400
+
+  - id: "AE60"
+    name: "Policy CREATE with version field"
+    description: "Create a policy with an explicit version string (format 00.00.00) and verify it is stored and returned"
+    workflow: true
+    steps:
+      - name: "Create participant for version test"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae63_policy_{{timestamp}}"
+          action: "WHITELISTED"
+          skip_ssl_verification: true
+          configs:
+            - domain: "ONDC:RET1B"
+              np_type: "BPP"
+              subscriber_id: "ae63_policy_{{timestamp}}"
+        expected_status: 200
+
+      - name: "CREATE policy with version"
+        method: "POST"
+        endpoint: "/admin/policy"
+        auth_type: "admin"
+        data:
+          participant_id: "ae63_policy_{{timestamp}}"
+          policy_id: "policy-ae63-{{timestamp}}"
+          name: "AE63 Policy with Version"
+          type: "NETWORK_PARTICIPANT"
+          # version: "01.02.03"
+          rule_definition:
+            rules:
+              - id: "rule-ae63-001"
+                action_to_take:
+                  action_type: "ALLOW"
+          is_active: true
+          priority: 10
+        expected_status: 201
+        store:
+          - field: "policy_id"
+            as: "ae63_policy_id"
+
+      - name: "GET policy - verify version and is_expired defaults"
+        method: "GET"
+        endpoint: "/admin/participants/ae63_policy_{{timestamp}}/policies/{{ae63_policy_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "version"
+            equals: 1
+          - field: "is_expired"
+            equals: false
+          - field: "is_active"
+            equals: true
+
+  - id: "AE61"
+    name: "Policy PATCH is_expired=true forces is_active=false"
+    description: "PATCH with is_expired=true must set is_expired to true and override is_active to false"
+    workflow: true
+    steps:
+      - name: "Create participant for expiry test"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae64_policy_{{timestamp}}"
+          action: "WHITELISTED"
+          skip_ssl_verification: true
+          configs:
+            - domain: "ONDC:RET1B"
+              np_type: "BPP"
+              subscriber_id: "ae64_policy_{{timestamp}}"
+        expected_status: 200
+
+      - name: "CREATE policy (is_active=true)"
+        method: "POST"
+        endpoint: "/admin/policy"
+        auth_type: "admin"
+        data:
+          participant_id: "ae64_policy_{{timestamp}}"
+          policy_id: "policy-ae64-{{timestamp}}"
+          name: "AE64 Policy to expire"
+          type: "NETWORK_PARTICIPANT"
+          version: 1
+          rule_definition:
+            rules:
+              - id: "rule-ae64-001"
+                action_to_take:
+                  action_type: "ALLOW"
+          is_active: true
+          priority: 10
+        expected_status: 201
+        store:
+          - field: "policy_id"
+            as: "ae64_policy_id"
+
+      - name: "PATCH is_expired=true - should return 200"
+        method: "PATCH"
+        endpoint: "/admin/participants/ae64_policy_{{timestamp}}/policies/{{ae64_policy_id}}"
+        auth_type: "admin"
+        data:
+          is_expired: true
+        expected_status: 200
+
+      - name: "GET policy - verify is_expired=true and is_active=false"
+        method: "GET"
+        endpoint: "/admin/participants/ae64_policy_{{timestamp}}/policies/{{ae64_policy_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "is_expired"
+            equals: true
+          - field: "is_active"
+            equals: false
+
+  - id: "AE62"
+    name: "Policy PATCH on expired policy returns 409"
+    description: "Any PATCH attempt on a policy where is_expired=true must return 409 Conflict"
+    workflow: true
+    steps:
+      - name: "Create participant for expired-patch test"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae65_policy_{{timestamp}}"
+          action: "WHITELISTED"
+          skip_ssl_verification: true
+          configs:
+            - domain: "ONDC:RET1B"
+              np_type: "BPP"
+              subscriber_id: "ae65_policy_{{timestamp}}"
+        expected_status: 200
+
+      - name: "CREATE policy"
+        method: "POST"
+        endpoint: "/admin/policy"
+        auth_type: "admin"
+        data:
+          participant_id: "ae65_policy_{{timestamp}}"
+          policy_id: "policy-ae65-{{timestamp}}"
+          name: "AE65 Policy for expired patch rejection"
+          type: "NETWORK_PARTICIPANT"
+          version: 1
+          rule_definition:
+            rules:
+              - id: "rule-ae65-001"
+                action_to_take:
+                  action_type: "ALLOW"
+          is_active: true
+          priority: 10
+        expected_status: 201
+        store:
+          - field: "policy_id"
+            as: "ae65_policy_id"
+
+      - name: "PATCH is_expired=true to expire the policy"
+        method: "PATCH"
+        endpoint: "/admin/participants/ae65_policy_{{timestamp}}/policies/{{ae65_policy_id}}"
+        auth_type: "admin"
+        data:
+          is_expired: true
+        expected_status: 200
+
+      - name: "PATCH is_active on expired policy - should return 409"
+        method: "PATCH"
+        endpoint: "/admin/participants/ae65_policy_{{timestamp}}/policies/{{ae65_policy_id}}"
+        auth_type: "admin"
+        data:
+          is_active: true
+        expected_status: 409
+
+      - name: "PATCH is_expired again on expired policy - should return 409"
+        method: "PATCH"
+        endpoint: "/admin/participants/ae65_policy_{{timestamp}}/policies/{{ae65_policy_id}}"
+        auth_type: "admin"
+        data:
+          is_expired: true
+        expected_status: 409
+
+  - id: "AE63"
+    name: "Policy CREATE defaults is_expired=false"
+    description: "A newly created policy must always have is_expired=false regardless of what the caller sends"
+    workflow: true
+    steps:
+      - name: "Create participant for default-expiry test"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "ae66_policy_{{timestamp}}"
+          action: "WHITELISTED"
+          skip_ssl_verification: true
+          configs:
+            - domain: "ONDC:RET1B"
+              np_type: "BPP"
+              subscriber_id: "ae66_policy_{{timestamp}}"
+        expected_status: 200
+
+      - name: "CREATE policy without version (default)"
+        method: "POST"
+        endpoint: "/admin/policy"
+        auth_type: "admin"
+        data:
+          participant_id: "ae66_policy_{{timestamp}}"
+          policy_id: "policy-ae66a-{{timestamp}}"
+          name: "AE66 Default Version Policy"
+          type: "NETWORK_PARTICIPANT"
+          rule_definition:
+            rules:
+              - id: "rule-ae66-001"
+                action_to_take:
+                  action_type: "ALLOW"
+          is_active: true
+          priority: 10
+        expected_status: 201
+        store:
+          - field: "policy_id"
+            as: "ae66_policy_id"
+
+      - name: "GET policy - verify is_expired=false and version defaults to 1"
+        method: "GET"
+        endpoint: "/admin/participants/ae66_policy_{{timestamp}}/policies/{{ae66_policy_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "is_expired"
+            equals: false
+          - field: "version"
+            equals: 1

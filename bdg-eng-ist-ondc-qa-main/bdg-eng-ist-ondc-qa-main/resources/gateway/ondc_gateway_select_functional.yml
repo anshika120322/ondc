@@ -1,0 +1,259 @@
+
+ondcGW: # Environment name for all Gateway Select tests
+#   host: http://35.200.236.235:8080 # QA Gateway API URL (Ingress service) - UPDATED IP
+#  host: http://34.100.154.102:8080 # UAT Gateway API URL (Ingress service) - UPDATED IP
+  host: "https://gateway-uat.kynondc.net" #UAT Gateway API URL (Ingress service) - UPDATED IP
+  postack_host: "not needed"
+  private_key_seed: "MC4CAQAwBQYDK2VwBCIEIPGt7Hv6vy2haK04ipiBbgU0omo/IGjs+hmuGE+jXkbf"
+  participant_id: "ondcp.tatacapital.com"
+  subscriber_id: "ondcp.tatacapital.com"
+  uk_id: "81d42a5d-42bf-4c80-bcaf-62f9662df580"
+  bap_id: "ondc.prod.invoicepar.com"
+  bap_uri: "https://seller-mock.kynondc.net"
+  bpp_id: "bfl.ondcprod.ignosis.ai"
+  bpp_uri: "https://seller-mock.kynondc.net"
+  core_version: 1.2.0
+
+### WORKING CONFIG - Dev Environment - DO NOT DELETE - TESTED on 14-03-2026
+  # host: "http://34.47.237.122:8080" # Development Gateway API URL (Ingress service) - UPDATED IP
+  # postack_host: "http://34.47.180.5:8081"
+  # private_key_seed: "f1adec7bfabf2da168ad388a98816e0534a26a3f2068ecfa19ae184fa35e46df"
+  # participant_id: "futuresoftmsnprod.clouddeploy.in"
+  # subscriber_id: "futuresoftmsnprod.clouddeploy.in"
+  # uk_id: "5d080661-182e-4302-be9f-9e8f3ed1ebe1"
+  # bap_id: "kyndrymockondc.southindia.cloudapp.azure.com"
+  # bap_uri: "https://kyndrymockondc.southindia.cloudapp.azure.com/api/v1/ondc/123"
+  # bpp_id: "ondcpreprodb2b.rapidor.co"
+  # bpp_uri: "https://gateway-3-0.free.beeceptor.com"
+  # core_version: 1.2.0
+
+  # Lookup Configuration (disabled - using direct credentials instead)
+  lookup_host: null  # null to skip lookup
+  lookup_domain: null
+  lookup_city: null
+
+  # Test ONDC domains
+  domains:
+    - "ONDC:FIS12"   # Financial Services - Insurance
+#    - "ONDC:RET10"   # Grocery
+#    - "ONDC:RET16"   # Health & Wellness
+
+  # Test delivery cities
+  cities:
+    - "std:080"  # Bangalore
+    - "std:022"  # Mumbai
+    - "std:011"  # Delhi
+    - "std:040"  # Hyderabad
+    - "std:033"  # Kolkata
+    - "std:020"  # Pune
+    - "std:044"  # Chennai
+
+  # Test providers (different sellers per domain)
+  test_providers:
+    ONDC:RET10:
+      - id: "provider-ret-001"
+        name: "Fresh Grocery Store"
+        location_id: "store-location-001"
+        category: "Grocery"
+        fulfillment_types:
+          - "Delivery"
+          - "Self-Pickup"
+        rating: "4.5"
+      - id: "provider-ret-002"
+        name: "Healthy Living Mart"
+        location_id: "store-location-002"
+        category: "Health"
+        fulfillment_types:
+          - "Delivery"
+        rating: "4.3"
+      - id: "provider-ret-003"
+        name: "Daily Essentials Shop"
+        location_id: "store-location-003"
+        category: "Grocery"
+        fulfillment_types:
+          - "Delivery"
+          - "Store-Pickup"
+        rating: "4.2"
+    ONDC:FIS12:
+      - id: "provider-fis-001"
+        name: "ABC Finance Ltd"
+        location_id: "fis-location-001"
+        category: "PERSONAL_LOAN"
+        fulfillment_types:
+          - "Digital"
+        rating: "4.4"
+      - id: "provider-fis-002"
+        name: "MSME Capital Bank"
+        location_id: "fis-location-002"
+        category: "BUSINESS_LOAN"
+        fulfillment_types:
+          - "Account-Credit"
+        rating: "4.2"
+      - id: "provider-fis-003"
+        name: "EduFund Financial Services"
+        location_id: "fis-location-003"
+        category: "EDUCATION_LOAN"
+        fulfillment_types:
+          - "Digital"
+        rating: "4.3"
+
+  # Test items (domain-keyed)
+  test_data:
+    ONDC:RET10:
+      test_items:
+        - id: "item-001"
+          name: "Basmati Rice 5kg"
+          price: "450.00"
+          category_id: "Grocery"
+          fulfillment_id: "F1"
+          location_id: "L1"
+        - id: "item-002"
+          name: "Sunflower Oil 1L"
+          price: "200.00"
+          category_id: "Grocery"
+          fulfillment_id: "F1"
+          location_id: "L1"
+        - id: "item-003"
+          name: "Multivitamin Tablets"
+          price: "350.00"
+          category_id: "Health"
+          fulfillment_id: "F1"
+          location_id: "L1"
+    ONDC:FIS12:
+      test_items:
+        - id: "loan-001"
+          name: "Instant Personal Loan"
+          category_id: "PERSONAL_LOAN"
+          loan_amount: "50000"
+          interest_rate: "12.5"
+          tenure_months: "12"
+        - id: "loan-002"
+          name: "MSME Business Loan"
+          category_id: "BUSINESS_LOAN"
+          loan_amount: "200000"
+          interest_rate: "14.0"
+          tenure_months: "24"
+        - id: "loan-003"
+          name: "Education Loan"
+          category_id: "EDUCATION_LOAN"
+          loan_amount: "500000"
+          interest_rate: "10.0"
+          tenure_months: "60"
+
+  # Payment types (different payment modes per domain)
+  payment_types:
+    ONDC:RET10:
+      - type: "ON-ORDER"
+        status: "PAID"
+        collected_by: "BAP"
+        description: "Customer pays at order placement (UPI/card/wallet)"
+      - type: "PRE-FULFILLMENT"
+        status: "PAID"
+        collected_by: "BAP"
+        description: "Payment collected before dispatch or packing"
+      - type: "ON-FULFILLMENT"
+        status: "NOT-PAID"
+        collected_by: "BPP"
+        description: "Cash on delivery collected by seller"
+      - type: "POST-FULFILLMENT"
+        status: "NOT-PAID"
+        collected_by: "BPP"
+        description: "Invoice or pay-later model"
+    ONDC:FIS12:
+      - type: "PRE-FULFILLMENT"
+        status: "PAID"
+        collected_by: "BAP"
+        description: "Loan application or processing fee"
+      - type: "ON-FULFILLMENT"
+        status: "NOT-PAID"
+        collected_by: "BPP"
+        description: "Loan disbursement to borrower"
+      - type: "POST-FULFILLMENT"
+        status: "NOT-PAID"
+        collected_by: "BPP"
+        description: "EMI repayment collected by lender"
+
+  # Fulfillment types (per domain)
+  fulfillment_types:
+    ONDC:RET10:
+      - type: "Delivery"
+        description: "Order delivered to the customer address"
+      - type: "Self-Pickup"
+        description: "Customer picks up the order from the store"
+      - type: "Store-Pickup"
+        description: "Pickup from a designated pickup location"
+    ONDC:FIS12:
+      - type: "Digital"
+        description: "Loan processed digitally and disbursed to bank account"
+      - type: "Account-Credit"
+        description: "Loan amount credited directly to borrower account"
+      - type: "Mandate-Setup"
+        description: "eMandate or autopay setup for EMI repayment"
+
+  # Delivery locations with GPS
+  test_locations:
+    - city: "std:080"
+      gps: "12.9492953,77.7019878"
+      area_code: "560001"
+      address: "123 Test Street, Bangalore 560001"
+      radius_km: 5
+    - city: "std:022"
+      gps: "19.0760,72.8777"
+      area_code: "400001"
+      address: "456 Marine Drive, Mumbai 400001"
+      radius_km: 10
+    - city: "std:011"
+      gps: "28.7041,77.1025"
+      area_code: "110001"
+      address: "789 Connaught Place, Delhi 110001"
+
+  # Settlement details for payment
+  settlement_details:
+    - settlement_counterparty: "seller-app"
+      settlement_phase: "sale-amount"
+      settlement_type: "neft"
+      beneficiary_name: "Seller Account"
+      settlement_bank_account_no: "1234567890"
+      settlement_ifsc_code: "HDFC0001234"
+      bank_name: "HDFC Bank"
+    - settlement_counterparty: "seller-app"
+      settlement_phase: "sale-amount"
+      settlement_type: "upi"
+      beneficiary_name: "Seller UPI"
+      upi_address: "seller@upi"
+
+  # Performance thresholds
+  performance:
+    max_response_time_ms: 500
+    max_p95_response_time_ms: 1000
+    min_throughput_rps: 100
+
+  # Test configuration
+  test_config:
+    signature_ttl_seconds: 300
+    request_timeout_seconds: 10
+    max_retries: 3
+
+  # Payload defaults
+  country: "IND"
+  currency: "INR"
+  request_ttl: "PT30S"
+  finder_fee_type: "percent"
+  finder_fee_amount: "3.0"
+  default_order_amount: "500.00"
+  default_delivery_charge: "50.00"
+
+  # Default test buyer details
+  test_buyer:
+    name: "Test Buyer"
+    phone: "9876543210"
+    email: "buyer@example.com"
+    address_prefix: "123 Test Street, Bangalore"
+    gstin: "GSTIN123456789"
+    org_name: "Test Buyer Org"
+
+  # Seller/store location GPS (used in on_select backward flow)
+  seller_source_gps: "12.9063433,77.5856825"
+  seller_source_address: "Seller Warehouse, Bangalore"
+  seller_agent_phone: "8888888888"
+  delivery_agent_phone: "9999999999"

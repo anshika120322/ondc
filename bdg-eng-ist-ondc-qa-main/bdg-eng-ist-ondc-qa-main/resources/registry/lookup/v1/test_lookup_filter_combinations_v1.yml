@@ -1,0 +1,87 @@
+# V1 Lookup Filter Combinations Test Configuration
+# V1 is the simplest lookup - only country and type parameters (no domain/city filters)
+
+# QA Environment Configuration
+ondcRegistryV1Lookup:
+  # Base URL for Registry API (UAT Lookup Server)
+  host: "https://registry-uat.kynondc.net"
+  
+  # Admin API Authentication (for participant registration)
+  admin_username: "admin@ondc.org"
+  admin_password: "Admin@123"
+  admin_auth_url: "https://admin-auth-uat.kynondc.net/api/auth/login"
+  
+  # V2/V3 API ED25519 Signature Authentication (for registration)
+  participant_id: "test-v3-lookup-working.participant.ondc"
+  uk_id: "83b68b94-8fb9-44ad-bcd4-b0e89d741290"
+  private_key_seed: "c190934de2c9aea71b47a31bacb8f002b0e4995c083cb457c0d58b9d6ba3670f"
+  
+  # ED25519 Public Keys (base64 encoded)
+  signing_public_key: "rb07mNxVAG9quf/6CJCpNM06FwdG0N/FBn+qcLHvWxs="
+  encryption_public_key: "MOsaXHtJWbQ6Y8W2mAYEHBrYMG/OYl/+y8yCMGQRExw="
+  
+  # V1 Default Lookup Payload
+  # V1 only supports country and type (no domain/city filters like V2/V3)
+  default_lookup_payload:
+    country: "IND"
+    type: "BPP"
+  
+  # Lookup Type Variations for V1
+  # These are the only types supported by ONDC Registry
+  lookup_types:
+    - "BPP"
+    - "BAP"
+    - "BG"
+    - "REGISTRY"
+  
+  # Countries (V1 only supports IND currently)
+  countries:
+    - "IND"
+
+# PROD Environment Configuration
+ondcRegistryV1LookupProd:
+  # Base URL for PROD Registry API
+  # Note: Don't include /lookup in host - it's added automatically by the request methods
+  host: "https://prod.registry.ondc.org"
+  
+  # V2/V3 API ED25519 Signature Authentication (for authenticated endpoints if needed)
+  # Using registered participant with valid credentials
+  participant_id: "futuresoftmsnprod.clouddeploy.in"
+  uk_id: "5d080661-182e-4302-be9f-9e8f3ed1ebe1"
+  
+  # ED25519 Private Key Seed (32 bytes hex)
+  private_key_seed: "f1adec7bfabf2da168ad388a98816e0534a26a3f2068ecfa19ae184fa35e46df"
+  
+  # ED25519 Public Keys (base64 encoded RAW 32-byte keys)
+  signing_public_key: "VXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+  encryption_public_key: "VXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+  
+  # V1 Default Lookup Payload
+  default_lookup_payload:
+    country: "IND"
+    type: "BPP"
+  
+  # Lookup Type Variations for V1
+  lookup_types:
+    - "BPP"
+    - "BAP"
+    - "BG"
+    - "REGISTRY"
+  
+  # Countries
+  countries:
+    - "IND"
+
+test:
+  # Performance thresholds (in milliseconds)
+  performance:
+    large_resultset_threshold: 2000
+    small_resultset_threshold: 1000
+    any_query_threshold: 1500
+  
+  # Data quality checks
+  quality:
+    allow_duplicates: false
+    require_all_fields: true
+    validate_urls: true
+

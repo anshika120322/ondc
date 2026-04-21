@@ -1,0 +1,123 @@
+ondcGW: # Environment name for all Gateway cancel tests
+  host: "https://gateway-uat.example.com" # Gateway API URL (Ingress service)
+  postack_host: "not needed"
+  private_key_seed: "<YOUR_BASE64_OR_HEX_PRIVATE_KEY_SEED>"
+  participant_id: "<your-participant-id.example.com>"
+  subscriber_id: "<your-participant-id.example.com>"
+  uk_id: "<your-unique-key-id-uuid>"
+  bap_id: "<your-bap-id.example.com>"
+  bap_uri: "https://seller-mock.example.com"
+  bpp_id: "<your-bpp-id.example.com>" # /cancel is always unicast
+  bpp_uri: "https://seller-mock.example.com"
+  core_version: 1.2.0
+
+  # Lookup Configuration (disabled - using direct credentials)
+  lookup_host: null
+  lookup_domain: null
+  lookup_city: null
+
+  # Optional registry admin values for the automatic registration helper
+  registry_url: "https://registry-uat.example.com"
+  admin_auth_url: "https://admin-auth-uat.example.com/api/auth/login"
+  admin_email: "<your-admin-email>"
+  admin_password: "<your-admin-password>"
+  registration_timeout_seconds: 15
+
+  # Test ONDC domains
+  domains:
+    - "ONDC:FIS12"   # Financial Services - Insurance
+#    - "ONDC:RET10"   # Grocery
+#    - "ONDC:RET16"   # Health & Wellness
+
+  # Test delivery / service cities
+  cities:
+    - "std:080"  # Bangalore
+    - "std:022"  # Mumbai
+    - "std:011"  # Delhi
+    - "std:040"  # Hyderabad
+    - "std:033"  # Kolkata
+    - "std:020"  # Pune
+    - "std:044"  # Chennai
+
+  # Test providers (domain-keyed)
+  test_providers:
+    ONDC:RET10:
+      - id: "provider-ret-001"
+        name: "Fresh Grocery Store"
+        location_id: "store-location-001"
+        address: "12 Market Road, Bangalore 560001"
+        category: "Grocery"
+        fulfillment_types:
+          - "Delivery"
+          - "Self-Pickup"
+        rating: "4.5"
+    ONDC:FIS12:
+      - id: "provider-fis-001"
+        name: "ABC Finance Ltd"
+        location_id: "fis-location-001"
+        address: "Finance Tower, Bangalore 560001"
+        category: "PERSONAL_LOAN"
+        fulfillment_types:
+          - "Digital"
+        rating: "4.4"
+
+  # Test items (domain-keyed)
+  test_data:
+    ONDC:RET10:
+      test_items:
+        - id: "item-001"
+          name: "Basmati Rice 5kg"
+          price: "450.00"
+          category_id: "Grocery"
+          fulfillment_id: "F1"
+          location_id: "store-location-001"
+    ONDC:FIS12:
+      test_items:
+        - id: "loan-001"
+          name: "Instant Personal Loan"
+          category_id: "PERSONAL_LOAN"
+          loan_amount: "50000"
+          price: "50000"
+          interest_rate: "12.5"
+          tenure_months: "12"
+          fulfillment_id: "F1"
+          location_id: "fis-location-001"
+
+  # Payment types (domain-keyed)
+  payment_types:
+    ONDC:RET10:
+      - type: "ON-ORDER"
+        status: "PAID"
+        collected_by: "BAP"
+    ONDC:FIS12:
+      - type: "PRE-FULFILLMENT"
+        status: "PAID"
+        collected_by: "BAP"
+
+  # Fulfillment types (domain-keyed)
+  fulfillment_types:
+    ONDC:RET10:
+      - type: "Delivery"
+        description: "Order delivered to the customer address"
+    ONDC:FIS12:
+      - type: "Digital"
+        description: "Loan processed digitally and disbursed to bank account"
+
+  # Service / delivery locations
+  test_locations:
+    - city: "std:080"
+      gps: "12.9492953,77.7019878"
+      area_code: "560001"
+      address: "123 Test Street, Bangalore 560001"
+
+  # Performance thresholds
+  performance:
+    max_response_time_ms: 500
+    max_p95_response_time_ms: 1000
+    min_throughput_rps: 100
+
+  # Test configuration
+  test_config:
+    signature_ttl_seconds: 300
+    request_timeout_seconds: 10
+    max_retries: 3

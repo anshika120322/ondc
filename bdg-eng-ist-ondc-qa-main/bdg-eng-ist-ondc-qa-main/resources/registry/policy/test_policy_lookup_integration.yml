@@ -1,0 +1,1049 @@
+test_suite:
+  name: Policy + Lookup Integration Tests
+  category: policy_lookup
+  total_tests: 9
+  description: End-to-end policy creation with lookup verification using all query methods
+lookup_config:
+  host: https://registry-uat.kynondc.net
+  core_version: 1.2.0
+config:
+  auth_type: admin
+  default_timeout: 30
+  retry_on_failure: false
+tests:
+- id: PL01
+  name: "Register \u2192 Create Policy \u2192 Verify Policy \u2192 Lookup by participant_id"
+  description: Full workflow with lookup verification using participant_id query
+  steps:
+  - name: 'Step 1: Register participant'
+    type: api
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      dns_skip: true
+      skip_ssl_verification: true
+      participant_id: '{{participant_id}}'
+      action: SUBSCRIBED
+      credentials:
+      - cred_id: cred_gst_001
+        type: GST
+        cred_data:
+          gstin: 29ABCDE1234F1Z5
+          legal_name: Policy Lookup Test Company Ltd
+      - cred_id: cred_pan_001
+        type: PAN
+        cred_data:
+          pan: ABCDE1234F
+          name: Policy Lookup Test Company Ltd
+      contacts:
+      - contact_id: contact_auth_001
+        type: AUTHORISED_SIGNATORY
+        name: Test Admin
+        email: admin@policylookuptest.ondc.org
+        phone: '+919876543211'
+      - contact_id: contact_biz_001
+        type: BUSINESS
+        name: Business Manager
+        email: business@policylookuptest.ondc.org
+        phone: '+919876543212'
+      key:
+        uk_id: '{{uk_id}}'
+        signing_public_key: '{{signing_public_key}}'
+        encryption_public_key: '{{encryption_public_key}}'
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '{{valid_from}}'
+        valid_until: '{{valid_until}}'
+      location:
+        location_id: loc_001
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri_callback_001
+        type: CALLBACK
+        url: https://policylookuptest.ondc.org/callback
+      configs:
+      - domain: ONDC:RET12
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc_001
+        uri_id: uri_callback_001
+        key_id: '{{uk_id}}'
+    expected_status:
+    - 200
+    - 409
+  - name: 'Step 2: Create NETWORK policy'
+    type: api
+    method: POST
+    endpoint: /admin/policies
+    auth_type: admin
+    data:
+      description: NETWORK routing policy for RET12 domain (participant_id test)
+      is_active: true
+      metadata:
+        test_type: participant_id_lookup
+      name: RET12 Routing Policy {{timestamp}}
+      participant_id: '{{participant_id}}'
+      policy_id: policy-pl01-{{timestamp}}
+      priority: 100
+      rule_definition:
+        rules:
+        - action_to_take:
+            action_type: ROUTING
+            target_url: https://gateway.example.com/search
+          description: Route RET12 search to gateway
+          id: rule-pl01-001
+          match_condition:
+            action: search
+            domain: ONDC:RET12
+          priority: 100
+          status: ENABLED
+      type: NETWORK
+    expected_status: 201
+    validate:
+    - field: type
+      value: NETWORK
+    - field: participant_id
+      value: '{{participant_id}}'
+  - name: 'Step 3: Verify policy created'
+    type: api
+    method: GET
+    endpoint: /admin/policies
+    auth_type: admin
+    query_params:
+      participant_id: '{{participant_id}}'
+    expected_status: 200
+  - name: 'Step 4: Lookup by participant_id'
+    type: lookup
+    lookup_type: participant_id
+    expected_status: 200
+- id: PL02
+  name: "Register \u2192 Create Policy \u2192 Verify Policy \u2192 Lookup by subscriber_id"
+  description: Full workflow with lookup verification using subscriber_id query
+  steps:
+  - name: 'Step 1: Register participant'
+    type: api
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      dns_skip: true
+      skip_ssl_verification: true
+      participant_id: '{{participant_id}}'
+      action: SUBSCRIBED
+      credentials:
+      - cred_id: cred_gst_002
+        type: GST
+        cred_data:
+          gstin: 29XYZAB1234F1Z6
+          legal_name: Subscriber ID Test Company Ltd
+      - cred_id: cred_pan_002
+        type: PAN
+        cred_data:
+          pan: XYZAB1234F
+          name: Subscriber ID Test Company Ltd
+      contacts:
+      - contact_id: contact_auth_002
+        type: AUTHORISED_SIGNATORY
+        name: Test Admin 2
+        email: admin2@policylookuptest.ondc.org
+        phone: '+919876543221'
+      - contact_id: contact_biz_002
+        type: BUSINESS
+        name: Business Manager 2
+        email: business2@policylookuptest.ondc.org
+        phone: '+919876543222'
+      key:
+        uk_id: '{{uk_id}}'
+        signing_public_key: '{{signing_public_key}}'
+        encryption_public_key: '{{encryption_public_key}}'
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '{{valid_from}}'
+        valid_until: '{{valid_until}}'
+      location:
+        location_id: loc_002
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri_callback_002
+        type: CALLBACK
+        url: https://subscribertest.ondc.org/callback
+      configs:
+      - domain: ONDC:RET11
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc_002
+        uri_id: uri_callback_002
+        key_id: '{{uk_id}}'
+    expected_status:
+    - 200
+    - 409
+  - name: 'Step 2: Create NETWORK_PARTICIPANT policy'
+    type: api
+    method: POST
+    endpoint: /admin/policies
+    auth_type: admin
+    data:
+      description: NETWORK_PARTICIPANT whitelist policy (subscriber_id test)
+      is_active: true
+      metadata:
+        test_type: subscriber_id_lookup
+      name: RET11 Whitelist Policy {{timestamp}}
+      participant_id: '{{participant_id}}'
+      policy_id: policy-pl02-{{timestamp}}
+      priority: 100
+      rule_definition:
+        rules:
+        - action_to_take:
+            action_type: ALLOW
+          description: Allow RET11 search from specific BPP
+          id: rule-pl02-001
+          match_condition:
+            action: search
+            domain: ONDC:RET11
+            bpp_id: test-bpp.ondc.org
+          priority: 100
+          status: ENABLED
+      type: NETWORK_PARTICIPANT
+    expected_status: 201
+  - name: 'Step 3: Verify policy created'
+    type: api
+    method: GET
+    endpoint: /admin/policies
+    auth_type: admin
+    query_params:
+      participant_id: '{{participant_id}}'
+    expected_status: 200
+  - name: 'Step 4: Lookup by subscriber_id'
+    type: lookup
+    lookup_type: subscriber_id
+    expected_status: 200
+- id: PL03
+  name: "Register \u2192 Create Policy \u2192 Verify Policy \u2192 Lookup by domain/type/city"
+  description: Full workflow with lookup verification using domain/type/city query
+  steps:
+  - name: 'Step 1: Register participant'
+    type: api
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      dns_skip: true
+      skip_ssl_verification: true
+      participant_id: '{{participant_id}}'
+      action: SUBSCRIBED
+      credentials:
+      - cred_id: cred_gst_003
+        type: GST
+        cred_data:
+          gstin: 29DOMAIN1234F1Z7
+          legal_name: Domain Lookup Test Company Ltd
+      - cred_id: cred_pan_003
+        type: PAN
+        cred_data:
+          pan: DOMAI1234F
+          name: Domain Lookup Test Company Ltd
+      contacts:
+      - contact_id: contact_auth_003
+        type: AUTHORISED_SIGNATORY
+        name: Test Admin 3
+        email: admin3@domainlookuptest.ondc.org
+        phone: '+919876543231'
+      - contact_id: contact_biz_003
+        type: BUSINESS
+        name: Business Manager 3
+        email: business3@domainlookuptest.ondc.org
+        phone: '+919876543232'
+      key:
+        uk_id: '{{uk_id}}'
+        signing_public_key: '{{signing_public_key}}'
+        encryption_public_key: '{{encryption_public_key}}'
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '{{valid_from}}'
+        valid_until: '{{valid_until}}'
+      location:
+        location_id: loc_003
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri_callback_003
+        type: CALLBACK
+        url: https://domainlookuptest.ondc.org/callback
+      configs:
+      - domain: ONDC:RET12
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc_003
+        uri_id: uri_callback_003
+        key_id: '{{uk_id}}'
+    expected_status:
+    - 200
+    - 409
+  - name: 'Step 2: Create NETWORK policy'
+    type: api
+    method: POST
+    endpoint: /admin/policies
+    auth_type: admin
+    data:
+      description: NETWORK routing policy for domain lookup test
+      is_active: true
+      metadata:
+        test_type: domain_lookup
+      name: Domain Lookup Test Policy {{timestamp}}
+      participant_id: '{{participant_id}}'
+      policy_id: policy-pl03-{{timestamp}}
+      priority: 100
+      rule_definition:
+        rules:
+        - action_to_take:
+            action_type: ROUTING
+            target_url: https://gateway.example.com/search
+          description: Route RET12 search to gateway
+          id: rule-pl03-001
+          match_condition:
+            action: search
+            domain: ONDC:RET12
+          priority: 100
+          status: ENABLED
+      type: NETWORK
+    expected_status: 201
+  - name: 'Step 3: Verify policy created'
+    type: api
+    method: GET
+    endpoint: /admin/policies
+    auth_type: admin
+    query_params:
+      participant_id: '{{participant_id}}'
+    expected_status: 200
+  - name: 'Step 4: Lookup by domain/type/city'
+    type: lookup
+    lookup_type: domain
+    domain: ONDC:RET12
+    np_type: BPP
+    city: std:080
+    expected_status: 200
+- id: PL04
+  name: "Register \u2192 Create Policy \u2192 Test ALL 3 Lookup Methods"
+  description: Register participant, create policy, verify with all three lookup query types
+  steps:
+  - name: 'Step 1: Register participant'
+    type: api
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      dns_skip: true
+      skip_ssl_verification: true
+      participant_id: '{{participant_id}}'
+      action: SUBSCRIBED
+      credentials:
+      - cred_id: cred_gst_004
+        type: GST
+        cred_data:
+          gstin: 29ALL3LOOKUP1Z8
+          legal_name: All Three Lookup Methods Test Ltd
+      - cred_id: cred_pan_004
+        type: PAN
+        cred_data:
+          pan: ALL3L1234F
+          name: All Three Lookup Methods Test Ltd
+      contacts:
+      - contact_id: contact_auth_004
+        type: AUTHORISED_SIGNATORY
+        name: Test Admin 4
+        email: admin4@all3lookup.ondc.org
+        phone: '+919876543241'
+      - contact_id: contact_biz_004
+        type: BUSINESS
+        name: Business Manager 4
+        email: business4@all3lookup.ondc.org
+        phone: '+919876543242'
+      key:
+        uk_id: '{{uk_id}}'
+        signing_public_key: '{{signing_public_key}}'
+        encryption_public_key: '{{encryption_public_key}}'
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '{{valid_from}}'
+        valid_until: '{{valid_until}}'
+      location:
+        location_id: loc_004
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+        - std:022
+      uri:
+        uri_id: uri_callback_004
+        type: CALLBACK
+        url: https://all3lookup.ondc.org/callback
+      configs:
+      - domain: ONDC:RET12
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc_004
+        uri_id: uri_callback_004
+        key_id: '{{uk_id}}'
+    expected_status:
+    - 200
+    - 409
+  - name: 'Step 2: Create NETWORK policy'
+    type: api
+    method: POST
+    endpoint: /admin/policies
+    auth_type: admin
+    data:
+      description: Policy for testing all 3 lookup methods
+      is_active: true
+      metadata:
+        test_type: all_3_lookup_methods
+      name: All 3 Lookup Methods Policy {{timestamp}}
+      participant_id: '{{participant_id}}'
+      policy_id: policy-pl04-{{timestamp}}
+      priority: 100
+      rule_definition:
+        rules:
+        - action_to_take:
+            action_type: ROUTING
+            target_url: https://gateway.example.com/search
+          description: Route RET12 search
+          id: rule-pl04-001
+          match_condition:
+            action: search
+            domain: ONDC:RET12
+          priority: 100
+          status: ENABLED
+      type: NETWORK
+    expected_status: 201
+  - name: 'Step 3: Verify policy created'
+    type: api
+    method: GET
+    endpoint: /admin/policies
+    auth_type: admin
+    query_params:
+      participant_id: '{{participant_id}}'
+    expected_status: 200
+  - name: 'Step 4a: Lookup by participant_id'
+    type: lookup
+    lookup_type: participant_id
+    expected_status: 200
+  - name: 'Step 4b: Lookup by subscriber_id'
+    type: lookup
+    lookup_type: subscriber_id
+    expected_status: 200
+  - name: 'Step 4c: Lookup by domain/type/city'
+    type: lookup
+    lookup_type: domain
+    domain: ONDC:RET12
+    np_type: BPP
+    city: std:080
+    expected_status: 200
+- id: PL05
+  name: "Register BPP (Multi-Domain) \u2192 Create Policy \u2192 Lookup by domain combinations"
+  description: BPP registered in multiple domains, test lookup for each domain
+  steps:
+  - name: 'Step 1: Register BPP in multiple domains'
+    type: api
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      dns_skip: true
+      skip_ssl_verification: true
+      participant_id: '{{participant_id}}'
+      action: SUBSCRIBED
+      credentials:
+      - cred_id: cred_gst_005
+        type: GST
+        cred_data:
+          gstin: 29MULTIDOMAIN1Z9
+          legal_name: Multi Domain BPP Test Ltd
+      - cred_id: cred_pan_005
+        type: PAN
+        cred_data:
+          pan: MULTI1234F
+          name: Multi Domain BPP Test Ltd
+      contacts:
+      - contact_id: contact_auth_005
+        type: AUTHORISED_SIGNATORY
+        name: Test Admin 5
+        email: admin5@multidomain.ondc.org
+        phone: '+919876543251'
+      - contact_id: contact_biz_005
+        type: BUSINESS
+        name: Business Manager 5
+        email: business5@multidomain.ondc.org
+        phone: '+919876543252'
+      key:
+        uk_id: '{{uk_id}}'
+        signing_public_key: '{{signing_public_key}}'
+        encryption_public_key: '{{encryption_public_key}}'
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '{{valid_from}}'
+        valid_until: '{{valid_until}}'
+      location:
+        location_id: loc_005
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri_callback_005
+        type: CALLBACK
+        url: https://multidomain.ondc.org/callback
+      configs:
+      - domain: ONDC:RET10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc_005
+        uri_id: uri_callback_005
+        key_id: '{{uk_id}}'
+      - domain: ONDC:RET11
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc_005
+        uri_id: uri_callback_005
+        key_id: '{{uk_id}}'
+      - domain: ONDC:RET12
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc_005
+        uri_id: uri_callback_005
+        key_id: '{{uk_id}}'
+    expected_status:
+    - 200
+    - 409
+  - name: 'Step 2: Create multi-domain NETWORK policy'
+    type: api
+    method: POST
+    endpoint: /admin/policies
+    auth_type: admin
+    data:
+      description: Multi-domain NETWORK policy
+      is_active: true
+      metadata:
+        test_type: multi_domain_bpp
+      name: Multi Domain BPP Policy {{timestamp}}
+      participant_id: '{{participant_id}}'
+      policy_id: policy-pl05-{{timestamp}}
+      priority: 100
+      rule_definition:
+        rules:
+        - action_to_take:
+            action_type: ROUTING
+            target_url: https://gateway.example.com/search
+          description: Route RET10 search
+          id: rule-pl05-001
+          match_condition:
+            action: search
+            domain: ONDC:RET10
+          priority: 100
+          status: ENABLED
+      type: NETWORK
+    expected_status: 201
+  - name: 'Step 3: Lookup by RET10 domain'
+    type: lookup
+    lookup_type: domain
+    domain: ONDC:RET10
+    np_type: BPP
+    city: std:080
+    expected_status: 200
+  - name: 'Step 4: Lookup by RET11 domain'
+    type: lookup
+    lookup_type: domain
+    domain: ONDC:RET11
+    np_type: BPP
+    city: std:080
+    expected_status: 200
+  - name: 'Step 5: Lookup by RET12 domain'
+    type: lookup
+    lookup_type: domain
+    domain: ONDC:RET12
+    np_type: BPP
+    city: std:080
+    expected_status: 200
+- id: PL06
+  name: "Register BAP (Multi-City) \u2192 Create Policy \u2192 Lookup by city combinations"
+  description: BAP registered in multiple cities, test lookup for each city
+  steps:
+  - name: 'Step 1: Register BAP in multiple cities'
+    type: api
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      dns_skip: true
+      skip_ssl_verification: true
+      participant_id: '{{participant_id}}'
+      action: SUBSCRIBED
+      credentials:
+      - cred_id: cred_gst_006
+        type: GST
+        cred_data:
+          gstin: 29MULTICITY001Z0
+          legal_name: Multi City BAP Test Ltd
+      - cred_id: cred_pan_006
+        type: PAN
+        cred_data:
+          pan: MULCI1234F
+          name: Multi City BAP Test Ltd
+      contacts:
+      - contact_id: contact_auth_006
+        type: AUTHORISED_SIGNATORY
+        name: Test Admin 6
+        email: admin6@multicity.ondc.org
+        phone: '+919876543261'
+      - contact_id: contact_biz_006
+        type: BUSINESS
+        name: Business Manager 6
+        email: business6@multicity.ondc.org
+        phone: '+919876543262'
+      key:
+        uk_id: '{{uk_id}}'
+        signing_public_key: '{{signing_public_key}}'
+        encryption_public_key: '{{encryption_public_key}}'
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '{{valid_from}}'
+        valid_until: '{{valid_until}}'
+      location:
+        location_id: loc_006
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+        - std:022
+        - std:011
+      uri:
+        uri_id: uri_callback_006
+        type: CALLBACK
+        url: https://multicity.ondc.org/callback
+      configs:
+      - domain: ONDC:RET12
+        np_type: BAP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc_006
+        uri_id: uri_callback_006
+        key_id: '{{uk_id}}'
+    expected_status:
+    - 200
+    - 409
+  - name: 'Step 2: Create NETWORK policy for BAP'
+    type: api
+    method: POST
+    endpoint: /admin/policies
+    auth_type: admin
+    data:
+      description: Multi-city BAP NETWORK policy
+      is_active: true
+      metadata:
+        test_type: multi_city_bap
+      name: Multi City BAP Policy {{timestamp}}
+      participant_id: '{{participant_id}}'
+      policy_id: policy-pl06-{{timestamp}}
+      priority: 100
+      rule_definition:
+        rules:
+        - action_to_take:
+            action_type: ROUTING
+            target_url: https://gateway.example.com/search
+          description: Route BAP requests
+          id: rule-pl06-001
+          match_condition:
+            action: search
+            domain: ONDC:RET12
+          priority: 100
+          status: ENABLED
+      type: NETWORK
+    expected_status: 201
+  - name: 'Step 3: Lookup BAP in Bangalore'
+    type: lookup
+    lookup_type: domain
+    domain: ONDC:RET12
+    np_type: BAP
+    city: std:080
+    expected_status: 200
+  - name: 'Step 4: Lookup BAP in Mumbai'
+    type: lookup
+    lookup_type: domain
+    domain: ONDC:RET12
+    np_type: BAP
+    city: std:022
+    expected_status: 200
+  - name: 'Step 5: Lookup BAP in Delhi'
+    type: lookup
+    lookup_type: domain
+    domain: ONDC:RET12
+    np_type: BAP
+    city: std:011
+    expected_status: 200
+- id: PL07
+  name: "Create NETWORK Policy \u2192 Lookup | Create NETWORK_PARTICIPANT Policy \u2192 Lookup"
+  description: Test both policy types with lookup verification
+  steps:
+  - name: 'Step 1: Register participant'
+    type: api
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      dns_skip: true
+      skip_ssl_verification: true
+      participant_id: '{{participant_id}}'
+      action: SUBSCRIBED
+      credentials:
+      - cred_id: cred_gst_007
+        type: GST
+        cred_data:
+          gstin: 29POLICYTYPES1Z1
+          legal_name: Policy Types Test Ltd
+      - cred_id: cred_pan_007
+        type: PAN
+        cred_data:
+          pan: POLTY1234F
+          name: Policy Types Test Ltd
+      contacts:
+      - contact_id: contact_auth_007
+        type: AUTHORISED_SIGNATORY
+        name: Test Admin 7
+        email: admin7@policytypes.ondc.org
+        phone: '+919876543271'
+      - contact_id: contact_biz_007
+        type: BUSINESS
+        name: Business Manager 7
+        email: business7@policytypes.ondc.org
+        phone: '+919876543272'
+      key:
+        uk_id: '{{uk_id}}'
+        signing_public_key: '{{signing_public_key}}'
+        encryption_public_key: '{{encryption_public_key}}'
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '{{valid_from}}'
+        valid_until: '{{valid_until}}'
+      location:
+        location_id: loc_007
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri_callback_007
+        type: CALLBACK
+        url: https://policytypes.ondc.org/callback
+      configs:
+      - domain: ONDC:RET12
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc_007
+        uri_id: uri_callback_007
+        key_id: '{{uk_id}}'
+    expected_status:
+    - 200
+    - 409
+  - name: 'Step 2: Create NETWORK policy'
+    type: api
+    method: POST
+    endpoint: /admin/policies
+    auth_type: admin
+    data:
+      description: NETWORK routing policy
+      is_active: true
+      name: NETWORK Policy {{timestamp}}
+      participant_id: '{{participant_id}}'
+      policy_id: policy-pl07-network-{{timestamp}}
+      priority: 100
+      rule_definition:
+        rules:
+        - action_to_take:
+            action_type: ROUTING
+            target_url: https://gateway.example.com/search
+          description: Route search
+          id: rule-pl07-network-001
+          match_condition:
+            action: search
+            domain: ONDC:RET12
+          priority: 100
+          status: ENABLED
+      type: NETWORK
+    expected_status: 201
+  - name: 'Step 3: Lookup after NETWORK policy'
+    type: lookup
+    lookup_type: participant_id
+    expected_status: 200
+  - name: 'Step 4: Create NETWORK_PARTICIPANT policy'
+    type: api
+    method: POST
+    endpoint: /admin/policies
+    auth_type: admin
+    data:
+      description: NETWORK_PARTICIPANT whitelist policy
+      is_active: true
+      name: NETWORK_PARTICIPANT Policy {{timestamp}}
+      participant_id: '{{participant_id}}'
+      policy_id: policy-pl07-netpart-{{timestamp}}
+      priority: 100
+      rule_definition:
+        rules:
+        - action_to_take:
+            action_type: ALLOW
+          description: Allow specific BPP
+          id: rule-pl07-netpart-001
+          match_condition:
+            action: search
+            domain: ONDC:RET12
+            bpp_id: allowed-bpp.ondc.org
+          priority: 100
+          status: ENABLED
+      type: NETWORK_PARTICIPANT
+    expected_status: 201
+  - name: 'Step 5: Lookup after NETWORK_PARTICIPANT policy'
+    type: lookup
+    lookup_type: subscriber_id
+    expected_status: 200
+- id: PL08
+  name: "Register Multi-Config Participant \u2192 Policy \u2192 Lookup all domain/type combinations"
+  description: Participant with multiple domains and types, test all lookup combinations
+  steps:
+  - name: 'Step 1: Register participant with multiple configs'
+    type: api
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      dns_skip: true
+      skip_ssl_verification: true
+      participant_id: '{{participant_id}}'
+      action: SUBSCRIBED
+      credentials:
+      - cred_id: cred_gst_008
+        type: GST
+        cred_data:
+          gstin: 29MULTICONFIG1Z2
+          legal_name: Multi Config Test Ltd
+      - cred_id: cred_pan_008
+        type: PAN
+        cred_data:
+          pan: MULCF1234F
+          name: Multi Config Test Ltd
+      contacts:
+      - contact_id: contact_auth_008
+        type: AUTHORISED_SIGNATORY
+        name: Test Admin 8
+        email: admin8@multiconfig.ondc.org
+        phone: '+919876543281'
+      - contact_id: contact_biz_008
+        type: BUSINESS
+        name: Business Manager 8
+        email: business8@multiconfig.ondc.org
+        phone: '+919876543282'
+      key:
+        uk_id: '{{uk_id}}'
+        signing_public_key: '{{signing_public_key}}'
+        encryption_public_key: '{{encryption_public_key}}'
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '{{valid_from}}'
+        valid_until: '{{valid_until}}'
+      location:
+        location_id: loc_008
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+        - std:022
+      uri:
+        uri_id: uri_callback_008
+        type: CALLBACK
+        url: https://multiconfig.ondc.org/callback
+      configs:
+      - domain: ONDC:RET10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc_008
+        uri_id: uri_callback_008
+        key_id: '{{uk_id}}'
+      - domain: ONDC:RET11
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc_008
+        uri_id: uri_callback_008
+        key_id: '{{uk_id}}'
+      - domain: ONDC:RET12
+        np_type: BAP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc_008
+        uri_id: uri_callback_008
+        key_id: '{{uk_id}}'
+    expected_status:
+    - 200
+    - 409
+  - name: 'Step 2: Create policy'
+    type: api
+    method: POST
+    endpoint: /admin/policies
+    auth_type: admin
+    data:
+      description: Multi-config test policy
+      is_active: true
+      name: Multi Config Policy {{timestamp}}
+      participant_id: '{{participant_id}}'
+      policy_id: policy-pl08-{{timestamp}}
+      priority: 100
+      rule_definition:
+        rules:
+        - action_to_take:
+            action_type: ROUTING
+            target_url: https://gateway.example.com/search
+          description: Route search
+          id: rule-pl08-001
+          match_condition:
+            action: search
+          priority: 100
+          status: ENABLED
+      type: NETWORK
+    expected_status: 201
+  - name: 'Step 3: Lookup RET10 BPP Bangalore'
+    type: lookup
+    lookup_type: domain
+    domain: ONDC:RET10
+    np_type: BPP
+    city: std:080
+    expected_status: 200
+  - name: 'Step 4: Lookup RET11 BPP Mumbai'
+    type: lookup
+    lookup_type: domain
+    domain: ONDC:RET11
+    np_type: BPP
+    city: std:022
+    expected_status: 200
+  - name: 'Step 5: Lookup RET12 BAP Bangalore'
+    type: lookup
+    lookup_type: domain
+    domain: ONDC:RET12
+    np_type: BAP
+    city: std:080
+    expected_status: 200
+  - name: 'Step 6: Lookup by participant_id (cross-check)'
+    type: lookup
+    lookup_type: participant_id
+    expected_status: 200
+- id: PL09
+  name: "Create Inactive Policy \u2192 Verify participant still in lookup"
+  description: Test that inactive policy doesn't affect participant discoverability
+  steps:
+  - name: 'Step 1: Register participant'
+    type: api
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    data:
+      dns_skip: true
+      skip_ssl_verification: true
+      participant_id: '{{participant_id}}'
+      action: SUBSCRIBED
+      credentials:
+      - cred_id: cred_gst_009
+        type: GST
+        cred_data:
+          gstin: 29INACTIVEPOLICY3
+          legal_name: Inactive Policy Test Ltd
+      - cred_id: cred_pan_009
+        type: PAN
+        cred_data:
+          pan: INACT1234F
+          name: Inactive Policy Test Ltd
+      contacts:
+      - contact_id: contact_auth_009
+        type: AUTHORISED_SIGNATORY
+        name: Test Admin 9
+        email: admin9@inactivepolicy.ondc.org
+        phone: '+919876543291'
+      - contact_id: contact_biz_009
+        type: BUSINESS
+        name: Business Manager 9
+        email: business9@inactivepolicy.ondc.org
+        phone: '+919876543292'
+      key:
+        uk_id: '{{uk_id}}'
+        signing_public_key: '{{signing_public_key}}'
+        encryption_public_key: '{{encryption_public_key}}'
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '{{valid_from}}'
+        valid_until: '{{valid_until}}'
+      location:
+        location_id: loc_009
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri_callback_009
+        type: CALLBACK
+        url: https://inactivepolicy.ondc.org/callback
+      configs:
+      - domain: ONDC:RET12
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc_009
+        uri_id: uri_callback_009
+        key_id: '{{uk_id}}'
+    expected_status:
+    - 200
+    - 409
+  - name: 'Step 2: Create INACTIVE policy'
+    type: api
+    method: POST
+    endpoint: /admin/policies
+    auth_type: admin
+    data:
+      description: Inactive policy test
+      is_active: false
+      name: Inactive Policy {{timestamp}}
+      participant_id: '{{participant_id}}'
+      policy_id: policy-pl09-{{timestamp}}
+      priority: 100
+      rule_definition:
+        rules:
+        - action_to_take:
+            action_type: ROUTING
+            target_url: https://gateway.example.com/search
+          description: Inactive route
+          id: rule-pl09-001
+          match_condition:
+            action: search
+            domain: ONDC:RET12
+          priority: 100
+          status: DISABLED
+      type: NETWORK
+    expected_status: 201
+  - name: 'Step 3: Verify inactive policy created'
+    type: api
+    method: GET
+    endpoint: /admin/policies
+    auth_type: admin
+    query_params:
+      participant_id: '{{participant_id}}'
+    expected_status: 200
+  - name: 'Step 4: Lookup by participant_id (should still work)'
+    type: lookup
+    lookup_type: participant_id
+    expected_status: 200
+  - name: 'Step 5: Lookup by domain (should still work)'
+    type: lookup
+    lookup_type: domain
+    domain: ONDC:RET12
+    np_type: BPP
+    city: std:080
+    expected_status: 200

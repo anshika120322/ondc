@@ -1,0 +1,91 @@
+name: Build Docker Image
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      CTF_IMAGE_VERSION:
+        description: "Version of the Common-Test-Foundation image to use"
+        default: "latest"
+        required: true
+      DOCKER_IMAGE_VERSION_PREFIX:
+        description: "Prefix of the docker image to save in artifactory"
+        default: "latest"
+        required: true
+      PLATFORMS:
+        description: "Platforms to build the image with separeted by comma"
+        default: "linux/amd64"
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: build-image-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  AFAAS_IST_DOCKER_REGISTRY: ${{ vars.AFAAS_IST_DOCKER_REGISTRY }}
+  AFAAS_IST_PYPI_REGISTRY: ${{ vars.AFAAS_IST_PYPI_REGISTRY }}
+  ACTIONS_ALLOW_UNSECURE_COMMANDS: true
+  GIT_SECURE_ENV_VARS: true
+  RUNNER_ALLOW_RUNASROOT: true
+  DOCKER_IMAGE_NAME: "ondc-test-artifacts"
+  DOCKER_IMAGE_VERSION_PREFIX: ${{ github.event.inputs.DOCKER_IMAGE_VERSION_PREFIX }}
+  CTF_IMAGE_VERSION: ${{ github.event.inputs.CTF_IMAGE_VERSION }}
+  PLATFORMS: ${{ github.event.inputs.PLATFORMS }}
+
+jobs:
+  build:
+    name: Build image
+    timeout-minutes: 60
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Read from vault
+        uses: 'kyndryl-cto/bdg-eng-tops-cicd-workflows/.github/actions/vault-secrets@main'
+        with:
+          masks: '${{ tojson(secrets) }}'
+          pathSegment: 'bridge'      
+
+      - name: Checkout the repository source code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
+
+      - name: Install Docker and Buildx
+        uses: kyndryl-cto/bdg-eng-ist-custom-actions/install_docker_ubuntu@main
+
+      # Uncomment this block if you need SSH keys to CTF private repository
+      - name: Save ssh keys to a file
+        id: parse_ssh
+        run: |
+          echo "${{ secrets.CTF_PRIVATE_SSH_KEY }}" > ctf_ssh_key
+          chmod 600 ctf_ssh_key
+        
+      - name: Get current timestamp
+        run: echo "TIMESTAMP=$(date +%Y%m%d%H%M%S)" >> $GITHUB_ENV
+
+      - name: Set default CTF image version
+        run: |
+          if [[ $CTF_IMAGE_VERSION == "" ]]; then export CTF_IMAGE_VERSION="latest" ; fi
+          echo "CTF_IMAGE_VERSION=$CTF_IMAGE_VERSION" >> $GITHUB_ENV
+
+      - name: Build and push docker image
+        uses: kyndryl-cto/bdg-eng-ist-custom-actions/build_docker_image@main
+        with:
+          image-name: ${{ env.DOCKER_IMAGE_NAME }}
+          image-tag: ${{ env.DOCKER_IMAGE_VERSION_PREFIX }}
+          docker-registry: ${{ env.AFAAS_IST_DOCKER_REGISTRY }}
+          docker-username: ${{ env.AFAAS_USER }}
+          docker-password: ${{ env.AFAAS_TOKEN }}
+          ssh: ctf_ssh_key # Uncomment this line if you need SSH keys to CTF private repository
+          build-args: >-
+            AFAAS_IST_DOCKER_REGISTRY=${{ env.AFAAS_IST_DOCKER_REGISTRY }},
+            AFAAS_IST_PYPI_REGISTRY=${{ env.AFAAS_IST_PYPI_REGISTRY }},
+            IMAGE_VERSION=${{ env.CTF_IMAGE_VERSION }},
+            ARTIFACTORY_CREDS=${{ env.AFAAS_USER }}:${{ env.AFAAS_TOKEN }},
+          platforms: ${{ env.PLATFORMS }}
+          default-platform: linux/amd64

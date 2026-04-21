@@ -1,0 +1,16 @@
+{
+    "name": "ondc/signature-php",
+    "description": "ONDC Ed25519 Signature Generation for PHP",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": ">=8.0",
+        "ext-sodium": "*",
+        "ext-json": "*"
+    },
+    "autoload": {
+        "psr-4": {
+            "ONDC\\": "src/"
+        }
+    }
+}

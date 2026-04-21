@@ -1,0 +1,2085 @@
+test_suite:
+  name: V3 Comprehensive Test Suite
+  version: '2.0'
+  total_tests: 44
+  description: Complete V3 API testing covering self-subscribe, updates, and comprehensive negative scenarios including all mandatory field validations
+config:
+  auth_type: v3
+  default_timeout: 30
+  base_url: https://registry-uat.kynondc.net
+tests:
+- id: V00
+  name: Subscribe without whitelist
+  description: Participant attempts to self-subscribe without being whitelisted (negative)
+  type: negative
+  expected_result: fail
+  steps:
+  - action: v3_subscribe
+    method: POST
+    endpoint: /api/v3/subscribe
+    signature_mode: normal
+    generate_fresh_keys: true
+    payload_template: minimal_subscribe
+    domain: ONDC:RET10
+    np_type: seller
+    expected_status:
+    - 400
+    validate:
+    - type: status_code
+      expected: 400
+      message: Correctly rejected subscribe without whitelist
+- id: V01
+  name: "WHITELISTED \u2192 SUBSCRIBED (minimal)"
+  description: Participant self-subscribes with minimal required fields after whitelisting
+  type: workflow
+  expected_result: pass
+  steps:
+  - action: admin_whitelist
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    generate_fresh_keys: true
+    payload_template: admin_whitelist
+    domain: ONDC:RET10
+    np_type: seller
+    expected_status:
+    - 200
+  - action: v3_subscribe
+    method: POST
+    endpoint: /api/v3/subscribe
+    signature_mode: normal
+    use_keys_from_step: 0
+    payload_template: minimal_subscribe
+    domain: ONDC:RET10
+    np_type: seller
+    expected_status:
+    - 200
+    validate:
+    - type: status_code
+      expected: 200
+      message: Successfully subscribed with minimal fields
+- id: V02
+  name: "WHITELISTED \u2192 SUBSCRIBED (full)"
+  description: Participant self-subscribes with all optional fields
+  type: workflow
+  expected_result: pass
+  steps:
+  - action: admin_whitelist
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    generate_fresh_keys: true
+    payload_template: admin_whitelist
+    domain: ONDC:RET11
+    np_type: buyer
+    expected_status:
+    - 200
+  - action: v3_subscribe
+    method: POST
+    endpoint: /api/v3/subscribe
+    signature_mode: normal
+    use_keys_from_step: 0
+    payload_template: full_subscribe
+    domain: ONDC:RET11
+    np_type: buyer
+    expected_status:
+    - 200
+    validate:
+    - type: status_code
+      expected: 200
+      message: Successfully subscribed with all fields
+- id: V03
+  name: "INACTIVE \u2192 SUBSCRIBED"
+  description: Self-restore from INACTIVE state
+  type: workflow
+  expected_result: pass
+  steps:
+  - action: admin_whitelist
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    generate_fresh_keys: true
+    payload_template: admin_whitelist
+    domain: ONDC:RET12
+    np_type: seller
+    expected_status:
+    - 200
+  - action: admin_patch
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    use_keys_from_step: 0
+    payload:
+      action: INACTIVE
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status:
+    - 200
+  - action: v3_subscribe
+    method: POST
+    endpoint: /api/v3/subscribe
+    signature_mode: normal
+    use_keys_from_step: 0
+    payload_template: minimal_subscribe
+    domain: ONDC:RET12
+    np_type: seller
+    expected_status:
+    - 200
+    validate:
+    - type: status_code
+      expected: 200
+      message: Self-restore successful
+- id: V04
+  name: Idempotent subscribe
+  description: Re-subscribing while already SUBSCRIBED
+  type: workflow
+  expected_result: pass
+  steps:
+  - action: create_subscribed
+    helper: create_whitelisted_and_subscribe
+    domain: ONDC:RET10
+    np_type: buyer
+  - action: v3_subscribe
+    method: POST
+    endpoint: /api/v3/subscribe
+    signature_mode: normal
+    use_keys_from_step: 0
+    payload_template: minimal_subscribe
+    domain: ONDC:RET10
+    np_type: buyer
+    expected_status:
+    - 200
+    validate:
+    - type: status_code
+      expected: 200
+      message: Idempotent subscribe successful
+- id: V05
+  name: Update credentials
+  description: Update participant credentials via V3 PATCH
+  type: workflow
+  expected_result: pass
+  steps:
+  - action: create_subscribed
+    helper: create_whitelisted_and_subscribe
+    domain: ONDC:RET10
+    np_type: seller
+  - action: v3_patch
+    method: PATCH
+    endpoint: /api/v3/subscribe
+    signature_mode: normal
+    use_keys_from_step: 0
+    payload:
+      credentials:
+      - cred_id: cred_updated
+        type: GST
+        cred_data:
+          gstin: 29XYZAB9999Z9Z9
+          legal_name: Updated Company Name
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status:
+    - 200
+    validate:
+    - type: status_code
+      expected: 200
+      message: Credentials updated successfully
+- id: V06
+  name: Update contacts
+  description: Update participant contacts
+  type: workflow
+  expected_result: pass
+  steps:
+  - action: create_subscribed
+    helper: create_whitelisted_and_subscribe
+    domain: ONDC:RET11
+    np_type: buyer
+  - action: v3_patch
+    method: PATCH
+    endpoint: /api/v3/subscribe
+    signature_mode: normal
+    use_keys_from_step: 0
+    payload:
+      contacts:
+      - contact_id: contact_auth_updated
+        type: AUTHORISED_SIGNATORY
+        name: Updated Auth Contact
+        email: auth-updated@example.com
+        phone: '+919111111111'
+      - contact_id: contact_business_updated
+        type: BUSINESS
+        name: Updated Business Contact
+        email: business-updated@example.com
+        phone: '+919222222222'
+      - contact_id: contact_technical_updated
+        type: TECHNICAL
+        name: Updated Technical Contact
+        email: tech-updated@example.com
+        phone: '+919333333333'
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status:
+    - 200
+    validate:
+    - type: status_code
+      expected: 200
+      message: Contacts updated successfully
+- id: V07
+  name: Update locations
+  description: Update participant locations
+  type: workflow
+  expected_result: pass
+  steps:
+  - action: create_subscribed
+    helper: create_whitelisted_and_subscribe
+    domain: ONDC:RET12
+    np_type: seller
+  - action: v3_patch
+    method: PATCH
+    endpoint: /api/v3/subscribe
+    signature_mode: normal
+    use_keys_from_step: 0
+    payload:
+      location:
+        location_id: loc_updated
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:011
+        - std:022
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status:
+    - 200
+    validate:
+    - type: status_code
+      expected: 200
+      message: Locations updated successfully
+- id: V08
+  name: Update URIs
+  description: Update participant URIs
+  type: workflow
+  expected_result: pass
+  steps:
+  - action: create_subscribed
+    helper: create_whitelisted_and_subscribe
+    domain: ONDC:RET12
+    np_type: seller
+  - action: v3_patch
+    method: PATCH
+    endpoint: /api/v3/subscribe
+    signature_mode: normal
+    use_keys_from_step: 0
+    payload:
+      uri:
+        uri_id: uri_updated
+        type: CALLBACK
+        url: https://updated.example.com/callback
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status:
+    - 200
+    validate:
+    - type: status_code
+      expected: 200
+      message: URIs updated successfully
+- id: V09
+  name: Key rotation
+  description: Update own keys via V3 PATCH
+  type: workflow
+  expected_result: pass
+  steps:
+  - action: create_subscribed
+    helper: create_whitelisted_and_subscribe
+    domain: ONDC:RET10
+    np_type: seller
+  - action: v3_patch
+    method: PATCH
+    endpoint: /api/v3/subscribe
+    signature_mode: normal
+    use_keys_from_step: 0
+    payload:
+      key:
+        uk_id: '{{uk_id}}'
+        signing_public_key: '{{signing_public_key}}'
+        encryption_public_key: '{{encryption_public_key}}'
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '{{valid_from}}'
+        valid_until: '{{valid_until}}'
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status:
+    - 200
+    validate:
+    - type: status_code
+      expected: 200
+      message: Key rotation successful
+- id: V10
+  name: Update configs (negative)
+  description: Attempt to modify domain configurations via PATCH (should fail)
+  type: negative
+  expected_result: fail
+  steps:
+  - action: create_subscribed
+    helper: create_whitelisted_and_subscribe
+    domain: ONDC:RET11
+    np_type: seller
+  - action: v3_patch
+    method: PATCH
+    endpoint: /api/v3/subscribe
+    signature_mode: normal
+    use_keys_from_step: 0
+    payload:
+      configs:
+      - domain: ONDC:RET12
+        np_type: BPP
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status:
+    - 400
+    validate:
+    - type: status_code
+      expected: 400
+      message: Config update correctly rejected
+- id: V11
+  name: Update multiple fields
+  description: Update credentials, contacts, and locations simultaneously
+  type: workflow
+  expected_result: pass
+  steps:
+  - action: create_subscribed
+    helper: create_whitelisted_and_subscribe
+    domain: ONDC:RET11
+    np_type: seller
+  - action: v3_patch
+    method: PATCH
+    endpoint: /api/v3/subscribe
+    signature_mode: normal
+    use_keys_from_step: 0
+    payload_template: multi_field_update
+    expected_status:
+    - 200
+    validate:
+    - type: status_code
+      expected: 200
+      message: Multiple fields updated successfully
+- id: V12
+  name: Add new domain (negative)
+  description: Attempt to add new domain via PATCH (should fail)
+  type: negative
+  expected_result: fail
+  steps:
+  - action: create_subscribed
+    helper: create_whitelisted_and_subscribe
+    domain: ONDC:RET10
+    np_type: seller
+  - action: admin_patch
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    use_keys_from_step: 0
+    payload:
+      action: SUBSCRIBED
+      configs:
+      - domain: ONDC:RET11
+        np_type: BPP
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status:
+    - 400
+    validate:
+    - type: status_code
+      expected: 400
+      message: Add new domain correctly rejected
+- id: V13
+  name: Update np_type (negative)
+  description: Attempt to change network participant type (should fail)
+  type: negative
+  expected_result: fail
+  steps:
+  - action: create_subscribed
+    helper: create_whitelisted_and_subscribe
+    domain: ONDC:RET10
+    np_type: seller
+  - action: admin_patch
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    use_keys_from_step: 0
+    payload:
+      action: SUBSCRIBED
+      configs:
+      - domain: ONDC:RET10
+        np_type: BAP
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status:
+    - 400
+    validate:
+    - type: status_code
+      expected: 400
+      message: np_type change correctly rejected
+- id: V14
+  name: Partial update
+  description: Update only email contact (partial update)
+  type: workflow
+  expected_result: pass
+  steps:
+  - action: create_subscribed
+    helper: create_whitelisted_and_subscribe
+    domain: ONDC:RET10
+    np_type: seller
+  - action: v3_patch
+    method: PATCH
+    endpoint: /api/v3/subscribe
+    signature_mode: normal
+    use_keys_from_step: 0
+    payload:
+      contacts:
+      - contact_id: contact_partial
+        name: Partial Update Person
+        email: partial-update@example.com
+        phone: '+919876543210'
+        type: TECHNICAL
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status:
+    - 200
+    validate:
+    - type: status_code
+      expected: 200
+      message: Partial update successful (email only)
+- id: V15
+  name: Multi-domain subscribe
+  description: Subscribe to multiple domains in single request
+  type: workflow
+  expected_result: pass
+  steps:
+  - action: create_subscribed
+    helper: create_whitelisted_and_subscribe
+    domains:
+    - ONDC:RET10
+    - ONDC:RET11
+    - ONDC:RET12
+    np_type: seller
+    validate:
+    - type: status_code
+      expected: 200
+      message: Subscribed to 3 domains successfully
+- id: V16
+  name: Update configs across domains
+  description: Update location/URI configs across multiple domains
+  type: workflow
+  expected_result: pass
+  steps:
+  - action: create_subscribed
+    helper: create_whitelisted_and_subscribe
+    domains:
+    - ONDC:RET10
+    - ONDC:RET11
+    np_type: seller
+  - action: v3_patch
+    method: PATCH
+    endpoint: /api/v3/subscribe
+    signature_mode: normal
+    use_keys_from_step: 0
+    payload:
+      location:
+        location_id: loc_multi
+        country: IND
+        city:
+        - std:080
+        - std:011
+        type: SERVICEABLE
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status:
+    - 200
+    validate:
+    - type: status_code
+      expected: 200
+      message: Config update successful across domains
+- id: V17
+  name: Add domain (negative)
+  description: Attempt to add domain after subscribing (should fail)
+  type: negative
+  expected_result: fail
+  steps:
+  - action: create_subscribed
+    helper: create_whitelisted_and_subscribe
+    domain: ONDC:RET10
+    np_type: seller
+  - action: admin_patch
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    use_keys_from_step: 0
+    payload:
+      action: SUBSCRIBED
+      configs:
+      - domain: ONDC:AGR10
+        np_type: BPP
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status:
+    - 400
+    - 404
+    validate:
+    - type: status_code
+      expected:
+      - 400
+      - 404
+      message: Add domain correctly rejected
+- id: V18
+  name: Invalid request_id (negative)
+  description: Attempt invalid state transition
+  type: negative
+  expected_result: fail
+  steps:
+  - action: create_subscribed
+    helper: create_whitelisted_and_subscribe
+    domain: ONDC:RET10
+    np_type: seller
+  - action: admin_patch
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    use_keys_from_step: 0
+    payload:
+      action: WHITELISTED
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status:
+    - 400
+    validate:
+    - type: status_code
+      expected: 400
+      message: Invalid transition correctly rejected
+- id: V19
+  name: Missing ONDC signature (negative)
+  description: Request without signature authentication
+  type: negative
+  expected_result: fail
+  steps:
+  - action: v3_subscribe
+    method: POST
+    endpoint: /api/v3/subscribe
+    signature_mode: none
+    generate_fresh_keys: true
+    payload_template: minimal_subscribe
+    domain: ONDC:RET10
+    np_type: seller
+    expected_status:
+    - 401
+    - 403
+    validate:
+    - type: status_code
+      expected:
+      - 401
+      - 403
+      message: Correctly rejected request without signature
+- id: V20
+  name: Invalid ONDC signature (negative)
+  description: Request with malformed signature
+  type: negative
+  expected_result: fail
+  steps:
+  - action: v3_subscribe
+    method: POST
+    endpoint: /api/v3/subscribe
+    signature_mode: invalid
+    generate_fresh_keys: true
+    payload_template: minimal_subscribe
+    domain: ONDC:RET10
+    np_type: seller
+    expected_status:
+    - 401
+    - 403
+    validate:
+    - type: status_code
+      expected:
+      - 401
+      - 403
+      message: Correctly rejected request with invalid signature
+- id: V21
+  name: Cross-participant update (negative)
+  description: Attempt to update different participant (should fail 401)
+  type: negative
+  expected_result: fail
+  steps:
+  - action: create_subscribed
+    helper: create_whitelisted_and_subscribe
+    domain: ONDC:RET10
+    np_type: seller
+    save_as: participant_a
+  - action: create_subscribed
+    helper: create_whitelisted_and_subscribe
+    domain: ONDC:RET11
+    np_type: buyer
+    save_as: participant_b
+  - action: v3_patch
+    method: PATCH
+    endpoint: /api/v3/subscribe
+    signature_mode: normal
+    use_keys_from: participant_b
+    participant_id_from: participant_a
+    payload:
+      contacts:
+      - contact_id: malicious
+        email: hack@example.com
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status:
+    - 401
+    validate:
+    - type: status_code
+      expected: 401
+      message: Correctly rejected cross-participant update
+- id: V22
+  name: Already subscribed (idempotent)
+  description: Re-subscribe when already in SUBSCRIBED state
+  type: workflow
+  expected_result: pass
+  steps:
+  - action: create_subscribed
+    helper: create_whitelisted_and_subscribe
+    domain: ONDC:RET10
+    np_type: buyer
+  - action: v3_subscribe
+    method: POST
+    endpoint: /api/v3/subscribe
+    signature_mode: normal
+    use_keys_from_step: 0
+    payload_template: minimal_subscribe
+    domain: ONDC:RET10
+    np_type: buyer
+    expected_status:
+    - 200
+    validate:
+    - type: status_code
+      expected: 200
+      message: Idempotent subscribe successful
+- id: V23
+  name: Update while SUSPENDED (negative)
+  description: Attempt update while in SUSPENDED state
+  type: negative
+  expected_result: fail
+  steps:
+  - action: create_subscribed
+    helper: create_whitelisted_and_subscribe
+    domain: ONDC:RET10
+    np_type: seller
+  - action: admin_patch
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    use_keys_from_step: 0
+    payload:
+      action: SUSPENDED
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status:
+    - 200
+  - action: v3_patch
+    method: PATCH
+    endpoint: /api/v3/subscribe
+    signature_mode: normal
+    use_keys_from_step: 0
+    payload:
+      contacts:
+      - contact_id: contact_suspended
+        email: suspended@example.com
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status:
+    - 400
+    validate:
+    - type: status_code
+      expected: 400
+      message: Update correctly rejected while SUSPENDED
+- id: V24
+  name: Invalid field formats (negative)
+  description: Send invalid email, phone, URL formats
+  type: negative
+  expected_result: fail
+  steps:
+  - action: admin_whitelist
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    generate_fresh_keys: true
+    payload_template: admin_whitelist
+    domain: ONDC:RET10
+    np_type: seller
+    expected_status:
+    - 200
+  - action: v3_subscribe
+    method: POST
+    endpoint: /api/v3/subscribe
+    signature_mode: normal
+    use_keys_from_step: 0
+    payload:
+      request_id: '{{request_id}}'
+      uk_id: '{{uk_id}}'
+      participant_id: '{{subscriber_id}}'
+      configs:
+      - domain: ONDC:RET10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc_v24
+        uri_id: uri_v24
+        key_id: '{{uk_id}}'
+      contacts:
+      - contact_id: invalid_contact
+        email: not-an-email
+        phone: invalid-phone
+        type: TECH_SPOC
+      credentials:
+      - cred_id: cred001
+        type: GST
+        cred_data:
+          gstin: 29ABCDE1234F1Z5
+          legal_name: Test Company
+      key:
+        uk_id: '{{uk_id}}'
+        signing_public_key: '{{signing_public_key}}'
+        encryption_public_key: '{{encryption_public_key}}'
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '{{valid_from}}'
+        valid_until: '{{valid_until}}'
+      location:
+        location_id: loc_v24
+        country: IND
+        city:
+        - std:080
+        type: SERVICEABLE
+      uri:
+        uri_id: uri_v24
+        url: not-a-valid-url
+        type: CALLBACK
+      dns_skip: true
+      skip_ssl_verification: true
+    domain: ONDC:RET10
+    np_type: seller
+    expected_status:
+    - 400
+    validate:
+    - type: status_code
+      expected: 400
+      message: Invalid formats correctly rejected
+- id: V25
+  name: Missing required fields (negative)
+  description: Send request with missing required fields
+  type: negative
+  expected_result: fail
+  steps:
+  - action: admin_whitelist
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    generate_fresh_keys: true
+    payload_template: admin_whitelist
+    domain: ONDC:RET11
+    np_type: seller
+    expected_status:
+    - 200
+  - action: v3_subscribe
+    method: POST
+    endpoint: /api/v3/subscribe
+    signature_mode: normal
+    use_keys_from_step: 0
+    payload:
+      request_id: '{{request_id}}'
+      uk_id: '{{uk_id}}'
+      participant_id: '{{subscriber_id}}'
+      credentials:
+      - cred_id: cred001
+        type: GST
+        cred_data:
+          gstin: 29ABCDE1234F1Z5
+          legal_name: Test Company
+      dns_skip: true
+      skip_ssl_verification: true
+    domain: ONDC:RET11
+    np_type: seller
+    expected_status:
+    - 400
+    validate:
+    - type: status_code
+      expected: 400
+      message: Missing required fields correctly rejected
+- id: V26
+  name: Reject missing participant_id (V3)
+  description: Verify V3 POST rejects when participant_id is missing
+  type: negative
+  expected_result: fail
+  steps:
+  - action: admin_whitelist
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    generate_fresh_keys: true
+    payload_template: admin_whitelist
+    domain: ONDC:RET10
+    np_type: seller
+    expected_status:
+    - 200
+  - action: v3_subscribe
+    method: POST
+    endpoint: /api/v3/subscribe
+    signature_mode: normal
+    use_keys_from_step: 0
+    payload:
+      request_id: '{{request_id}}'
+      uk_id: '{{uk_id}}'
+      configs:
+      - domain: ONDC:RET10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+      credentials:
+      - cred_id: cred001
+        type: GST
+        cred_data:
+          gstin: 29ABCDE1234F1Z5
+          legal_name: Test Company
+      dns_skip: true
+      skip_ssl_verification: true
+    domain: ONDC:RET10
+    np_type: seller
+    expected_status:
+    - 400
+    validate:
+    - type: status_code
+      expected: 400
+      message: Missing participant_id correctly rejected
+- id: V27
+  name: Reject missing request_id (V3)
+  description: Verify V3 POST rejects when request_id is missing
+  type: negative
+  expected_result: fail
+  steps:
+  - action: admin_whitelist
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    generate_fresh_keys: true
+    payload_template: admin_whitelist
+    domain: ONDC:RET10
+    np_type: seller
+    expected_status:
+    - 200
+  - action: v3_subscribe
+    method: POST
+    endpoint: /api/v3/subscribe
+    signature_mode: normal
+    use_keys_from_step: 0
+    payload:
+      participant_id: '{{subscriber_id}}'
+      uk_id: '{{uk_id}}'
+      configs:
+      - domain: ONDC:RET10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+      credentials:
+      - cred_id: cred001
+        type: GST
+        cred_data:
+          gstin: 29ABCDE1234F1Z5
+          legal_name: Test Company
+      dns_skip: true
+      skip_ssl_verification: true
+    domain: ONDC:RET10
+    np_type: seller
+    expected_status:
+    - 400
+    validate:
+    - type: status_code
+      expected: 400
+      message: Missing request_id correctly rejected
+- id: V28
+  name: Reject missing configs (V3)
+  description: Verify V3 POST rejects when configs array is missing
+  type: negative
+  expected_result: fail
+  steps:
+  - action: admin_whitelist
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    generate_fresh_keys: true
+    payload_template: admin_whitelist
+    domain: ONDC:RET10
+    np_type: seller
+    expected_status:
+    - 200
+  - action: v3_subscribe
+    method: POST
+    endpoint: /api/v3/subscribe
+    signature_mode: normal
+    use_keys_from_step: 0
+    payload:
+      request_id: '{{request_id}}'
+      participant_id: '{{subscriber_id}}'
+      uk_id: '{{uk_id}}'
+      credentials:
+      - cred_id: cred001
+        type: GST
+        cred_data:
+          gstin: 29ABCDE1234F1Z5
+          legal_name: Test Company
+      dns_skip: true
+      skip_ssl_verification: true
+    domain: ONDC:RET10
+    np_type: seller
+    expected_status:
+    - 400
+    validate:
+    - type: status_code
+      expected: 400
+      message: Missing configs correctly rejected
+- id: V29
+  name: Reject self-restore from UNSUBSCRIBED
+  description: Verify V3 POST cannot restore an UNSUBSCRIBED participant
+  type: negative
+  expected_result: fail
+  steps:
+  - action: create_subscribed
+    helper: create_whitelisted_and_subscribe
+    domain: ONDC:RET10
+    np_type: seller
+  - action: admin_patch
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_type: admin
+    use_keys_from_step: 0
+    payload:
+      action: UNSUBSCRIBED
+      dns_skip: true
+      skip_ssl_verification: true
+    expected_status:
+    - 200
+  - action: v3_subscribe
+    method: POST
+    endpoint: /api/v3/subscribe
+    signature_mode: normal
+    use_keys_from_step: 0
+    payload_template: minimal_subscribe
+    domain: ONDC:RET10
+    np_type: seller
+    expected_status:
+    - 403
+    - 422
+    validate:
+    - type: status_code
+      expected:
+      - 403
+      - 422
+      message: Self-restore from UNSUBSCRIBED correctly rejected
+- id: V30
+  name: Reject invalid credential type
+  description: Verify V3 POST rejects when credential type is not valid (GST/PAN/UDYAM/FSSAI)
+  type: negative
+  expected_result: fail
+  steps:
+  - action: admin_whitelist
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    generate_fresh_keys: true
+    payload_template: admin_whitelist
+    domain: ONDC:RET10
+    np_type: seller
+    expected_status:
+    - 200
+  - action: v3_subscribe
+    method: POST
+    endpoint: /api/v3/subscribe
+    signature_mode: normal
+    use_keys_from_step: 0
+    payload:
+      request_id: '{{request_id}}'
+      participant_id: '{{subscriber_id}}'
+      uk_id: '{{uk_id}}'
+      configs:
+      - domain: ONDC:RET10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri001
+        key_id: '{{uk_id}}'
+      credentials:
+      - cred_id: cred001
+        type: INVALID_TYPE
+        cred_data:
+          gstin: 29ABCDE1234F1Z5
+          legal_name: Test Company
+      - cred_id: cred002
+        type: PAN
+        cred_data:
+          pan_no: ABCDE1234F
+      contacts:
+      - contact_id: contact001
+        name: Test Contact
+        email: contact@example.com
+        phone: '+919876543210'
+        type: AUTHORISED_SIGNATORY
+      - contact_id: contact002
+        name: Business Contact
+        email: business@example.com
+        phone: '+919876543211'
+        type: BUSINESS
+      key:
+        uk_id: '{{uk_id}}'
+        signing_public_key: '{{signing_public_key}}'
+        encryption_public_key: '{{encryption_public_key}}'
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '{{valid_from}}'
+        valid_until: '{{valid_until}}'
+      location:
+        location_id: loc001
+        country: IND
+        city:
+        - std:080
+        type: SERVICEABLE
+      uri:
+        uri_id: uri001
+        type: CALLBACK
+        url: https://{{subscriber_id}}/callback
+      dns_skip: true
+      skip_ssl_verification: true
+    domain: ONDC:RET10
+    np_type: seller
+    expected_status:
+    - 400
+    validate:
+    - type: status_code
+      expected: 400
+      message: Invalid credential type correctly rejected
+- id: V31
+  name: Reject expired key valid_until
+  description: Verify V3 POST rejects when key.valid_until is in the past
+  type: negative
+  expected_result: fail
+  steps:
+  - action: admin_whitelist
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    generate_fresh_keys: true
+    payload_template: admin_whitelist
+    domain: ONDC:RET10
+    np_type: seller
+    expected_status:
+    - 200
+  - action: v3_subscribe
+    method: POST
+    endpoint: /api/v3/subscribe
+    signature_mode: normal
+    use_keys_from_step: 0
+    payload:
+      request_id: '{{request_id}}'
+      participant_id: '{{subscriber_id}}'
+      uk_id: '{{uk_id}}'
+      configs:
+      - domain: ONDC:RET10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri001
+        key_id: '{{uk_id}}'
+      credentials:
+      - cred_id: cred001
+        type: GST
+        cred_data:
+          gstin: 29ABCDE1234F1Z5
+          legal_name: Test Company
+      - cred_id: cred002
+        type: PAN
+        cred_data:
+          pan_no: ABCDE1234F
+      contacts:
+      - contact_id: contact001
+        name: Test Contact
+        email: contact@example.com
+        phone: '+919876543210'
+        type: AUTHORISED_SIGNATORY
+      - contact_id: contact002
+        name: Business Contact
+        email: business@example.com
+        phone: '+919876543211'
+        type: BUSINESS
+      key:
+        uk_id: '{{uk_id}}'
+        signing_public_key: '{{signing_public_key}}'
+        encryption_public_key: '{{encryption_public_key}}'
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '2020-01-01T00:00:00Z'
+        valid_until: '2020-12-31T23:59:59Z'
+      location:
+        location_id: loc001
+        country: IND
+        city:
+        - std:080
+        type: SERVICEABLE
+      uri:
+        uri_id: uri001
+        type: CALLBACK
+        url: https://{{subscriber_id}}/callback
+      dns_skip: true
+      skip_ssl_verification: true
+    domain: ONDC:RET10
+    np_type: seller
+    expected_status:
+    - 400
+    validate:
+    - type: status_code
+      expected: 400
+      message: Expired key valid_until correctly rejected
+- id: V32
+  name: Reject duplicate UKID for different subscriber
+  description: Verify V3 POST rejects when uk_id is already used by another subscriber_id
+  type: negative
+  expected_result: fail
+  steps:
+  - action: create_subscribed
+    helper: create_whitelisted_and_subscribe
+    domain: ONDC:RET10
+    np_type: seller
+    save_as: participant_a
+  - action: admin_whitelist
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    generate_fresh_keys: false
+    payload:
+      participant_id: '{{new_subscriber_id}}'
+      action: WHITELISTED
+      key:
+        uk_id: '{{uk_id_from_participant_a}}'
+        signing_public_key: '{{signing_public_key}}'
+        encryption_public_key: '{{encryption_public_key}}'
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '{{valid_from}}'
+        valid_until: '{{valid_until}}'
+      configs:
+      - domain: ONDC:RET11
+        np_type: BPP
+        subscriber_id: '{{new_subscriber_id}}'
+      dns_skip: true
+      skip_ssl_verification: true
+    domain: ONDC:RET11
+    np_type: seller
+    expected_status:
+    - 200
+  - action: v3_subscribe
+    method: POST
+    endpoint: /api/v3/subscribe
+    signature_mode: normal
+    use_keys_from_step: 1
+    payload_template: minimal_subscribe
+    domain: ONDC:RET11
+    np_type: seller
+    expected_status:
+    - 400
+    - 409
+    validate:
+    - type: status_code
+      expected:
+      - 400
+      - 409
+      message: Duplicate UKID correctly rejected
+- id: V33
+  name: Reject key valid_from in past
+  description: Verify V3 POST rejects when key.valid_from is in the past
+  type: negative
+  expected_result: fail
+  steps:
+  - action: admin_whitelist
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    generate_fresh_keys: true
+    payload_template: admin_whitelist
+    domain: ONDC:RET10
+    np_type: seller
+    expected_status:
+    - 200
+  - action: v3_subscribe
+    method: POST
+    endpoint: /api/v3/subscribe
+    signature_mode: normal
+    use_keys_from_step: 0
+    payload:
+      request_id: '{{request_id}}'
+      participant_id: '{{subscriber_id}}'
+      uk_id: '{{uk_id}}'
+      configs:
+      - domain: ONDC:RET10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri001
+        key_id: '{{uk_id}}'
+      credentials:
+      - cred_id: cred001
+        type: GST
+        cred_data:
+          gstin: 29ABCDE1234F1Z5
+          legal_name: Test Company
+      - cred_id: cred002
+        type: PAN
+        cred_data:
+          pan_no: ABCDE1234F
+      contacts:
+      - contact_id: contact001
+        name: Test Contact
+        email: contact@example.com
+        phone: '+919876543210'
+        type: AUTHORISED_SIGNATORY
+      - contact_id: contact002
+        name: Business Contact
+        email: business@example.com
+        phone: '+919876543211'
+        type: BUSINESS
+      key:
+        uk_id: '{{uk_id}}'
+        signing_public_key: '{{signing_public_key}}'
+        encryption_public_key: '{{encryption_public_key}}'
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '2020-01-01T00:00:00Z'
+        valid_until: '{{valid_until}}'
+      location:
+        location_id: loc001
+        country: IND
+        city:
+        - std:080
+        type: SERVICEABLE
+      uri:
+        uri_id: uri001
+        type: CALLBACK
+        url: https://{{subscriber_id}}/callback
+      dns_skip: true
+      skip_ssl_verification: true
+    domain: ONDC:RET10
+    np_type: seller
+    expected_status:
+    - 400
+    validate:
+    - type: status_code
+      expected: 400
+      message: Past valid_from correctly rejected
+- id: V34
+  name: Reject invalid JSON payload
+  description: Verify V3 POST rejects malformed JSON body
+  type: negative
+  expected_result: fail
+  steps:
+  - action: v3_subscribe_raw
+    method: POST
+    endpoint: /api/v3/subscribe
+    raw_body: '{"request_id": "test", "participant_id": "test"'
+    expected_status:
+    - 400
+    validate:
+    - type: status_code
+      expected: 400
+      message: Invalid JSON correctly rejected
+- id: V35
+  name: Subscribe missing GST credential
+  description: Verify subscribe fails when mandatory GST credential is missing
+  type: negative
+  expected_result: fail
+  steps:
+  - action: admin_whitelist
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    generate_fresh_keys: true
+    payload_template: admin_whitelist
+    domain: ONDC:RET10
+    np_type: seller
+    expected_status:
+    - 200
+  - action: v3_subscribe
+    method: POST
+    endpoint: /api/v3/subscribe
+    signature_mode: normal
+    use_keys_from_step: 0
+    payload:
+      request_id: '{{request_id}}'
+      participant_id: '{{subscriber_id}}'
+      uk_id: '{{uk_id}}'
+      configs:
+      - domain: ONDC:RET10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri001
+        key_id: '{{uk_id}}'
+      credentials:
+      - cred_id: cred002
+        type: PAN
+        cred_data:
+          pan_no: ABCDE1234F
+      contacts:
+      - contact_id: contact001
+        name: Test Contact
+        email: contact@example.com
+        phone: '+919876543210'
+        type: AUTHORISED_SIGNATORY
+      - contact_id: contact002
+        name: Business Contact
+        email: business@example.com
+        phone: '+919876543211'
+        type: BUSINESS
+      key:
+        uk_id: '{{uk_id}}'
+        signing_public_key: '{{signing_public_key}}'
+        encryption_public_key: '{{encryption_public_key}}'
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '{{valid_from}}'
+        valid_until: '{{valid_until}}'
+      location:
+        location_id: loc001
+        country: IND
+        city:
+        - std:080
+        type: SERVICEABLE
+      uri:
+        uri_id: uri001
+        type: CALLBACK
+        url: https://{{subscriber_id}}/callback
+      dns_skip: true
+      skip_ssl_verification: true
+    domain: ONDC:RET10
+    np_type: seller
+    expected_status:
+    - 400
+    validate:
+    - type: status_code
+      expected: 400
+      message: Missing GST credential correctly rejected
+- id: V36
+  name: Subscribe missing PAN credential
+  description: Verify subscribe fails when mandatory PAN credential is missing
+  type: negative
+  expected_result: fail
+  steps:
+  - action: admin_whitelist
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    generate_fresh_keys: true
+    payload_template: admin_whitelist
+    domain: ONDC:RET10
+    np_type: seller
+    expected_status:
+    - 200
+  - action: v3_subscribe
+    method: POST
+    endpoint: /api/v3/subscribe
+    signature_mode: normal
+    use_keys_from_step: 0
+    payload:
+      request_id: '{{request_id}}'
+      participant_id: '{{subscriber_id}}'
+      uk_id: '{{uk_id}}'
+      configs:
+      - domain: ONDC:RET10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri001
+        key_id: '{{uk_id}}'
+      credentials:
+      - cred_id: cred001
+        type: GST
+        cred_data:
+          gstin: 29ABCDE1234F1Z5
+          legal_name: Test Company
+      contacts:
+      - contact_id: contact001
+        name: Test Contact
+        email: contact@example.com
+        phone: '+919876543210'
+        type: AUTHORISED_SIGNATORY
+      - contact_id: contact002
+        name: Business Contact
+        email: business@example.com
+        phone: '+919876543211'
+        type: BUSINESS
+      key:
+        uk_id: '{{uk_id}}'
+        signing_public_key: '{{signing_public_key}}'
+        encryption_public_key: '{{encryption_public_key}}'
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '{{valid_from}}'
+        valid_until: '{{valid_until}}'
+      location:
+        location_id: loc001
+        country: IND
+        city:
+        - std:080
+        type: SERVICEABLE
+      uri:
+        uri_id: uri001
+        type: CALLBACK
+        url: https://{{subscriber_id}}/callback
+      dns_skip: true
+      skip_ssl_verification: true
+    domain: ONDC:RET10
+    np_type: seller
+    expected_status:
+    - 400
+    validate:
+    - type: status_code
+      expected: 400
+      message: Missing PAN credential correctly rejected
+- id: V37
+  name: Subscribe missing AUTHORISED_SIGNATORY contact
+  description: Verify subscribe fails when mandatory AUTHORISED_SIGNATORY contact is missing
+  type: negative
+  expected_result: fail
+  steps:
+  - action: admin_whitelist
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    generate_fresh_keys: true
+    payload_template: admin_whitelist
+    domain: ONDC:RET10
+    np_type: seller
+    expected_status:
+    - 200
+  - action: v3_subscribe
+    method: POST
+    endpoint: /api/v3/subscribe
+    signature_mode: normal
+    use_keys_from_step: 0
+    payload:
+      request_id: '{{request_id}}'
+      participant_id: '{{subscriber_id}}'
+      uk_id: '{{uk_id}}'
+      configs:
+      - domain: ONDC:RET10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri001
+        key_id: '{{uk_id}}'
+      credentials:
+      - cred_id: cred001
+        type: GST
+        cred_data:
+          gstin: 29ABCDE1234F1Z5
+          legal_name: Test Company
+      - cred_id: cred002
+        type: PAN
+        cred_data:
+          pan_no: ABCDE1234F
+      contacts:
+      - contact_id: contact002
+        name: Business Contact
+        email: business@example.com
+        phone: '+919876543211'
+        type: BUSINESS
+      key:
+        uk_id: '{{uk_id}}'
+        signing_public_key: '{{signing_public_key}}'
+        encryption_public_key: '{{encryption_public_key}}'
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '{{valid_from}}'
+        valid_until: '{{valid_until}}'
+      location:
+        location_id: loc001
+        country: IND
+        city:
+        - std:080
+        type: SERVICEABLE
+      uri:
+        uri_id: uri001
+        type: CALLBACK
+        url: https://{{subscriber_id}}/callback
+      dns_skip: true
+      skip_ssl_verification: true
+    domain: ONDC:RET10
+    np_type: seller
+    expected_status:
+    - 400
+    validate:
+    - type: status_code
+      expected: 400
+      message: Missing AUTHORISED_SIGNATORY contact correctly rejected
+- id: V38
+  name: Subscribe missing BUSINESS contact
+  description: Verify subscribe fails when mandatory BUSINESS contact is missing
+  type: negative
+  expected_result: fail
+  steps:
+  - action: admin_whitelist
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    generate_fresh_keys: true
+    payload_template: admin_whitelist
+    domain: ONDC:RET10
+    np_type: seller
+    expected_status:
+    - 200
+  - action: v3_subscribe
+    method: POST
+    endpoint: /api/v3/subscribe
+    signature_mode: normal
+    use_keys_from_step: 0
+    payload:
+      request_id: '{{request_id}}'
+      participant_id: '{{subscriber_id}}'
+      uk_id: '{{uk_id}}'
+      configs:
+      - domain: ONDC:RET10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri001
+        key_id: '{{uk_id}}'
+      credentials:
+      - cred_id: cred001
+        type: GST
+        cred_data:
+          gstin: 29ABCDE1234F1Z5
+          legal_name: Test Company
+      - cred_id: cred002
+        type: PAN
+        cred_data:
+          pan_no: ABCDE1234F
+      contacts:
+      - contact_id: contact001
+        name: Test Contact
+        email: contact@example.com
+        phone: '+919876543210'
+        type: AUTHORISED_SIGNATORY
+      key:
+        uk_id: '{{uk_id}}'
+        signing_public_key: '{{signing_public_key}}'
+        encryption_public_key: '{{encryption_public_key}}'
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '{{valid_from}}'
+        valid_until: '{{valid_until}}'
+      location:
+        location_id: loc001
+        country: IND
+        city:
+        - std:080
+        type: SERVICEABLE
+      uri:
+        uri_id: uri001
+        type: CALLBACK
+        url: https://{{subscriber_id}}/callback
+      dns_skip: true
+      skip_ssl_verification: true
+    domain: ONDC:RET10
+    np_type: seller
+    expected_status:
+    - 400
+    validate:
+    - type: status_code
+      expected: 400
+      message: Missing BUSINESS contact correctly rejected
+- id: V39
+  name: Subscribe missing key
+  description: Verify subscribe fails when mandatory key is missing
+  type: negative
+  expected_result: fail
+  steps:
+  - action: admin_whitelist
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    generate_fresh_keys: true
+    payload_template: admin_whitelist
+    domain: ONDC:RET10
+    np_type: seller
+    expected_status:
+    - 200
+  - action: v3_subscribe
+    method: POST
+    endpoint: /api/v3/subscribe
+    signature_mode: normal
+    use_keys_from_step: 0
+    payload:
+      request_id: '{{request_id}}'
+      participant_id: '{{subscriber_id}}'
+      uk_id: '{{uk_id}}'
+      configs:
+      - domain: ONDC:RET10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri001
+      credentials:
+      - cred_id: cred001
+        type: GST
+        cred_data:
+          gstin: 29ABCDE1234F1Z5
+          legal_name: Test Company
+      - cred_id: cred002
+        type: PAN
+        cred_data:
+          pan_no: ABCDE1234F
+      contacts:
+      - contact_id: contact001
+        name: Test Contact
+        email: contact@example.com
+        phone: '+919876543210'
+        type: AUTHORISED_SIGNATORY
+      - contact_id: contact002
+        name: Business Contact
+        email: business@example.com
+        phone: '+919876543211'
+        type: BUSINESS
+      location:
+        location_id: loc001
+        country: IND
+        city:
+        - std:080
+        type: SERVICEABLE
+      uri:
+        uri_id: uri001
+        type: CALLBACK
+        url: https://{{subscriber_id}}/callback
+      dns_skip: true
+      skip_ssl_verification: true
+    domain: ONDC:RET10
+    np_type: seller
+    expected_status:
+    - 400
+    validate:
+    - type: status_code
+      expected: 400
+      message: Missing key correctly rejected
+- id: V40
+  name: Subscribe missing URI
+  description: Verify subscribe fails when mandatory URI is missing
+  type: negative
+  expected_result: fail
+  steps:
+  - action: admin_whitelist
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    generate_fresh_keys: true
+    payload_template: admin_whitelist
+    domain: ONDC:RET10
+    np_type: seller
+    expected_status:
+    - 200
+  - action: v3_subscribe
+    method: POST
+    endpoint: /api/v3/subscribe
+    signature_mode: normal
+    use_keys_from_step: 0
+    payload:
+      request_id: '{{request_id}}'
+      participant_id: '{{subscriber_id}}'
+      uk_id: '{{uk_id}}'
+      configs:
+      - domain: ONDC:RET10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        key_id: '{{uk_id}}'
+      credentials:
+      - cred_id: cred001
+        type: GST
+        cred_data:
+          gstin: 29ABCDE1234F1Z5
+          legal_name: Test Company
+      - cred_id: cred002
+        type: PAN
+        cred_data:
+          pan_no: ABCDE1234F
+      contacts:
+      - contact_id: contact001
+        name: Test Contact
+        email: contact@example.com
+        phone: '+919876543210'
+        type: AUTHORISED_SIGNATORY
+      - contact_id: contact002
+        name: Business Contact
+        email: business@example.com
+        phone: '+919876543211'
+        type: BUSINESS
+      key:
+        uk_id: '{{uk_id}}'
+        signing_public_key: '{{signing_public_key}}'
+        encryption_public_key: '{{encryption_public_key}}'
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '{{valid_from}}'
+        valid_until: '{{valid_until}}'
+      location:
+        location_id: loc001
+        country: IND
+        city:
+        - std:080
+        type: SERVICEABLE
+      dns_skip: true
+      skip_ssl_verification: true
+    domain: ONDC:RET10
+    np_type: seller
+    expected_status:
+    - 400
+    validate:
+    - type: status_code
+      expected: 400
+      message: Missing URI correctly rejected
+- id: V41
+  name: Subscribe missing SERVICEABLE location
+  description: Verify subscribe fails when mandatory SERVICEABLE location is missing
+  type: negative
+  expected_result: fail
+  steps:
+  - action: admin_whitelist
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    generate_fresh_keys: true
+    payload_template: admin_whitelist
+    domain: ONDC:RET10
+    np_type: seller
+    expected_status:
+    - 200
+  - action: v3_subscribe
+    method: POST
+    endpoint: /api/v3/subscribe
+    signature_mode: normal
+    use_keys_from_step: 0
+    payload:
+      request_id: '{{request_id}}'
+      participant_id: '{{subscriber_id}}'
+      uk_id: '{{uk_id}}'
+      configs:
+      - domain: ONDC:RET10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        uri_id: uri001
+        key_id: '{{uk_id}}'
+      credentials:
+      - cred_id: cred001
+        type: GST
+        cred_data:
+          gstin: 29ABCDE1234F1Z5
+          legal_name: Test Company
+      - cred_id: cred002
+        type: PAN
+        cred_data:
+          pan_no: ABCDE1234F
+      contacts:
+      - contact_id: contact001
+        name: Test Contact
+        email: contact@example.com
+        phone: '+919876543210'
+        type: AUTHORISED_SIGNATORY
+      - contact_id: contact002
+        name: Business Contact
+        email: business@example.com
+        phone: '+919876543211'
+        type: BUSINESS
+      key:
+        uk_id: '{{uk_id}}'
+        signing_public_key: '{{signing_public_key}}'
+        encryption_public_key: '{{encryption_public_key}}'
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '{{valid_from}}'
+        valid_until: '{{valid_until}}'
+      uri:
+        uri_id: uri001
+        type: CALLBACK
+        url: https://{{subscriber_id}}/callback
+      dns_skip: true
+      skip_ssl_verification: true
+    domain: ONDC:RET10
+    np_type: seller
+    expected_status:
+    - 400
+    validate:
+    - type: status_code
+      expected: 400
+      message: Missing SERVICEABLE location correctly rejected
+- id: V42
+  name: Invalid GST number format
+  description: Verify V3 POST rejects when GST number format is invalid (not 15-char GSTIN)
+  type: negative
+  expected_result: fail
+  steps:
+  - action: admin_whitelist
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    generate_fresh_keys: true
+    payload_template: admin_whitelist
+    domain: ONDC:RET10
+    np_type: seller
+    expected_status:
+    - 200
+  - action: v3_subscribe
+    method: POST
+    endpoint: /api/v3/subscribe
+    signature_mode: normal
+    use_keys_from_step: 0
+    payload:
+      request_id: '{{request_id}}'
+      participant_id: '{{subscriber_id}}'
+      uk_id: '{{uk_id}}'
+      configs:
+      - domain: ONDC:RET10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri001
+        key_id: '{{uk_id}}'
+      credentials:
+      - cred_id: cred001
+        type: GST
+        cred_data:
+          gstin: INVALID_GST
+          legal_name: Test Company
+      - cred_id: cred002
+        type: PAN
+        cred_data:
+          pan_no: ABCDE1234F
+      contacts:
+      - contact_id: contact001
+        name: Test Contact
+        email: contact@example.com
+        phone: '+919876543210'
+        type: AUTHORISED_SIGNATORY
+      - contact_id: contact002
+        name: Business Contact
+        email: business@example.com
+        phone: '+919876543211'
+        type: BUSINESS
+      key:
+        uk_id: '{{uk_id}}'
+        signing_public_key: '{{signing_public_key}}'
+        encryption_public_key: '{{encryption_public_key}}'
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '{{valid_from}}'
+        valid_until: '{{valid_until}}'
+      location:
+        location_id: loc001
+        country: IND
+        city:
+        - std:080
+        type: SERVICEABLE
+      uri:
+        uri_id: uri001
+        type: CALLBACK
+        url: https://{{subscriber_id}}/callback
+      dns_skip: true
+      skip_ssl_verification: true
+    domain: ONDC:RET10
+    np_type: seller
+    expected_status:
+    - 400
+    validate:
+    - type: status_code
+      expected: 400
+      message: Invalid GST format correctly rejected
+- id: V43
+  name: Invalid PAN number format
+  description: Verify V3 POST rejects when PAN number format is invalid (not 10-char format)
+  type: negative
+  expected_result: fail
+  steps:
+  - action: admin_whitelist
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    generate_fresh_keys: true
+    payload_template: admin_whitelist
+    domain: ONDC:RET10
+    np_type: seller
+    expected_status:
+    - 200
+  - action: v3_subscribe
+    method: POST
+    endpoint: /api/v3/subscribe
+    signature_mode: normal
+    use_keys_from_step: 0
+    payload:
+      request_id: '{{request_id}}'
+      participant_id: '{{subscriber_id}}'
+      uk_id: '{{uk_id}}'
+      configs:
+      - domain: ONDC:RET10
+        np_type: BPP
+        subscriber_id: '{{subscriber_id}}'
+        location_id: loc001
+        uri_id: uri001
+        key_id: '{{uk_id}}'
+      credentials:
+      - cred_id: cred001
+        type: GST
+        cred_data:
+          gstin: 29ABCDE1234F1Z5
+          legal_name: Test Company
+      - cred_id: cred002
+        type: PAN
+        cred_data:
+          pan_no: '12345'
+      contacts:
+      - contact_id: contact001
+        name: Test Contact
+        email: contact@example.com
+        phone: '+919876543210'
+        type: AUTHORISED_SIGNATORY
+      - contact_id: contact002
+        name: Business Contact
+        email: business@example.com
+        phone: '+919876543211'
+        type: BUSINESS
+      key:
+        uk_id: '{{uk_id}}'
+        signing_public_key: '{{signing_public_key}}'
+        encryption_public_key: '{{encryption_public_key}}'
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '{{valid_from}}'
+        valid_until: '{{valid_until}}'
+      location:
+        location_id: loc001
+        country: IND
+        city:
+        - std:080
+        type: SERVICEABLE
+      uri:
+        uri_id: uri001
+        type: CALLBACK
+        url: https://{{subscriber_id}}/callback
+      dns_skip: true
+      skip_ssl_verification: true
+    domain: ONDC:RET10
+    np_type: seller
+    expected_status:
+    - 400
+    validate:
+    - type: status_code
+      expected: 400
+      message: Invalid PAN format correctly rejected
+payload_templates:
+  minimal_subscribe:
+    request_id: '{{request_id}}'
+    uk_id: '{{uk_id}}'
+    participant_id: '{{subscriber_id}}'
+    credentials:
+    - cred_id: cred001
+      type: GST
+      cred_data:
+        gstin: 29ABCDE1234F1Z5
+        legal_name: Test Company Private Limited
+    - cred_id: cred002
+      type: PAN
+      cred_data:
+        pan_no: ABCDE1234F
+    contacts:
+    - contact_id: contact001
+      name: Test Contact
+      email: contact@example.com
+      phone: '+919876543210'
+      type: AUTHORISED_SIGNATORY
+    - contact_id: contact002
+      name: Business Contact
+      email: business@example.com
+      phone: '+919876543211'
+      type: BUSINESS
+    key:
+      uk_id: '{{uk_id}}'
+      signing_public_key: '{{signing_public_key}}'
+      encryption_public_key: '{{encryption_public_key}}'
+      signed_algorithm: ED25519
+      encryption_algorithm: X25519
+      valid_from: '{{valid_from}}'
+      valid_until: '{{valid_until}}'
+    location:
+      location_id: loc001
+      country: IND
+      city:
+      - std:080
+      type: SERVICEABLE
+    uri:
+      uri_id: uri001
+      type: CALLBACK
+      url: https://{{subscriber_id}}/ondc/callback
+    configs:
+    - domain: '{{domain}}'
+      np_type: '{{np_type_mapped}}'
+      subscriber_id: '{{subscriber_id}}'
+      location_id: loc001
+      uri_id: uri001
+      key_id: '{{uk_id}}'
+    dns_skip: true
+    skip_ssl_verification: true
+  full_subscribe:
+    extends: minimal_subscribe
+    additional:
+      credentials:
+      - cred_id: cred003
+        type: FSSAI
+        cred_data:
+          license_no: '12345678901234'
+      contacts:
+      - contact_id: contact003
+        name: Support Team
+        email: support@example.com
+        phone: '+919876543212'
+        type: SUPPORT
+  multi_field_update:
+    credentials:
+    - cred_id: cred_multi
+      type: GST
+      cred_data:
+        gstin: 29MULTI9999Z9Z9
+    contacts:
+    - contact_id: contact_multi
+      name: Multi Update Contact
+      email: multi@example.com
+      phone: '+919999999999'
+      type: TECHNICAL
+    location:
+      location_id: loc_multi
+      country: IND
+      city:
+      - std:080
+      - std:011
+      type: SERVICEABLE
+    dns_skip: true
+    skip_ssl_verification: true
+  admin_whitelist:
+    participant_id: '{{subscriber_id}}'
+    action: WHITELISTED
+    key:
+      uk_id: '{{uk_id}}'
+      signing_public_key: '{{signing_public_key}}'
+      encryption_public_key: '{{encryption_public_key}}'
+      signed_algorithm: ED25519
+      encryption_algorithm: X25519
+      valid_from: '{{valid_from}}'
+      valid_until: '{{valid_until}}'
+    configs:
+    - domain: '{{domain}}'
+      np_type: '{{np_type_mapped}}'
+      subscriber_id: '{{subscriber_id}}'
+    dns_skip: true
+    skip_ssl_verification: true

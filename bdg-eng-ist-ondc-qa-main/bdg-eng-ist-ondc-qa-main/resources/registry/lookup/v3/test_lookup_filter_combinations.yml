@@ -1,0 +1,74 @@
+# ONDC Registry V3 Lookup - Filter Combination Tests Configuration
+# Test file: tests/registry/ondc_reg_lookup_filter_combinations.py
+
+# Test Coverage:
+# - Multiple filter combinations (domain + city + type)
+# - select_keys validation with different field combinations
+# - Duplicate participant detection
+# - Filter accuracy validation
+# - Response time performance testing
+
+# Run Command:
+# python driver.py --test ondc_reg_lookup_filter_combinations \
+#   --environment ondcRegistry --users 1 --iterations 15 \
+#   --autostart --autoquit 1 \
+#   --html results/registry/filter_combinations.html
+
+ondcRegistry:
+  # Base URL for Registry API (QA Lookup Server)
+  host: "https://registry-uat.kynondc.net"
+  
+  # Admin API Authentication
+  admin_username: "admin@ondc.org"
+  admin_password: "Admin@123"
+  admin_auth_url: "https://admin-auth-uat.kynondc.net/api/auth/login"
+  
+  # V3 API ED25519 Signature Authentication (matching functional test)
+  participant_id: "test-v3-lookup-working.participant.ondc"
+  subscriber_id: "test-v3-lookup-working.participant.ondc"
+  uk_id: "83b68b94-8fb9-44ad-bcd4-b0e89d741290"
+  
+  # ED25519 Private Key Seed (32 bytes hex)
+  private_key_seed: "c190934de2c9aea71b47a31bacb8f002b0e4995c083cb457c0d58b9d6ba3670f"
+  
+  # ED25519 Public Keys (base64 encoded RAW 32-byte keys)
+  signing_public_key: "rb07mNxVAG9quf/6CJCpNM06FwdG0N/FBn+qcLHvWxs="
+  encryption_public_key: "MOsaXHtJWbQ6Y8W2mAYEHBrYMG/OYl/+y8yCMGQRExw="
+#   # V3 API ED25519 Signature Authentication
+#   participant_id: "futuresoftmsnprod.clouddeploy.in"
+#   uk_id: "5d080661-182e-4302-be9f-9e8f3ed1ebe1"
+#   private_key_seed: "f1adec7bfabf2da168ad388a98816e0534a26a3f2068ecfa19ae184fa35e46df"
+
+test:
+  description: "V3 Lookup Filter Combination & Data Quality Tests"
+  
+#   # Default test participant (SUBSCRIBED status)
+#   participant_id: "test-v3-feb2026-fresh.participant.ondc"
+  
+  # Default filter values
+  default_domains:
+    - "ONDC:RET10"
+    - "ONDC:RET11"
+    - "ONDC:RET12"
+  
+  default_cities:
+    - "std:080"  # Bangalore
+    - "std:011"  # Delhi
+    - "std:022"  # Mumbai
+  
+  default_types:
+    - "BPP"
+    - "BAP"
+    - "BG"
+  
+  # Performance thresholds
+  performance:
+    large_resultset_max_ms: 2000
+    filtered_query_max_ms: 1000
+    concurrent_request_max_ms: 1500
+  
+  # Data quality checks
+  validation:
+    check_duplicates: true
+    check_filter_accuracy: true
+    check_response_schema: true

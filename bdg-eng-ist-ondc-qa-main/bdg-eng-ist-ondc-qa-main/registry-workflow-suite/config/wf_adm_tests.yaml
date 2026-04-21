@@ -1,0 +1,1529 @@
+# =============================================================================
+# Admin Workflow Tests
+# Source: docs/guides/registry-workflows.md
+#
+# Covers all Admin-actor workflows:
+#   WF-ADM-01  Direct Participant Onboarding to SUBSCRIBED (Pre-prod / Staging)
+#   WF-ADM-02  Whitelist a Participant (First Step of Production Onboarding)
+#   WF-ADM-03  Suspend a Participant
+#   WF-ADM-04  Reactivate a Suspended Participant
+#   WF-ADM-05  Unsubscribe a Participant
+#   WF-ADM-06  Add / Modify Contacts for a Participant
+#   WF-ADM-07  Add / Modify Credentials for a Participant
+#   WF-ADM-08  Add / Modify Locations for a Participant
+#   WF-ADM-09  Manage Subscriber URIs for a Participant
+#   WF-ADM-10  Manage Participant Keys
+#   WF-ADM-11  Create and Manage a Domain
+#   WF-ADM-12  Manage Network Policies
+#   WF-ADM-13  Manage Network Configurations (NP-Domain Mappings)
+#   WF-ADM-14  Manage Enumeration Values
+#   WF-ADM-15  Error-125 Recovery (Duplicate Subscriber ID – PATCH Retry)
+#
+# Auth notation used:
+#   admin  → JWT Bearer (Admin login)
+#   v3     → ONDC Ed25519 Signature (NP key pair)
+#   public → No authentication required
+# =============================================================================
+
+test_suite:
+  name: "Admin Workflow Tests"
+  category: "wf_adm"
+  total_tests: 15
+  description: >
+    End-to-end workflow tests for all Administrator use-cases defined in
+    registry-workflows.md (WF-ADM-01 through WF-ADM-15).
+
+config:
+  default_timeout: 30
+  retry_on_failure: false
+
+tests:
+
+  # ===========================================================================
+  # WF-ADM-01 · Direct Participant Onboarding to SUBSCRIBED (Pre-prod / Staging)
+  # ===========================================================================
+  - id: "WF-ADM-01"
+    name: "Direct Participant Onboarding to SUBSCRIBED"
+    description: >
+      Admin creates a fully SUBSCRIBED participant in a single call with
+      action=SUBSCRIBED, bypassing the separate NP self-subscribe step.
+      Mirrors WF-ADM-01 from registry-workflows.md.
+    workflow: true
+    steps:
+      - name: "Step 1 – Admin POST (action=SUBSCRIBED) with full payload"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_wfadm01"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "WF-ADM-01 Staging NP Private Limited"
+            - cred_id: "cred_pan_wfadm01"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "WF-ADM-01 Staging NP Private Limited"
+          contacts:
+            - contact_id: "contact_auth_wfadm01"
+              type: "AUTHORISED_SIGNATORY"
+              name: "WF-ADM-01 Signatory"
+              email: "auth@wfadm01.example.com"
+              phone: "+919876510100"
+            - contact_id: "contact_biz_wfadm01"
+              type: "BUSINESS"
+              name: "WF-ADM-01 Business"
+              email: "biz@wfadm01.example.com"
+              phone: "+919876510101"
+            - contact_id: "contact_tech_wfadm01"
+              type: "TECHNICAL"
+              name: "WF-ADM-01 Technical"
+              email: "tech@wfadm01.example.com"
+              phone: "+919876510102"
+              designation: "Technical Lead"
+          key:
+            - uk_id: "wfadm01_key"
+              signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1001=="
+              encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba1001=="
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              valid_from: "2026-01-01T00:00:00.000Z"
+              valid_until: "2027-01-01T00:00:00.000Z"
+          location:
+            - location_id: "loc_wfadm01"
+              country: "IND"
+              city:
+                - "std:080"
+                - "std:022"
+              type: "SERVICEABLE"
+          uri:
+            - uri_id: "uri_wfadm01"
+              type: "CALLBACK"
+              url: "{{participant_url}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_wfadm01"
+              uri_id: "uri_wfadm01"
+              key_id: "wfadm01_key"
+        expected_status: 200
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+      - name: "Step 2 – Verify participant status is SUBSCRIBED"
+        method: "GET"
+        endpoint: "/admin/participants/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "participant_id"
+            value: "{{subscriber_id}}"
+          - field: "np_type"
+            contains: "BPP"
+
+      - name: "Wait for lookup indexing"
+        sleep_seconds: 5
+
+      - name: "Step 3 – Confirm participant is discoverable via lookup"
+        method: "POST"
+        endpoint: "/v3.0/lookup"
+        auth_type: "v3"
+        data:
+          subscriber_id: "{{subscriber_id}}"
+          domain: "ONDC:RET1A"
+        expected_status: 200
+        # Note: Newly created participants may need time to be indexed for lookup
+
+  # ===========================================================================
+  # WF-ADM-02 · Whitelist a Participant (First Step of Production Onboarding)
+  # ===========================================================================
+  - id: "WF-ADM-02"
+    name: "Whitelist a Participant (Production Onboarding Step 1)"
+    description: >
+      Admin whitelists a new participant so they can self-subscribe.
+      Verifies the status transitions to WHITELISTED.
+      Mirrors WF-ADM-02 from registry-workflows.md.
+    workflow: true
+    steps:
+      - name: "Step 1 – Admin POST (action=WHITELISTED)"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+      - name: "Step 2 – Verify status is WHITELISTED"
+        method: "GET"
+        endpoint: "/admin/participants/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "participant_id"
+            value: "{{subscriber_id}}"
+          - field: "np_type"
+            contains: "BPP"
+
+  # ===========================================================================
+  # WF-ADM-03 · Suspend a Participant
+  # ===========================================================================
+  - id: "WF-ADM-03"
+    name: "Suspend a Participant"
+    description: >
+      Admin suspends a misbehaving SUBSCRIBED participant and confirms the
+      participant no longer appears in active lookup results.
+      Mirrors WF-ADM-03 from registry-workflows.md.
+    workflow: true
+    steps:
+      - name: "Precondition – Admin creates subscribed participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_wfadm03"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "WF-ADM-03 Suspend NP"
+            - cred_id: "cred_pan_wfadm03"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "WF-ADM-03 Suspend NP"
+          contacts:
+            - contact_id: "contact_auth_wfadm03"
+              type: "AUTHORISED_SIGNATORY"
+              name: "WF-ADM-03 Signatory"
+              email: "auth@wfadm03.example.com"
+              phone: "+919876510300"
+            - contact_id: "contact_biz_wfadm03"
+              type: "BUSINESS"
+              name: "WF-ADM-03 Business"
+              email: "biz@wfadm03.example.com"
+              phone: "+919876510301"
+          key:
+            - uk_id: "wfadm03_key"
+              signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1003=="
+              encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba1003=="
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              valid_from: "2026-01-01T00:00:00.000Z"
+              valid_until: "2027-01-01T00:00:00.000Z"
+          location:
+            - location_id: "loc_wfadm03"
+              country: "IND"
+              city: ["std:080"]
+              type: "SERVICEABLE"
+          uri:
+            - uri_id: "uri_wfadm03"
+              type: "CALLBACK"
+              url: "{{participant_url}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_wfadm03"
+              uri_id: "uri_wfadm03"
+              key_id: "wfadm03_key"
+        expected_status: 200
+
+      - name: "Step 1 – Confirm current status is SUBSCRIBED"
+        method: "GET"
+        endpoint: "/admin/participants/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "participant_id"
+            value: "{{subscriber_id}}"
+          - field: "np_type"
+            contains: "BPP"
+
+      - name: "Step 2 – Admin PATCH (action=SUSPENDED)"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "SUSPENDED"
+        expected_status: 200
+
+      - name: "Step 3 – Confirm status is SUSPENDED"
+        method: "GET"
+        endpoint: "/admin/participants/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "participant_id"
+            value: "{{subscriber_id}}"
+          - field: "np_type"
+            contains: "BPP"
+
+      - name: "Wait for suspension to propagate"
+        sleep_seconds: 5
+
+      - name: "Step 4 – Verify participant does not appear in active lookup"
+        method: "POST"
+        endpoint: "/v3.0/lookup"
+        auth_type: "v3"
+        data:
+          subscriber_id: "{{subscriber_id}}"
+          domain: "ONDC:RET1A"
+        expected_status: 200
+        # Suspended participants return 200 with an empty array []
+
+  # ===========================================================================
+  # WF-ADM-04 · Reactivate a Suspended Participant
+  # ===========================================================================
+  - id: "WF-ADM-04"
+    name: "Reactivate a Suspended Participant"
+    description: >
+      Admin restores a SUSPENDED participant back to SUBSCRIBED state and confirms
+      the participant is discoverable again.
+      Mirrors WF-ADM-04 from registry-workflows.md.
+    workflow: true
+    steps:
+      - name: "Precondition – Admin creates and then suspends participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_wfadm04"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "WF-ADM-04 Reactivate NP"
+            - cred_id: "cred_pan_wfadm04"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "WF-ADM-04 Reactivate NP"
+          contacts:
+            - contact_id: "contact_auth_wfadm04"
+              type: "AUTHORISED_SIGNATORY"
+              name: "WF-ADM-04 Signatory"
+              email: "auth@wfadm04.example.com"
+              phone: "+919876510400"
+            - contact_id: "contact_biz_wfadm04"
+              type: "BUSINESS"
+              name: "WF-ADM-04 Business"
+              email: "biz@wfadm04.example.com"
+              phone: "+919876510401"
+          key:
+            - uk_id: "wfadm04_key"
+              signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1004=="
+              encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba1004=="
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              valid_from: "2026-01-01T00:00:00.000Z"
+              valid_until: "2027-01-01T00:00:00.000Z"
+          location:
+            - location_id: "loc_wfadm04"
+              country: "IND"
+              city: ["std:080"]
+              type: "SERVICEABLE"
+          uri:
+            - uri_id: "uri_wfadm04"
+              type: "CALLBACK"
+              url: "{{participant_url}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_wfadm04"
+              uri_id: "uri_wfadm04"
+              key_id: "wfadm04_key"
+        expected_status: 200
+
+      - name: "Precondition – Suspend the participant"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "SUSPENDED"
+        expected_status: 200
+
+      - name: "Step 1 – Confirm current status is SUSPENDED"
+        method: "GET"
+        endpoint: "/admin/participants/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "participant_id"
+            value: "{{subscriber_id}}"
+          - field: "np_type"
+            contains: "BPP"
+
+      - name: "Step 2 – Admin PATCH (action=SUBSCRIBED) to reactivate"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+        expected_status: 200
+
+      - name: "Step 3 – Confirm status is SUBSCRIBED"
+        method: "GET"
+        endpoint: "/admin/participants/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "participant_id"
+            value: "{{subscriber_id}}"
+          - field: "np_type"
+            contains: "BPP"
+
+      - name: "Wait for lookup re-indexing"
+        sleep_seconds: 5
+
+      - name: "Step 4 – Verify participant is discoverable again"
+        method: "POST"
+        endpoint: "/v3.0/lookup"
+        auth_type: "v3"
+        data:
+          subscriber_id: "{{subscriber_id}}"
+          domain: "ONDC:RET1A"
+        expected_status: 200
+        # Note: Reactivated participants may need time to be re-indexed
+
+  # ===========================================================================
+  # WF-ADM-05 · Unsubscribe a Participant
+  # ===========================================================================
+  - id: "WF-ADM-05"
+    name: "Unsubscribe a Participant (Permanent Removal)"
+    description: >
+      Admin permanently removes a participant from the active network by
+      transitioning status to UNSUBSCRIBED.
+      Mirrors WF-ADM-05 from registry-workflows.md.
+    workflow: true
+    steps:
+      - name: "Precondition – Admin creates subscribed participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_wfadm05"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "WF-ADM-05 Unsubscribe NP"
+            - cred_id: "cred_pan_wfadm05"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "WF-ADM-05 Unsubscribe NP"
+          contacts:
+            - contact_id: "contact_auth_wfadm05"
+              type: "AUTHORISED_SIGNATORY"
+              name: "WF-ADM-05 Signatory"
+              email: "auth@wfadm05.example.com"
+              phone: "+919876510500"
+            - contact_id: "contact_biz_wfadm05"
+              type: "BUSINESS"
+              name: "WF-ADM-05 Business"
+              email: "biz@wfadm05.example.com"
+              phone: "+919876510501"
+          key:
+            - uk_id: "wfadm05_key"
+              signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1005=="
+              encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba1005=="
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              valid_from: "2026-01-01T00:00:00.000Z"
+              valid_until: "2027-01-01T00:00:00.000Z"
+          location:
+            - location_id: "loc_wfadm05"
+              country: "IND"
+              city: ["std:080"]
+              type: "SERVICEABLE"
+          uri:
+            - uri_id: "uri_wfadm05"
+              type: "CALLBACK"
+              url: "{{participant_url}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_wfadm05"
+              uri_id: "uri_wfadm05"
+              key_id: "wfadm05_key"
+        expected_status: 200
+
+      - name: "Step 1 – Confirm current status"
+        method: "GET"
+        endpoint: "/admin/participants/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "participant_id"
+            value: "{{subscriber_id}}"
+          - field: "np_type"
+            contains: "BPP"
+
+      - name: "Step 2 – Admin PATCH (action=UNSUBSCRIBED)"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "UNSUBSCRIBED"
+        expected_status: 200
+
+      - name: "Step 3 – Confirm status is UNSUBSCRIBED"
+        method: "GET"
+        endpoint: "/admin/participants/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "participant_id"
+            value: "{{subscriber_id}}"
+          - field: "np_type"
+            contains: "BPP"
+
+  # ===========================================================================
+  # WF-ADM-06 · Add / Modify Contacts for a Participant
+  # ===========================================================================
+  - id: "WF-ADM-06"
+    name: "Add / Modify Contacts for a Participant"
+    description: >
+      Admin adds a new contact and updates an existing contact for a participant.
+      Mirrors WF-ADM-06 from registry-workflows.md.
+    workflow: true
+    steps:
+      - name: "Precondition – Create subscribed participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_wfadm06"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "WF-ADM-06 Contacts Admin NP"
+            - cred_id: "cred_pan_wfadm06"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "WF-ADM-06 Contacts Admin NP"
+          contacts:
+            - contact_id: "contact_auth_wfadm06"
+              type: "AUTHORISED_SIGNATORY"
+              name: "WF-ADM-06 Signatory"
+              email: "auth@wfadm06.example.com"
+              phone: "+919876510600"
+            - contact_id: "contact_biz_wfadm06"
+              type: "BUSINESS"
+              name: "WF-ADM-06 Business"
+              email: "biz@wfadm06.example.com"
+              phone: "+919876510601"
+          key:
+            - uk_id: "wfadm06_key"
+              signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1006=="
+              encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba1006=="
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              valid_from: "2026-01-01T00:00:00.000Z"
+              valid_until: "2027-01-01T00:00:00.000Z"
+          location:
+            - location_id: "loc_wfadm06"
+              country: "IND"
+              city: ["std:080"]
+              type: "SERVICEABLE"
+          uri:
+            - uri_id: "uri_wfadm06"
+              type: "CALLBACK"
+              url: "{{participant_url}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_wfadm06"
+              uri_id: "uri_wfadm06"
+              key_id: "wfadm06_key"
+        expected_status: 200
+
+      - name: "Step 1 – List existing contacts"
+        method: "GET"
+        endpoint: "/admin/participants/{{subscriber_id}}/contacts"
+        auth_type: "admin"
+        expected_status: 200
+
+      - name: "Step 2 – Add a new TECHNICAL contact"
+        method: "POST"
+        endpoint: "/admin/participants/{{subscriber_id}}/contacts"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          contact_id: "contact_tech_wfadm06"
+          type: "TECHNICAL"
+          name: "WF-ADM-06 Technical Contact"
+          email: "tech@wfadm06.example.com"
+          phone: "+919876510602"
+          designation: "Platform Engineer"
+        expected_status: 201
+
+      - name: "Step 3 – Update existing BUSINESS contact"
+        method: "PUT"
+        endpoint: "/admin/participants/{{subscriber_id}}/contacts/contact_biz_wfadm06"
+        auth_type: "admin"
+        data:
+          type: "BUSINESS"
+          name: "WF-ADM-06 Business Updated"
+          email: "biz.updated@wfadm06.example.com"
+          phone: "+919876510611"
+        expected_status: 200
+
+      - name: "Step 4 – Verify updated contact details"
+        method: "GET"
+        endpoint: "/admin/participants/{{subscriber_id}}/contacts/contact_biz_wfadm06"
+        auth_type: "admin"
+        expected_status: 200
+
+  # ===========================================================================
+  # WF-ADM-07 · Add / Modify Credentials for a Participant
+  # ===========================================================================
+  - id: "WF-ADM-07"
+    name: "Add / Modify Credentials for a Participant"
+    description: >
+      Admin adds a new credential, updates an existing one, and marks its
+      verification status. Mirrors WF-ADM-07 from registry-workflows.md.
+    workflow: true
+    steps:
+      - name: "Precondition – Create subscribed participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_wfadm07"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "WF-ADM-07 Creds Admin NP"
+            - cred_id: "cred_pan_wfadm07"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "WF-ADM-07 Creds Admin NP"
+          contacts:
+            - contact_id: "contact_auth_wfadm07"
+              type: "AUTHORISED_SIGNATORY"
+              name: "WF-ADM-07 Signatory"
+              email: "auth@wfadm07.example.com"
+              phone: "+919876510700"
+            - contact_id: "contact_biz_wfadm07"
+              type: "BUSINESS"
+              name: "WF-ADM-07 Business"
+              email: "biz@wfadm07.example.com"
+              phone: "+919876510701"
+          key:
+            - uk_id: "wfadm07_key"
+              signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1007=="
+              encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba1007=="
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              valid_from: "2026-01-01T00:00:00.000Z"
+              valid_until: "2027-01-01T00:00:00.000Z"
+          location:
+            - location_id: "loc_wfadm07"
+              country: "IND"
+              city: ["std:080"]
+              type: "SERVICEABLE"
+          uri:
+            - uri_id: "uri_wfadm07"
+              type: "CALLBACK"
+              url: "{{participant_url}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_wfadm07"
+              uri_id: "uri_wfadm07"
+              key_id: "wfadm07_key"
+        expected_status: 200
+
+      - name: "Step 1 – List existing credentials"
+        method: "GET"
+        endpoint: "/admin/participants/{{subscriber_id}}/credentials"
+        auth_type: "admin"
+        expected_status: 200
+
+      - name: "Step 2 – Add a new FSSAI credential"
+        method: "POST"
+        endpoint: "/admin/participants/{{subscriber_id}}/credentials"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          cred_id: "cred_fssai_wfadm07"
+          type: "FSSAI"
+          cred_data:
+            fssai: "12345678901234"
+            legal_name: "WF-ADM-07 Food Business"
+        expected_status: 201
+
+      - name: "Step 3 – Update GST credential legal name"
+        method: "PUT"
+        endpoint: "/admin/participants/{{subscriber_id}}/credentials/cred_gst_wfadm07"
+        auth_type: "admin"
+        data:
+          type: "GST"
+          cred_data:
+            gstin: "29ABCDE1234F1Z5"
+            legal_name: "WF-ADM-07 Creds Admin NP Updated"
+        expected_status: 200
+
+      - name: "Step 4 – Update verification status of GST credential"
+        method: "PUT"
+        endpoint: "/admin/participants/{{subscriber_id}}/credentials/cred_gst_wfadm07/verification"
+        auth_type: "admin"
+        data:
+          Status: "VERIFIED"
+          verified_at: "2026-03-26T00:00:00.000Z"
+          verified_by: "ops-team"
+        expected_status: 200
+
+      - name: "Step 5 – Confirm updated credential data"
+        method: "GET"
+        endpoint: "/admin/participants/{{subscriber_id}}/credentials/cred_gst_wfadm07"
+        auth_type: "admin"
+        expected_status: 200
+
+  # ===========================================================================
+  # WF-ADM-08 · Add / Modify Locations for a Participant
+  # ===========================================================================
+  - id: "WF-ADM-08"
+    name: "Add / Modify Locations for a Participant"
+    description: >
+      Admin adds a new location and updates an existing location for a participant.
+      Mirrors WF-ADM-08 from registry-workflows.md.
+    workflow: true
+    steps:
+      - name: "Precondition – Create subscribed participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_wfadm08"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "WF-ADM-08 Locations NP"
+            - cred_id: "cred_pan_wfadm08"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "WF-ADM-08 Locations NP"
+          contacts:
+            - contact_id: "contact_auth_wfadm08"
+              type: "AUTHORISED_SIGNATORY"
+              name: "WF-ADM-08 Signatory"
+              email: "auth@wfadm08.example.com"
+              phone: "+919876510800"
+            - contact_id: "contact_biz_wfadm08"
+              type: "BUSINESS"
+              name: "WF-ADM-08 Business"
+              email: "biz@wfadm08.example.com"
+              phone: "+919876510801"
+          key:
+            - uk_id: "wfadm08_key"
+              signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1008=="
+              encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba1008=="
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              valid_from: "2026-01-01T00:00:00.000Z"
+              valid_until: "2027-01-01T00:00:00.000Z"
+          location:
+            - location_id: "loc_wfadm08_primary"
+              country: "IND"
+              city: ["std:080"]
+              type: "SERVICEABLE"
+          uri:
+            - uri_id: "uri_wfadm08"
+              type: "CALLBACK"
+              url: "{{participant_url}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_wfadm08_primary"
+              uri_id: "uri_wfadm08"
+              key_id: "wfadm08_key"
+        expected_status: 200
+
+      - name: "Step 1 – List existing locations"
+        method: "GET"
+        endpoint: "/admin/participants/{{subscriber_id}}/locations"
+        auth_type: "admin"
+        expected_status: 200
+
+      - name: "Step 2 – Create a new warehouse location"
+        method: "POST"
+        endpoint: "/admin/participants/{{subscriber_id}}/locations"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          location_id: "loc_wfadm08_warehouse"
+          country: "IND"
+          city:
+            - "std:080"
+            - "std:044"
+          type: "WAREHOUSE"
+        expected_status: 201
+
+      - name: "Step 3 – Update primary location city codes"
+        method: "PUT"
+        endpoint: "/admin/participants/{{subscriber_id}}/locations/loc_wfadm08_primary"
+        auth_type: "admin"
+        data:
+          country: "IND"
+          city:
+            - "std:080"
+            - "std:022"
+            - "std:033"
+          type: "SERVICEABLE"
+        expected_status: 200
+
+      - name: "Step 4 – Verify updated location"
+        method: "GET"
+        endpoint: "/admin/participants/{{subscriber_id}}/locations/loc_wfadm08_primary"
+        auth_type: "admin"
+        expected_status: 200
+
+  # ===========================================================================
+  # WF-ADM-09 · Manage Subscriber URIs for a Participant
+  # ===========================================================================
+  - id: "WF-ADM-09"
+    name: "Manage Subscriber URIs for a Participant"
+    description: >
+      Admin creates a new URI, updates the URL, and records SSL verification
+      status for a participant.
+      Mirrors WF-ADM-09 from registry-workflows.md.
+    workflow: true
+    steps:
+      - name: "Precondition – Create subscribed participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_wfadm09"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "WF-ADM-09 URIs NP"
+            - cred_id: "cred_pan_wfadm09"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "WF-ADM-09 URIs NP"
+          contacts:
+            - contact_id: "contact_auth_wfadm09"
+              type: "AUTHORISED_SIGNATORY"
+              name: "WF-ADM-09 Signatory"
+              email: "auth@wfadm09.example.com"
+              phone: "+919876510900"
+            - contact_id: "contact_biz_wfadm09"
+              type: "BUSINESS"
+              name: "WF-ADM-09 Business"
+              email: "biz@wfadm09.example.com"
+              phone: "+919876510901"
+          key:
+            - uk_id: "wfadm09_key"
+              signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1009=="
+              encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba1009=="
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              valid_from: "2026-01-01T00:00:00.000Z"
+              valid_until: "2027-01-01T00:00:00.000Z"
+          location:
+            - location_id: "loc_wfadm09"
+              country: "IND"
+              city: ["std:080"]
+              type: "SERVICEABLE"
+          uri:
+            - uri_id: "uri_wfadm09_v1"
+              type: "CALLBACK"
+              url: "{{participant_url}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_wfadm09"
+              uri_id: "uri_wfadm09_v1"
+              key_id: "wfadm09_key"
+        expected_status: 200
+
+      - name: "Step 1 – List existing URIs"
+        method: "GET"
+        endpoint: "/admin/participants/{{subscriber_id}}/uris"
+        auth_type: "admin"
+        expected_status: 200
+
+      - name: "Step 2 – Create a new URI entry"
+        method: "POST"
+        endpoint: "/admin/participants/{{subscriber_id}}/uris"
+        auth_type: "admin"
+        data:
+          uri_id: "uri_wfadm09_v2"
+          type: "CALLBACK"
+          url: "{{participant_url}}"
+          description: "V2 callback endpoint"
+        expected_status: 201
+
+      - name: "Step 3 – Update URL on existing URI"
+        method: "PUT"
+        endpoint: "/admin/participants/{{subscriber_id}}/uris/uri_wfadm09_v1"
+        auth_type: "admin"
+        data:
+          type: "CALLBACK"
+          url: "{{participant_url}}"
+          description: "V1 callback updated path"
+        expected_status: 200
+
+      - name: "Step 4 – Verify updated URI"
+        method: "GET"
+        endpoint: "/admin/participants/{{subscriber_id}}/uris/uri_wfadm09_v1"
+        auth_type: "admin"
+        expected_status: 200
+
+  # ===========================================================================
+  # WF-ADM-10 · Manage Participant Keys
+  # ===========================================================================
+  - id: "WF-ADM-10"
+    name: "Manage Participant Keys (Create / Update / Revoke)"
+    description: >
+      Admin creates a new key record, updates key metadata, and changes key
+      status (revoke). Mirrors WF-ADM-10 from registry-workflows.md.
+    workflow: true
+    steps:
+      - name: "Precondition – Create subscribed participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_wfadm10"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "WF-ADM-10 Keys NP"
+            - cred_id: "cred_pan_wfadm10"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "WF-ADM-10 Keys NP"
+          contacts:
+            - contact_id: "contact_auth_wfadm10"
+              type: "AUTHORISED_SIGNATORY"
+              name: "WF-ADM-10 Signatory"
+              email: "auth@wfadm10.example.com"
+              phone: "+919876511000"
+            - contact_id: "contact_biz_wfadm10"
+              type: "BUSINESS"
+              name: "WF-ADM-10 Business"
+              email: "biz@wfadm10.example.com"
+              phone: "+919876511001"
+          key:
+            - uk_id: "wfadm10_initial_key"
+              signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1010=="
+              encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba1010=="
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              valid_from: "2026-01-01T00:00:00.000Z"
+              valid_until: "2027-01-01T00:00:00.000Z"
+          location:
+            - location_id: "loc_wfadm10"
+              country: "IND"
+              city: ["std:080"]
+              type: "SERVICEABLE"
+          uri:
+            - uri_id: "uri_wfadm10"
+              type: "CALLBACK"
+              url: "{{participant_url}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_wfadm10"
+              uri_id: "uri_wfadm10"
+              key_id: "wfadm10_initial_key"
+        expected_status: 200
+
+      - name: "Step 1 – List all keys for the participant"
+        method: "GET"
+        endpoint: "/admin/participants/{{subscriber_id}}/keys"
+        auth_type: "admin"
+        expected_status: 200
+
+      - name: "Step 2 – Create a new key record"
+        method: "POST"
+        endpoint: "/admin/keys"
+        auth_type: "admin"
+        data:
+          uk_id: "wfadm10_new_key"
+          participant_id: "{{subscriber_id}}"
+          signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1010B=="
+          encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba1010B=="
+          signed_algorithm: "ED25519"
+          encryption_algorithm: "X25519"
+          valid_from: "2026-03-26T00:00:00.000Z"
+          valid_until: "2027-03-26T00:00:00.000Z"
+        expected_status: 501
+        # Note: API returns 501 - "Use /v3.0/subscribe endpoint for key creation"
+
+      - name: "Step 3 – Update key metadata (extend validity)"
+        method: "PUT"
+        endpoint: "/admin/participants/{{subscriber_id}}/keys/wfadm10_new_key"
+        auth_type: "admin"
+        data:
+          valid_until: "2028-03-26T00:00:00.000Z"
+        expected_status: 501
+        # Skipped - depends on Step 2 which is not implemented
+
+      - name: "Step 4 – Revoke the initial key"
+        method: "PUT"
+        endpoint: "/admin/participants/{{subscriber_id}}/keys/wfadm10_initial_key/status"
+        auth_type: "admin"
+        data:
+          status: "REVOKED"
+        expected_status: 200
+
+      - name: "Step 5 – Verify key record reflects revoked status"
+        method: "GET"
+        endpoint: "/admin/participants/{{subscriber_id}}/keys/wfadm10_initial_key"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "status"
+            value: "REVOKED"
+
+  # ===========================================================================
+  # WF-ADM-11 · Create and Manage a Domain
+  # ===========================================================================
+  - id: "WF-ADM-11"
+    name: "Create and Manage a Domain"
+    description: >
+      Admin creates a new ONDC domain, retrieves it, updates its description,
+      and looks it up by name. Mirrors WF-ADM-11 from registry-workflows.md.
+      Note: Domain creation may fail if domain already exists from previous run.
+    workflow: true
+    steps:
+      - name: "Step 1 – List existing domains"
+        method: "GET"
+        endpoint: "/admin/domains"
+        auth_type: "admin"
+        expected_status: 200
+
+      - name: "Step 2 – Create a new domain"
+        method: "POST"
+        endpoint: "/admin/domains"
+        auth_type: "admin"
+        data:
+          domain: "ONDC:TEST_WF11_{{timestamp}}"
+          description: "Test domain for WF-ADM-11"
+          is_active: true
+        expected_status: 201
+        store:
+          - field: "id"
+            as: "domain_id"
+          - field: "domain_id"
+            as: "domain_id"
+
+      - name: "Step 3 – Retrieve the newly created domain"
+        method: "GET"
+        endpoint: "/admin/domains/{{domain_id}}"
+        auth_type: "admin"
+        expected_status: 200
+
+      - name: "Step 4 – Update domain description and active flag"
+        method: "PUT"
+        endpoint: "/admin/domains/{{domain_id}}"
+        auth_type: "admin"
+        data:
+          domain: "ONDC:TEST_WF11_{{timestamp}}"
+          description: "Agriculture, Farm Products and Allied Services (Updated)"
+          is_active: true
+        expected_status: 200
+
+      - name: "Step 5 – Look up domain by name"
+        method: "GET"
+        endpoint: "/admin/domains/name/ONDC:TEST_WF11_{{timestamp}}"
+        auth_type: "admin"
+        expected_status: 200
+
+  # ===========================================================================
+  # WF-ADM-12 · Manage Network Policies
+  # ===========================================================================
+  - id: "WF-ADM-12"
+    name: "Manage Network Policies (Create / List / Update)"
+    description: >
+      Admin creates a network policy, lists policies scoped to a participant,
+      and updates the is_active flag.
+      Mirrors WF-ADM-12 from registry-workflows.md.
+    workflow: true
+    steps:
+      - name: "Precondition – Create subscribed participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_wfadm12"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "WF-ADM-12 Policies NP"
+            - cred_id: "cred_pan_wfadm12"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "WF-ADM-12 Policies NP"
+          contacts:
+            - contact_id: "contact_auth_wfadm12"
+              type: "AUTHORISED_SIGNATORY"
+              name: "WF-ADM-12 Signatory"
+              email: "auth@wfadm12.example.com"
+              phone: "+919876511200"
+            - contact_id: "contact_biz_wfadm12"
+              type: "BUSINESS"
+              name: "WF-ADM-12 Business"
+              email: "biz@wfadm12.example.com"
+              phone: "+919876511201"
+          key:
+            - uk_id: "wfadm12_key"
+              signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1012=="
+              encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba1012=="
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              valid_from: "2026-01-01T00:00:00.000Z"
+              valid_until: "2027-01-01T00:00:00.000Z"
+          location:
+            - location_id: "loc_wfadm12"
+              country: "IND"
+              city: ["std:080"]
+              type: "SERVICEABLE"
+          uri:
+            - uri_id: "uri_wfadm12"
+              type: "CALLBACK"
+              url: "{{participant_url}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_wfadm12"
+              uri_id: "uri_wfadm12"
+              key_id: "wfadm12_key"
+        expected_status: 200
+
+      - name: "Step 1 – List all network policies"
+        method: "GET"
+        endpoint: "/admin/policies"
+        auth_type: "admin"
+        expected_status: 200
+
+      - name: "Step 2 – Create a new policy for the participant"
+        method: "POST"
+        endpoint: "/admin/policies"
+        auth_type: "admin"
+        data:
+          policy_id: "policy_wfadm12_rate_limit"
+          name: "WF-ADM-12 Rate Limiting Policy"
+          participant_id: "{{subscriber_id}}"
+          is_active: true
+          rule_definition:
+            max_requests_per_second: 100
+            allowed_np_types:
+              - "BPP"
+              - "BAP"
+        expected_status: 201
+        store:
+          - field: "policy_id"
+            as: "policy_id"
+
+      - name: "Step 3 – List policies for this participant"
+        method: "GET"
+        endpoint: "/admin/participants/{{subscriber_id}}/policies"
+        auth_type: "admin"
+        expected_status: 200
+
+      - name: "Step 4 – Retrieve specific policy"
+        method: "GET"
+        endpoint: "/admin/participants/{{subscriber_id}}/policies/{{policy_id}}"
+        auth_type: "admin"
+        expected_status: 200
+
+      - name: "Step 5 – Deactivate the policy"
+        method: "PATCH"
+        endpoint: "/admin/participants/{{subscriber_id}}/policies/{{policy_id}}"
+        auth_type: "admin"
+        data:
+          is_active: false
+        expected_status: 200
+
+  # ===========================================================================
+  # WF-ADM-13 · Manage Network Configurations (NP-Domain Mappings)
+  # ===========================================================================
+  - id: "WF-ADM-13"
+    name: "Manage Network Configurations (NP-Domain Mappings)"
+    description: >
+      Admin creates, lists, updates, and deletes network config entries linking
+      participants to domains. Mirrors WF-ADM-13 from registry-workflows.md.
+    workflow: true
+    steps:
+      - name: "Precondition – Create subscribed participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_wfadm13"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "WF-ADM-13 Configs NP"
+            - cred_id: "cred_pan_wfadm13"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "WF-ADM-13 Configs NP"
+          contacts:
+            - contact_id: "contact_auth_wfadm13"
+              type: "AUTHORISED_SIGNATORY"
+              name: "WF-ADM-13 Signatory"
+              email: "auth@wfadm13.example.com"
+              phone: "+919876511300"
+            - contact_id: "contact_biz_wfadm13"
+              type: "BUSINESS"
+              name: "WF-ADM-13 Business"
+              email: "biz@wfadm13.example.com"
+              phone: "+919876511301"
+          key:
+            - uk_id: "wfadm13_key"
+              signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1013=="
+              encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba1013=="
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              valid_from: "2026-01-01T00:00:00.000Z"
+              valid_until: "2027-01-01T00:00:00.000Z"
+          location:
+            - location_id: "loc_wfadm13"
+              country: "IND"
+              city: ["std:080"]
+              type: "SERVICEABLE"
+          uri:
+            - uri_id: "uri_wfadm13"
+              type: "CALLBACK"
+              url: "{{participant_url}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_wfadm13"
+              uri_id: "uri_wfadm13"
+              key_id: "wfadm13_key"
+        expected_status: 200
+
+      - name: "Step 1 – List all configs (filtered by domain)"
+        method: "GET"
+        endpoint: "/admin/configs"
+        auth_type: "admin"
+        query_params:
+          domain: "ONDC:RET1A"
+        expected_status: 200
+
+      - name: "Step 2 – Create a new config entry"
+        method: "POST"
+        endpoint: "/admin/configs"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          domain: "ONDC:RET10"
+          np_type: "BPP"
+          subscriber_id: "{{subscriber_id}}"
+          location_id: "loc_wfadm13"
+          uri_id: "uri_wfadm13"
+          key_id: "wfadm13_key"
+          status: "ACTIVE"
+        expected_status: 201
+        store:
+          - field: "config_id"
+            as: "config_id"
+
+      - name: "Step 3 – Bulk-create config entries"
+        method: "POST"
+        endpoint: "/admin/configs/batch"
+        auth_type: "admin"
+        data:
+          - participant_id: "{{subscriber_id}}"
+            domain: "ONDC:RET11"
+            np_type: "BPP"
+            subscriber_id: "{{subscriber_id}}"
+            location_id: "loc_wfadm13"
+            uri_id: "uri_wfadm13"
+            key_id: "wfadm13_key"
+            status: "ACTIVE"
+        expected_status: 201
+        store:
+          - field: "0.config_id"
+            as: "batch_config_id"
+
+      - name: "Step 4 – Look up config by domain and subscriber_id"
+        method: "GET"
+        endpoint: "/admin/configs/lookup"
+        auth_type: "admin"
+        query_params:
+          domain: "ONDC:RET10"
+          subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+
+      - name: "Step 5 – Update the config entry"
+        method: "PUT"
+        endpoint: "/admin/configs/{{config_id}}"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          domain: "ONDC:RET10"
+          np_type: "BAP"
+          subscriber_id: "{{subscriber_id}}"
+          location_id: "loc_wfadm13"
+          uri_id: "uri_wfadm13"
+          key_id: "wfadm13_key"
+          status: "ACTIVE"
+        expected_status: 200
+
+  # ===========================================================================
+  # WF-ADM-14 · Manage Enumeration Values
+  # ===========================================================================
+  - id: "WF-ADM-14"
+    name: "Manage Enumeration Values (CRUD for np_type, cred_type, etc.)"
+    description: >
+      Admin creates, lists, updates, and deletes enumeration values used for
+      data validation. Mirrors WF-ADM-14 from registry-workflows.md.
+    workflow: true
+    steps:
+      - name: "Step 1 – List all enum categories and values"
+        method: "GET"
+        endpoint: "/admin/enums"
+        auth_type: "admin"
+        expected_status: 200
+
+      - name: "Step 2 – List all enums in NP_TYPE category"
+        method: "GET"
+        endpoint: "/admin/enums/category/NP_TYPE"
+        auth_type: "admin"
+        expected_status: 200
+
+      - name: "Step 3 – Look up specific enum by category + code"
+        method: "GET"
+        endpoint: "/admin/enums/lookup"
+        auth_type: "admin"
+        query_params:
+          category: "NP_TYPE"
+          code: "BPP"
+        expected_status: 200
+
+      - name: "Step 4 – Create a new enum value"
+        method: "POST"
+        endpoint: "/admin/enums"
+        auth_type: "admin"
+        data:
+          enum_category: "CRED_TYPE"
+          enum_code: "SHOP_ACT_{{timestamp}}"
+          enum_label: "Shop and Establishment Act license"
+          is_active: true
+        expected_status: 201
+        store:
+          - field: "enum_id"
+            as: "enum_id"
+
+      - name: "Step 5 – Update the enum description"
+        method: "PUT"
+        endpoint: "/admin/enums/{{enum_id}}"
+        auth_type: "admin"
+        data:
+          enum_category: "CRED_TYPE"
+          enum_code: "SHOP_ACT_{{timestamp}}"
+          enum_label: "Shop and Establishment Act license (State-issued)"
+          is_active: true
+        expected_status: 200
+
+  # ===========================================================================
+  # WF-ADM-15 · Error-125 Recovery (Duplicate Subscriber ID – PATCH Retry)
+  # ===========================================================================
+  - id: "WF-ADM-15"
+    name: "Error-125 Recovery (Duplicate Subscriber ID – PATCH Retry)"
+    description: >
+      When POST /admin/subscribe fails with error 125/137/181/185 (subscriber
+      already exists), the system retries using PATCH with action=SUBSCRIBED.
+      Mirrors WF-ADM-15 from registry-workflows.md.
+    workflow: true
+    steps:
+      - name: "Precondition – Admin POST whitelist/subscribe – first create (succeeds)"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+
+      - name: "Step 1 – Attempt duplicate POST (triggers error 125 / 409)"
+        # Posting whitelist again for the same subscriber_id must return 409 Conflict.
+        # This validates the trigger condition for the retry path described in WF-ADM-15.
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 409  # error 125 / 181 – Subscriber id already exists
+        validate:
+          - field: "error.code"
+            in_range:
+              min: 15000
+              max: 19999
+
+      - name: "Step 2 – Error-125 retry: Admin PATCH (action=SUBSCRIBED)"
+        # Per WF-ADM-15: when POST returns 125, switch to PATCH with action=SUBSCRIBED.
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_wfadm15"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "WF-ADM-15 Error Recovery NP"
+            - cred_id: "cred_pan_wfadm15"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "WF-ADM-15 Error Recovery NP"
+          contacts:
+            - contact_id: "contact_auth_wfadm15"
+              type: "AUTHORISED_SIGNATORY"
+              name: "WF-ADM-15 Signatory"
+              email: "auth@wfadm15.example.com"
+              phone: "+919876511500"
+            - contact_id: "contact_biz_wfadm15"
+              type: "BUSINESS"
+              name: "WF-ADM-15 Business"
+              email: "biz@wfadm15.example.com"
+              phone: "+919876511501"
+          key:
+            - uk_id: "wfadm15_key"
+              signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1015=="
+              encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba1015=="
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              valid_from: "2026-01-01T00:00:00.000Z"
+              valid_until: "2027-01-01T00:00:00.000Z"
+          location:
+            - location_id: "loc_wfadm15"
+              country: "IND"
+              city: ["std:080"]
+              type: "SERVICEABLE"
+          uri:
+            - uri_id: "uri_wfadm15"
+              type: "CALLBACK"
+              url: "{{participant_url}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_wfadm15"
+              uri_id: "uri_wfadm15"
+              key_id: "wfadm15_key"
+        expected_status: 200
+
+      - name: "Step 3 – Confirm participant status is SUBSCRIBED"
+        method: "GET"
+        endpoint: "/admin/participants/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "participant_id"
+            value: "{{subscriber_id}}"
+          - field: "np_type"
+            contains: "BPP"

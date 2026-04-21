@@ -1,0 +1,745 @@
+# Workflow Negative Tests - Error Reference Coverage
+# Comprehensive error scenario testing based on official error reference documentation
+# Focus: Authentication, Validation, Subscription, and Not Found errors
+
+# Test Coverage:
+#   WF-ERR-01  Schema/Validation Errors (400) - Missing Fields
+#   WF-ERR-02  Schema/Validation Errors (400) - Invalid Formats
+#   WF-ERR-03  Not Found Errors (404) - Participant/Key/Credential
+#   WF-ERR-04  Not Found Errors (404) - Domain/Enum
+#   WF-ERR-05  Authentication Error (401) - Missing Authorization Header
+#   WF-ERR-06  Authentication Error (401) - Invalid Signature
+#   WF-ERR-07  Authentication Error (401) - Key Not Found
+#   WF-ERR-08  Authentication Error (401) - Expired Key
+#   WF-ERR-09  Authorization Error (403) - Forbidden
+#   WF-ERR-10  Subscription Error (409) - Duplicate Subscriber ID
+#   WF-ERR-11  Subscription Error (400) - V3 PATCH Not Allowed
+#   WF-ERR-12  Subscription Error (400) - Dual-Path Validation Failed
+
+test_suite:
+  name: "Workflow Negative Tests - Error Reference"
+  category: "wf_negative"
+  total_tests: 12
+  description: "Error handling workflow tests covering all error reference scenarios"
+
+config:
+  default_timeout: 30
+  retry_on_failure: false
+
+tests:
+  # ==================================================================
+  # SECTION 1: SCHEMA / VALIDATION ERRORS (400)
+  # ==================================================================
+
+  - id: "WF-ERR-01"
+    name: "Schema/Validation Error (400) - Missing Required Fields"
+    description: >
+      Tests missing required fields: participant_id and configs array.
+      Validates proper 400 error responses with schema validation messages.
+    workflow: true
+    steps:
+      - name: "Step 1 – Missing participant_id field"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "test_{{timestamp}}"
+        expected_status: 400
+        validate:
+          - field: "error.message"
+            contains: "participant_id"
+          - field: "error.code"
+            in_range:
+              min: 15000
+              max: 19999
+
+      - name: "Step 2 – Missing configs array"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "test_missing_configs_{{timestamp}}"
+          action: "WHITELISTED"
+        expected_status: 400
+        validate:
+          - field: "error.message"
+            contains: "configs"
+          - field: "error.code"
+            in_range:
+              min: 15000
+              max: 19999
+
+  - id: "WF-ERR-02"
+    name: "Schema/Validation Error (400) - Invalid Formats"
+    description: >
+      Tests invalid format validation: GSTIN pattern, HTTPS URL requirement,
+      and city_code STD format. Validates schema validation errors.
+    workflow: true
+    steps:
+      - name: "Step 1 – Invalid GSTIN format"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "test_invalid_gst_{{timestamp}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_invalid"
+              type: "GST"
+              cred_data:
+                gstin: "INVALID_GST_FORMAT"
+                legal_name: "Test Company"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "test_invalid_gst_{{timestamp}}"
+        expected_status: 400
+        validate:
+          - field: "error.message"
+            contains: "missing properties"
+          - field: "error.code"
+            in_range:
+              min: 15000
+              max: 19999
+
+      - name: "Step 2 – Invalid URL format (not HTTPS)"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "test_invalid_url_{{timestamp}}"
+          action: "SUBSCRIBED"
+          uri:
+            uri_id: "uri_invalid"
+            type: "CALLBACK"
+            url: "http://insecure.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "test_invalid_url_{{timestamp}}"
+        expected_status: 400
+        validate:
+          - field: "error.message"
+            contains: "missing properties"
+          - field: "error.code"
+            in_range:
+              min: 15000
+              max: 19999
+
+      - name: "Step 3 – Invalid city_code pattern"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "test_invalid_city_{{timestamp}}"
+          action: "WHITELISTED"
+          location:
+            - location_id: "loc_invalid"
+              country: "IND"
+              city: ["INVALID_CITY_CODE"]
+              type: "SERVICEABLE"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "test_invalid_city_{{timestamp}}"
+        expected_status: 400
+        validate:
+          - field: "error.message"
+            contains: "city"
+          - field: "error.code"
+            in_range:
+              min: 15000
+              max: 19999
+          - field: "error.code"
+            in_range:
+              min: 15000
+              max: 19999
+
+  # ==================================================================
+  # SECTION 2: NOT FOUND ERRORS (404)
+  # ==================================================================
+
+  - id: "WF-ERR-03"
+    name: "Not Found Error (404) - Participant/Key/Credential"
+    description: >
+      Tests 404 errors for non-existent participant, key, and credential.
+      Validates proper not found error responses.
+    workflow: true
+    steps:
+      - name: "Step 1 – Participant not found"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "non_existent_participant_{{timestamp}}"
+          action: "INACTIVE"
+        expected_status: 404
+        validate:
+          - field: "error.message"
+            contains: "not found"
+          - field: "error.code"
+            in_range:
+              min: 15000
+              max: 19999
+          - field: "error.code"
+            in_range:
+              min: 15000
+              max: 19999
+
+      - name: "Step 2 – Key not found (for existing participant)"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "test-key-nf-{{timestamp}}.example.com"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "test-key-nf-{{timestamp}}.example.com"
+        expected_status: [200, 201]
+      
+      - name: "Step 3 – Get non-existent key"
+        method: "GET"
+        endpoint: "/admin/participants/test-key-nf-{{timestamp}}.example.com/keys/non_existent_key_id"
+        auth_type: "admin"
+        expected_status: 404
+        allow_failure: true
+
+      - name: "Step 4 – Get non-existent credential"
+        method: "GET"
+        endpoint: "/admin/participants/test-key-nf-{{timestamp}}.example.com/credentials/non_existent_cred_id"
+        auth_type: "admin"
+        expected_status: 404
+        allow_failure: true
+
+  - id: "WF-ERR-04"
+    name: "Not Found Error (404) - Domain/Enum"
+    description: >
+      Tests 404 errors for non-existent domain and enum category.
+      Validates proper not found responses for metadata entities.
+    workflow: true
+    steps:
+      - name: "Step 1 – Domain not found"
+        method: "GET"
+        endpoint: "/admin/domains/name/NON_EXISTENT_DOMAIN_CODE_12345"
+        auth_type: "admin"
+        expected_status: [404, 400]
+
+      - name: "Step 2 – Enum category not found"
+        method: "GET"
+        endpoint: "/admin/enums/category/NON_EXISTENT_CATEGORY_12345"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "count"
+            equals: 0
+
+  # ==================================================================
+  # SECTION 3: AUTHENTICATION ERRORS (401 / 403)
+  # ==================================================================
+
+  - id: "WF-ERR-05"
+    name: "Authentication Error (401) - Authorization Header Required"
+    description: >
+      Tests 401 error when Authorization header is missing.
+      Validates proper authentication error response.
+    workflow: true
+    steps:
+      - name: "Step 1 – Request without Authorization header"
+        method: "GET"
+        endpoint: "/admin/participants"
+        auth_type: "none"
+        expected_status: 401
+        validate:
+          - field: "error.message"
+            contains: "Authorization"
+          - field: "error.code"
+            in_range:
+              min: 15000
+              max: 19999
+          - field: "error.code"
+            in_range:
+              min: 15000
+              max: 19999
+
+  - id: "WF-ERR-06"
+    name: "Authentication Error (401) - Signature Does Not Match"
+    description: >
+      Tests 401 error for invalid ONDC signature.
+      Validates signature mismatch error handling.
+    workflow: true
+    steps:
+      - name: "Step 1 – Admin whitelists participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "test-invalid-sig-{{timestamp}}.example.com"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "test-invalid-sig-{{timestamp}}.example.com"
+        expected_status: [200, 201]
+
+      - name: "Step 2 – V3 request with invalid signature"
+        method: "POST"
+        endpoint: "/v3.0/subscribe"
+        auth_type: "v3"
+        invalid_signature: true
+        data:
+          request_id: "{{request_id}}"
+          uk_id: "test_key_invalid_sig"
+          participant_id: "test-invalid-sig-{{timestamp}}.example.com"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "test-invalid-sig-{{timestamp}}.example.com"
+        expected_status: 401
+        validate:
+          - field: "error.message"
+            contains: "key"
+          - field: "error.code"
+            in_range:
+              min: 15000
+              max: 19999
+          - field: "error.code"
+            in_range:
+              min: 15000
+              max: 19999
+
+  - id: "WF-ERR-07"
+    name: "Authentication Error (401) - Key Not Found / PUBLIC_KEY_NOT_FOUND"
+    description: >
+      Tests 401 error when uk_id is not registered in registry.
+      Admin whitelists the participant (minimal). NP self-subscribes via
+      POST /v3.0/subscribe — registry registers the runner's generated key.
+      Step 3 then signs with a new locally-generated uk_id that was never
+      registered → subscriber is found, uk_id is not → PUBLIC_KEY_NOT_FOUND (401).
+    workflow: true
+    participants:
+      - alias: "err07_participant"
+        subscriber_id_prefix: "test-key-notfound"
+        generate_unique_id: true
+    steps:
+      - name: "Step 1 – Admin whitelists participant (minimal)"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: [200, 201]
+
+      - name: "Step 2 – NP self-subscribes via POST /v3.0/subscribe (runner key registered)"
+        method: "POST"
+        endpoint: "/v3.0/subscribe"
+        auth_type: "v3"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          request_id: "{{request_id}}"
+          uk_id: "{{uk_id}}"
+          participant_id: "{{subscriber_id}}"
+          credentials:
+            - cred_id: "cred_gst_err07"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "WF-ERR-07 Key Not Found Test"
+            - cred_id: "cred_pan_err07"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "WF-ERR-07 Key Not Found Test"
+          contacts:
+            - contact_id: "contact_auth_err07"
+              type: "AUTHORISED_SIGNATORY"
+              name: "ERR07 Signatory"
+              email: "auth@err07.example.com"
+              phone: "+919876520700"
+            - contact_id: "contact_biz_err07"
+              type: "BUSINESS"
+              name: "ERR07 Business"
+              email: "biz@err07.example.com"
+              phone: "+919876520701"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_err07"
+            country: "IND"
+            city: ["std:080"]
+            type: "SERVICEABLE"
+          uri:
+            uri_id: "uri_err07"
+            type: "CALLBACK"
+            url: "https://seller-mock.kynondc.net"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_err07"
+              uri_id: "uri_err07"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+      - name: "Step 3 – V3 request signed with new unregistered uk_id — expect PUBLIC_KEY_NOT_FOUND"
+        method: "POST"
+        endpoint: "/v3.0/lookup"
+        auth_type: "v3"
+        generate_new_key: true
+        data:
+          subscriber_id: "{{subscriber_id}}"
+          country: "IND"
+          domain: "ONDC:RET1A"
+        expected_status: 401
+        validate:
+          - field: "error.message"
+            contains: "not found"
+          - field: "error.code"
+            in_range:
+              min: 15000
+              max: 19999
+
+  - id: "WF-ERR-08"
+    name: "Authentication Error (401) - Key Expired / KEY_EXPIRED"
+    description: >
+      Tests 401 error when key's valid_until has passed.
+      Validates expired key error handling.
+    workflow: true
+    steps:
+      - name: "Step 1 – Admin creates participant with expired key"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "test_expired_key_{{timestamp}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_expired"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "Expired Key Test"
+            - cred_id: "cred_pan_expired"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "Expired Key Test"
+          contacts:
+            - contact_id: "contact_auth"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Auth Contact"
+              email: "auth@expired.example.com"
+              phone: "+919876543210"
+            - contact_id: "contact_biz"
+              type: "BUSINESS"
+              name: "Business Contact"
+              email: "biz@expired.example.com"
+              phone: "+919876543211"
+          key:
+            uk_id: "expired_key_test"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyz=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210zyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2024-01-01T00:00:00.000Z"
+            valid_until: "2024-12-31T23:59:59.999Z"
+          location:
+            location_id: "loc_expired"
+            country: "IND"
+            city: ["std:080"]
+            type: "SERVICEABLE"
+          uri:
+            uri_id: "uri_expired"
+            type: "CALLBACK"
+            url: "https://expired.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "test_expired_key_{{timestamp}}"
+              location_id: "loc_expired"
+              uri_id: "uri_expired"
+              key_id: "expired_key_test"
+        expected_status: [200, 201]
+        allow_failure: true
+
+      - name: "Wait for participant indexing"
+        sleep_seconds: 5
+
+      - name: "Step 2 – V3 request with expired key"
+        method: "POST"
+        endpoint: "/v3.0/lookup"
+        auth_type: "v3"
+        data:
+          subscriber_id: "test_expired_key_{{timestamp}}"
+          domain: "ONDC:RET1A"
+        expected_status: 401
+        allow_failure: true
+        validate:
+          - field: "error.message"
+            contains: "not found"
+          - field: "error.code"
+            in_range:
+              min: 15000
+              max: 19999
+
+  - id: "WF-ERR-09"
+    name: "Authorization Error (403) - Forbidden (No Admin Role)"
+    description: >
+      Tests 403 error when JWT user lacks admin role.
+      Validates authorization/permission error handling.
+    workflow: true
+    steps:
+      - name: "Step 1 – Non-admin user attempts admin operation"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "user"
+        data:
+          participant_id: "test_forbidden_{{timestamp}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "test_forbidden_{{timestamp}}"
+        expected_status: [403, 401]
+        allow_failure: true
+        validate:
+          - field: "error.message"
+            contains: "Authorization"
+          - field: "error.code"
+            in_range:
+              min: 15000
+              max: 19999
+          - field: "error.code"
+            in_range:
+              min: 15000
+              max: 19999
+
+  # ==================================================================
+  # SECTION 4: SUBSCRIPTION ERRORS (409 / 400)
+  # ==================================================================
+
+  - id: "WF-ERR-10"
+    name: "Subscription Error (409) - Subscriber ID Already Exists (Error 125/181)"
+    description: >
+      Tests 409 conflict error when POST is called for existing participant_id.
+      Covers Error 125, 137, 181, 185. Validates duplicate detection.
+    workflow: true
+    steps:
+      - name: "Step 1 – Create first participant (WHITELISTED)"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "test-duplicate-{{timestamp}}.example.com"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "test-duplicate-{{timestamp}}.example.com"
+        expected_status: [200, 201]
+
+      - name: "Step 2 – Attempt duplicate POST (Error 125/181)"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "test-duplicate-{{timestamp}}.example.com"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET15"
+              np_type: "BAP"
+              subscriber_id: "test-duplicate-{{timestamp}}.example.com"
+        expected_status: 409
+        validate:
+          - field: "error.message"
+            contains: "already exists"
+          - field: "error.code"
+            in_range:
+              min: 15000
+              max: 19999
+
+      - name: "Step 3 – Correct approach: Use PATCH to update"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "test-duplicate-{{timestamp}}.example.com"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_dup"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "Duplicate Test"
+            - cred_id: "cred_pan_dup"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "Duplicate Test"
+          contacts:
+            - contact_id: "contact_auth_dup"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Auth Contact"
+              email: "auth@dup.example.com"
+              phone: "+919876543210"
+            - contact_id: "contact_biz_dup"
+              type: "BUSINESS"
+              name: "Business Contact"
+              email: "biz@dup.example.com"
+              phone: "+919876543211"
+          key:
+            uk_id: "dup_key"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyz=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210zyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-01-01T00:00:00.000Z"
+            valid_until: "2027-01-01T00:00:00.000Z"
+          location:
+            location_id: "loc_dup"
+            country: "IND"
+            city: ["std:080"]
+            type: "SERVICEABLE"
+          uri:
+            uri_id: "uri_dup"
+            type: "CALLBACK"
+            url: "https://dup.example.com/callback"
+        expected_status: [200, 201, 400]
+        allow_failure: true
+
+  - id: "WF-ERR-11"
+    name: "Subscription Error (400) - V3 PATCH Only Allowed for SUBSCRIBED"
+    description: >
+      Tests 400 error when PATCH /v3.0/subscribe is called on non-SUBSCRIBED participant.
+      Validates state transition rules.
+    workflow: true
+    steps:
+      - name: "Step 1 – Create WHITELISTED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "test-v3-patch-{{timestamp}}.example.com"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "test-v3-patch-{{timestamp}}.example.com"
+        expected_status: [200, 201]
+
+      - name: "Step 2 – Attempt V3 PATCH on WHITELISTED participant (should fail)"
+        method: "PATCH"
+        endpoint: "/v3.0/subscribe"
+        auth_type: "v3"
+        data:
+          request_id: "{{request_id}}"
+          uk_id: "test_patch_key"
+          participant_id: "test-v3-patch-{{timestamp}}.example.com"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "test-v3-patch-{{timestamp}}.example.com"
+        expected_status: [400, 401]
+        allow_failure: true
+        validate:
+          - field: "error.message"
+            contains: "key"
+          - field: "error.code"
+            in_range:
+              min: 15000
+              max: 19999
+
+  - id: "WF-ERR-12"
+    name: "Subscription Error (400) - Dual-Path Validation Failed"
+    description: >
+      Tests 400 error when SUBSCRIBED action lacks required entities.
+      Validates dual-path validation: GST+PAN, contacts, key, URI, location.
+    workflow: true
+    steps:
+      - name: "Step 1 – Attempt SUBSCRIBED without credentials"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "test_dual_path_{{timestamp}}"
+          action: "SUBSCRIBED"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "test_dual_path_{{timestamp}}"
+        expected_status: 400
+        validate:
+          - field: "error.message"
+            contains: "missing properties"
+          - field: "error.code"
+            in_range:
+              min: 15000
+              max: 19999
+
+      - name: "Step 2 – Attempt SUBSCRIBED with only GST (missing PAN)"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "test_dual_path2_{{timestamp}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_only"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "Test Company"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "test_dual_path2_{{timestamp}}"
+        expected_status: 400
+        validate:
+          - field: "error.message"
+            contains: "missing properties"
+          - field: "error.code"
+            in_range:
+              min: 15000
+              max: 19999

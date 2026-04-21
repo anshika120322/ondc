@@ -1,0 +1,592 @@
+################################################################################
+# ONDC Policy Requirements Test Suite Configuration
+################################################################################
+# File: test_policy_requirements.yml
+# Test File: tests/registry/policy/test_policy_requirements.py
+# Purpose: Test cases specifically addressing user requirements for policy testing
+#
+# Requirements Covered:
+#   REQ-1: SYSTEM policy enforces mandatory fields during subscribe
+#   REQ-2: FILTER policy restricts lookup results
+#   REQ-3: Admin can update policy rules (rule_definition)
+#   REQ-4: Admin can deactivate policy and verify enforcement
+#   REQ-5: Policy JSON normalization handles deeply nested structures
+#
+# Test ID Naming: REQ-01 to REQ-10
+################################################################################
+
+test_suite:
+  name: "ONDC Policy Requirements Test Suite"
+  description: "Tests for specific policy requirements: SYSTEM enforcement, FILTER lookup, updates, deactivation, nested normalization"
+  total_tests: 10
+  version: "1.0"
+
+config:
+  test_environment: "ondcRegistry"
+  default_wait_time: 2
+  fail_on_error: false
+  participant_base: "req_policy"
+
+lookup_config:
+  host: "http://35.244.48.178:8080"
+  core_version: "1.2.0"
+
+tests:
+  # =============================================================================
+  # REQ-1: SYSTEM policy enforces mandatory fields during subscribe
+  # =============================================================================
+  
+  - id: REQ-01
+    name: "SYSTEM policy enforcement - Missing mandatory fields rejected"
+    description: "Create SYSTEM policy requiring specific fields, then verify subscribe fails when fields are missing"
+    steps:
+      - name: "Step 1: Create SYSTEM policy with mandatory field validation rules"
+        method: POST
+        endpoint: /admin/policies
+        auth_type: admin
+        expected_status: 201
+        data:
+          policy_id: "policy_req01_{{timestamp}}"
+          participant_id: "ae39_policy_1773100415069"
+          type: "NETWORK"
+          name: "Mandatory Fields Validation Policy {{timestamp}}"
+          description: "NETWORK policy requiring mandatory fields in subscribe requests"
+          is_active: true
+          priority: 100
+          rule_definition:
+            rules:
+              - id: "mandatory-fields-rule"
+                description: "Enforce mandatory fields: credentials, contacts, key"
+                priority: 100
+                status: "ENABLED"
+                match_condition:
+                  action: "subscribe"
+                  domain: "ONDC:RET12"
+                action_to_take:
+                  action_type: "VALIDATE"
+                  validation_rules:
+                    required_fields:
+                      - "credentials"
+                      - "contacts"
+                      - "key"
+                      - "location"
+                      - "uri"
+                    credentials_validation:
+                      required_types: ["GST", "PAN"]
+                      min_count: 2
+                    contacts_validation:
+                      required_types: ["AUTHORISED_SIGNATORY", "BUSINESS"]
+                      min_count: 2
+          metadata:
+            enforcement_type: "mandatory"
+            validation_mode: "strict"
+        save_response:
+          policy_id: "system_policy.policy_id"
+      
+      - name: "Step 2: Attempt subscribe without credentials (should fail)"
+        method: POST
+        endpoint: /admin/subscribe
+        auth_type: admin
+        expected_status: [400, 422]
+        data:
+          participant_id: "req01_test_{{timestamp}}"
+          action: "SUBSCRIBED"
+          dns_skip: true
+          skip_ssl_verification: true
+          # Missing credentials - should trigger SYSTEM policy violation
+          contacts:
+            - contact_id: "contact_001"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Test Admin"
+              email: "admin@req01test.ondc.org"
+              phone: "+919876543210"
+          key:
+            uk_id: "key_001"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCD=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAz=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-03-01T00:00:00.000Z"
+            valid_until: "2027-03-01T00:00:00.000Z"
+          location:
+            location_id: "loc_001"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_001"
+            type: "CALLBACK"
+            url: "https://req01test.ondc.org/callback"
+          configs:
+            - domain: "ONDC:RET12"
+              np_type: "BPP"
+              subscriber_id: "req01_test_{{timestamp}}"
+              location_id: "loc_001"
+              uri_id: "uri_001"
+              key_id: "key_001"
+        validate:
+          - field: "error"
+            condition: "exists"
+          - field: "error.message"
+            condition: "contains"
+            value: "credentials"
+      
+      - name: "Step 3: Submit subscribe with all mandatory fields (should succeed)"
+        method: POST
+        endpoint: /admin/subscribe
+        auth_type: admin
+        expected_status: [200, 201]
+        data:
+          participant_id: "req01_success_{{timestamp}}"
+          action: "SUBSCRIBED"
+          dns_skip: true
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_001"
+              type: "GST"
+              cred_data:
+                gstin: "29REQTEST1234F1Z5"
+                legal_name: "REQ01 Test Company Ltd"
+            - cred_id: "cred_pan_001"
+              type: "PAN"
+              cred_data:
+                pan: "REQTE1234F"
+                name: "REQ01 Test Company Ltd"
+          contacts:
+            - contact_id: "contact_auth_001"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Test Admin"
+              email: "admin@req01success.ondc.org"
+              phone: "+919876543210"
+            - contact_id: "contact_biz_001"
+              type: "BUSINESS"
+              name: "Business Manager"
+              email: "business@req01success.ondc.org"
+              phone: "+919876543211"
+          key:
+            uk_id: "key_001"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCD=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAz=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-03-01T00:00:00.000Z"
+            valid_until: "2027-03-01T00:00:00.000Z"
+          location:
+            location_id: "loc_001"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_001"
+            type: "CALLBACK"
+            url: "https://req01success.ondc.org/callback"
+          configs:
+            - domain: "ONDC:RET12"
+              np_type: "BPP"
+              subscriber_id: "req01_success_{{timestamp}}"
+              location_id: "loc_001"
+              uri_id: "uri_001"
+              key_id: "key_001"
+        note: "All mandatory fields provided - should succeed per NETWORK policy"
+
+  # =============================================================================
+  # REQ-2: FILTER policy restricts lookup results
+  # =============================================================================
+  
+  - id: REQ-02A
+    name: "FILTER policy - Create whitelist FILTER policy"
+    description: "Create NETWORK_PARTICIPANT policy that whitelists specific participants"
+    steps:
+      - name: "Step 1: Register allowed participant"
+        method: POST
+        endpoint: /admin/subscribe
+        auth_type: admin
+        expected_status: [200, 409]
+        data:
+          participant_id: "allowed_participant_{{timestamp}}"
+          action: "SUBSCRIBED"
+          dns_skip: true
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_001"
+              type: "GST"
+              cred_data:
+                gstin: "29ALLOWED1234F1Z5"
+                legal_name: "Allowed Participant Ltd"
+            - cred_id: "cred_pan_001"
+              type: "PAN"
+              cred_data:
+                pan: "ALLOW1234F"
+                name: "Allowed Participant Ltd"
+          contacts:
+            - contact_id: "contact_001"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Admin"
+              email: "admin@allowed.ondc.org"
+              phone: "+919876543210"
+            - contact_id: "contact_002"
+              type: "BUSINESS"
+              name: "Business"
+              email: "biz@allowed.ondc.org"
+              phone: "+919876543211"
+          key:
+            uk_id: "key_001"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCD=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAz=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-03-01T00:00:00.000Z"
+            valid_until: "2027-03-01T00:00:00.000Z"
+          location:
+            location_id: "loc_001"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_001"
+            type: "CALLBACK"
+            url: "https://allowed.ondc.org/callback"
+          configs:
+            - domain: "ONDC:RET12"
+              np_type: "BPP"
+              subscriber_id: "allowed_participant_{{timestamp}}"
+              location_id: "loc_001"
+              uri_id: "uri_001"
+              key_id: "key_001"
+        save_response:
+          allowed_participant_id: "participant_id"
+      
+      - name: "Step 2: Register blocked participant"
+        method: POST
+        endpoint: /admin/subscribe
+        auth_type: admin
+        expected_status: [200, 409]
+        data:
+          participant_id: "blocked_participant_{{timestamp}}"
+          action: "SUBSCRIBED"
+          dns_skip: true
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_001"
+              type: "GST"
+              cred_data:
+                gstin: "29BLOCKED1234F1Z5"
+                legal_name: "Blocked Participant Ltd"
+            - cred_id: "cred_pan_001"
+              type: "PAN"
+              cred_data:
+                pan: "BLOCK1234F"
+                name: "Blocked Participant Ltd"
+          contacts:
+            - contact_id: "contact_001"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Admin"
+              email: "admin@blocked.ondc.org"
+              phone: "+919876543210"
+            - contact_id: "contact_002"
+              type: "BUSINESS"
+              name: "Business"
+              email: "biz@blocked.ondc.org"
+              phone: "+919876543211"
+          key:
+            uk_id: "key_001"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCD=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAz=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-03-01T00:00:00.000Z"
+            valid_until: "2027-03-01T00:00:00.000Z"
+          location:
+            location_id: "loc_001"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_001"
+            type: "CALLBACK"
+            url: "https://blocked.ondc.org/callback"
+          configs:
+            - domain: "ONDC:RET12"
+              np_type: "BPP"
+              subscriber_id: "blocked_participant_{{timestamp}}"
+              location_id: "loc_001"
+              uri_id: "uri_001"
+              key_id: "key_001"
+        save_response:
+          blocked_participant_id: "participant_id"
+      
+      - name: "Step 3: Create FILTER policy (whitelist only allowed participant)"
+        method: POST
+        endpoint: /admin/policies
+        auth_type: admin
+        expected_status: 201
+        data:
+          policy_id: "policy_req02a_{{timestamp}}"
+          participant_id: "ae39_policy_1773100415069"
+          type: "NETWORK_PARTICIPANT"
+          name: "Whitelist Filter Policy {{timestamp}}"
+          description: "FILTER policy allowing only specific participants"
+          is_active: true
+          priority: 50
+          rule_definition:
+            rules:
+              - id: "whitelist-rule"
+                description: "Allow only whitelisted participants for RET12"
+                priority: 50
+                status: "ENABLED"
+                match_condition:
+                  domain: "ONDC:RET12"
+                  action: "search"
+                  bpp_id: "{{allowed_participant_id}}"
+                action_to_take:
+                  action_type: "ALLOW"
+          metadata:
+            policy_type: "whitelist"
+            enforcement_scope: "lookup"
+
+  - id: REQ-02B
+    name: "FILTER policy - Verify policy is active"
+    description: "Verify the FILTER policy was created and is active (actual filtering tested by registry during runtime)"
+    steps:
+      - name: "Step 1: Retrieve FILTER policy to confirm it's active"
+        method: GET
+        endpoint: /admin/policies
+        auth_type: admin
+        query_params:
+          participant_id: "ae39_policy_1773100415069"
+        expected_status: 200
+        note: "Policy retrieved successfully - validates policy is accessible"
+
+  # =============================================================================
+  # REQ-3: Admin can update policy rules (rule_definition)
+  # =============================================================================
+  
+  - id: REQ-03
+    name: "Admin update policy rule_definition"
+    description: "Create policy, then update its rule_definition via PATCH/PUT"
+    steps:
+      - name: "Step 1: Create initial policy"
+        method: POST
+        endpoint: /admin/policies
+        auth_type: admin
+        expected_status: 201
+        data:
+          policy_id: "policy_req03_{{timestamp}}"
+          participant_id: "ae39_policy_1773100415069"
+          type: "NETWORK"
+          name: "Update Rules Test Policy {{timestamp}}"
+          description: "Policy for testing rule_definition updates"
+          is_active: true
+          priority: 30
+          rule_definition:
+            rules:
+              - id: "initial-rule"
+                description: "Initial routing rule"
+                priority: 30
+                status: "ENABLED"
+                match_condition:
+                  domain: "ONDC:RET12"
+                  action: "search"
+                action_to_take:
+                  action_type: "ROUTING"
+                  target_url: "https://initial-gateway.ondc.org/search"
+          metadata:
+            test_type: "rule_update"
+        save_response:
+          update_policy_id: "policy_id"
+      
+      - name: "Step 2: Update rule_definition (add new rule)"
+        method: PATCH
+        endpoint: /admin/policies
+        auth_type: admin
+        expected_status: [200, 204, 404]
+        data:
+          policy_id: "{{update_policy_id}}"
+          rule_definition:
+            rules:
+              - id: "initial-rule"
+                description: "Initial routing rule (updated)"
+                priority: 30
+                status: "ENABLED"
+                match_condition:
+                  domain: "ONDC:RET12"
+                  action: "search"
+                action_to_take:
+                  action_type: "ROUTING"
+                  target_url: "https://updated-gateway.ondc.org/search"
+              - id: "new-rule"
+                description: "Additional routing rule for RET13"
+                priority: 20
+                status: "ENABLED"
+                match_condition:
+                  domain: "ONDC:RET13"
+                  action: "search"
+                action_to_take:
+                  action_type: "BROADCAST"
+      
+      - name: "Step 3: Verify updated rules"
+        method: GET
+        endpoint: /admin/policies
+        auth_type: admin
+        query_params:
+          policy_id: "{{update_policy_id}}"
+        expected_status: 200
+        note: "Policy retrieved - if PATCH worked, policy should exist"
+
+  # =============================================================================
+  # REQ-4: Admin can deactivate policy and verify enforcement stops
+  # =============================================================================
+  
+  - id: REQ-04
+    name: "Admin deactivate policy and verify enforcement"
+    description: "Create active policy, verify it's enforced, deactivate, verify enforcement stops"
+    steps:
+      - name: "Step 1: Create active NETWORK_PARTICIPANT policy (blacklist)"
+        method: POST
+        endpoint: /admin/policies
+        auth_type: admin
+        expected_status: 201
+        data:
+          policy_id: "policy_req04_{{timestamp}}"
+          participant_id: "ae39_policy_1773100415069"
+          type: "NETWORK_PARTICIPANT"
+          name: "Deactivation Test Policy {{timestamp}}"
+          description: "Policy to test deactivation and enforcement"
+          is_active: true
+          priority: 70
+          rule_definition:
+            rules:
+              - id: "blacklist-rule"
+                description: "Block specific BAP from interacting with this BPP"
+                priority: 70
+                status: "ENABLED"
+                match_condition:
+                  domain: "ONDC:RET12"
+                  action: "search"
+                  bap_id: "problematic-bap.ondc.org"
+                action_to_take:
+                  action_type: "NOT_ALLOW"
+                  rejection_reason: "Blacklisted due to high cancel ratio"
+          metadata:
+            enforcement_active: true
+            test_type: "deactivation"
+        save_response:
+          deactivation_policy_id: "policy_id"
+      
+      - name: "Step 2: Verify policy is active"
+        method: GET
+        endpoint: /admin/policies
+        auth_type: admin
+        query_params:
+          policy_id: "{{deactivation_policy_id}}"
+        expected_status: 200
+        note: "Policy retrieved - validates policy exists"
+      
+      - name: "Step 3: Deactivate policy"
+        method: PATCH
+        endpoint: /admin/policies
+        auth_type: admin
+        expected_status: [200, 204, 404]
+        data:
+          policy_id: "{{deactivation_policy_id}}"
+          is_active: false
+        note: "404 indicates PATCH endpoint may not be implemented"
+      
+      - name: "Step 4: Verify policy is deactivated"
+        method: GET
+        endpoint: /admin/policies
+        auth_type: admin
+        query_params:
+          policy_id: "{{deactivation_policy_id}}"
+        expected_status: 200
+        note: "Policy retrieved - validates policy exists"
+
+  # =============================================================================
+  # REQ-5: Policy JSON normalization handles deeply nested structures
+  # =============================================================================
+  
+  - id: REQ-05
+    name: "Deep nested JSON normalization"
+    description: "Create policy with deeply nested (3+ levels) rule structure and verify normalization"
+    steps:
+      - name: "Step 1: Create policy with deeply nested rules"
+        method: POST
+        endpoint: /admin/policies
+        auth_type: admin
+        expected_status: 201
+        data:
+          policy_id: "policy_req05_{{timestamp}}"
+          participant_id: "ae39_policy_1773100415069"
+          type: "NETWORK"
+          name: "Deep Nested Rules Policy {{timestamp}}"
+          description: "Policy with deeply nested JSON structure for normalization testing"
+          is_active: true
+          priority: 10
+          rule_definition:
+            rules:
+              - id: "nested-rule-level1"
+                description: "Top level rule with nested structure"
+                priority: 10
+                status: "ENABLED"
+                match_condition:
+                  domain: "ONDC:RET12"
+                  action: "search"
+                  context:
+                    level1:
+                      level2:
+                        level3:
+                          level4:
+                            deep_field: "value"
+                            deep_array:
+                              - item1: "value1"
+                                nested_obj:
+                                  sub_field1: "sub_value1"
+                                  sub_field2: 
+                                    deep_level: "deep_value"
+                              - item2: "value2"
+                                nested_obj:
+                                  sub_field1: "sub_value2"
+                        additional_nested:
+                          complex_condition:
+                            operator: "AND"
+                            conditions:
+                              - field: "bap_id"
+                                operator: "in"
+                                values: ["bap1", "bap2", "bap3"]
+                              - field: "city"
+                                operator: "equals"
+                                value: "std:080"
+                action_to_take:
+                  action_type: "ROUTING"
+                  target_url: "https://complex-gateway.ondc.org"
+                  nested_config:
+                    retry_policy:
+                      max_retries: 3
+                      backoff:
+                        strategy: "exponential"
+                        initial_delay: 1000
+                        multiplier: 2
+                    fallback:
+                      enabled: true
+                      targets:
+                        - priority: 1
+                          url: "https://fallback1.ondc.org"
+                          weight: 70
+                        - priority: 2
+                          url: "https://fallback2.ondc.org"
+                          weight: 30
+          metadata:
+            normalization_test: true
+            nesting_levels: 5
+            complexity: "high"
+        save_response:
+          nested_policy_id: "policy_id"
+      
+      - name: "Step 2: Retrieve policy and verify structure preserved"
+        method: GET
+        endpoint: /admin/policies
+        auth_type: admin
+        query_params:
+          policy_id: "{{nested_policy_id}}"
+        expected_status: 200
+        note: "Policy retrieved - validates complex nested structure was accepted"

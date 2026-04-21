@@ -1,0 +1,50 @@
+# ONDC Registry Lookup API - V2 Comprehensive Negative Test Configuration
+# Used for V2 Negative Test Scenarios (37 comprehensive tests)
+
+ondcRegistry:
+  # Base URL for Registry API (UAT Environment)
+  host: "https://registry-uat.kynondc.net"
+
+  # Admin API Authentication
+  admin_username: "admin@ondc.org"
+  admin_password: "Admin@123"
+  admin_auth_url: "https://admin-auth-uat.kynondc.net/api/auth/login"
+
+  # V2 API ED25519 Signature Authentication - Using registered V3 participant
+  participant_id: "test-v3-lookup-working.participant.ondc"
+  uk_id: "83b68b94-8fb9-44ad-bcd4-b0e89d741290"
+  private_key_seed: "b5d179bcbb129909a785838360cf47a15ad1dd85ec137dd21d7bfc185a5d20d1"
+
+  # ED25519 Public Keys (base64 encoded)
+  signing_public_key: "McXROmuDam9qqMZ2ivc4QHC5ifv0s/RKLd5bIcWmN04="
+  encryption_public_key: "Dq0WjPDfxmJlw3YnjyOOv4cGMa23E2vD3OYzx+hmKAI="
+
+  # Invalid auth scenarios for authentication testing
+  invalid_auth:
+    expired_signature: 'Signature keyId="participant-0.participant.ondc|af0000bd-062f-444b-85aa-9e63f79fd4bc|ed25519", algorithm="ed25519", created="1770956556", expires="1770956656", headers="(created) (expires) digest", signature="EXPIRED_SIGNATURE"'
+    invalid_signature: 'Signature keyId="participant-4.participant.ondc|8bcd4d70-4f68-4eae-ad80-f471a6515b87|ed25519", algorithm="ed25519", created="1770975579", expires="1770975679", headers="(created) (expires) digest", signature="INVALID_SIGNATURE"'
+    subscriber_not_found: 'Signature keyId="invalid.participant.ondc|invalid|ed25519", algorithm="ed25519", created="1770956822", expires="1770956922", headers="(created) (expires) digest", signature="INVALID"'
+
+test:
+  # Default lookup parameters for valid payload generation
+  default_lookup_payload:
+    country: "IND"
+    type: "BPP"
+
+  lookup_types:
+    - "BPP"
+    - "BAP"
+    - "BG"
+
+  countries:
+    - "IND"
+
+  default_domains:
+    - "ONDC:RET10"
+    - "ONDC:RET11"
+    - "ONDC:RET12"
+
+  default_cities:
+    - "std:080"
+    - "std:011"
+    - "std:022"

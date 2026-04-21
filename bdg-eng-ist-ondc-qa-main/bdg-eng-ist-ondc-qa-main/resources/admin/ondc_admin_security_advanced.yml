@@ -1,0 +1,135 @@
+ondc_admin_security_advanced_api:
+  description: "ONDC Admin Security Advanced Tests - SQL Injection, XSS, Password Hashing, Token Security (SEC-001 to SEC-004)"
+  
+  endpoints:
+    base_url: "http://localhost:3000"
+    login: "/api/v1/auth/login"
+    users: "/api/v1/users"
+    users_me: "/api/v1/users/me"
+  
+  test_users:
+    super_admin:
+      email: "super@admin.com"
+      password: "SuperSecure123!"
+      role: "SUPER_ADMIN"
+    
+    admin:
+      email: "admin@example.com"
+      password: "AdminPass123!"
+      role: "ADMIN"
+  
+  security:
+    sql_injection:
+      test_payloads:
+        - "admin@example.com' OR '1'='1"
+        - "admin@example.com' OR '1'='1'--"
+        - "admin@example.com' UNION SELECT NULL--"
+        - "'; DROP TABLE users; --"
+      expected_status: [400, 401]
+      should_not_leak: ["sql", "syntax", "query", "database", "table"]
+    
+    xss:
+      test_payloads:
+        - "<script>alert('XSS')</script>"
+        - "<img src=x onerror=alert('XSS')>"
+        - "<svg/onload=alert('XSS')>"
+        - "javascript:alert('XSS')"
+      expected_behavior: "Input sanitized or rejected"
+      dangerous_patterns: ["<script>", "onerror=", "onload=", "javascript:"]
+    
+    password_hashing:
+      forbidden_fields:
+        - "password"
+        - "passwordHash"
+        - "password_hash"
+      endpoints_to_check:
+        - "/api/v1/users/me"
+        - "/api/v1/users"
+        - "/api/v1/auth/login"
+    
+    token_security:
+      tampering_tests:
+        - type: "user_id_change"
+          description: "Change user ID in token"
+        - type: "role_escalation"
+          description: "Change role to SUPER_ADMIN"
+        - type: "expiry_extension"
+          description: "Extend token expiry"
+        - type: "none_algorithm"
+          description: "Use 'none' algorithm"
+      expected_status: 401
+      expected_error: "Invalid token or Unauthorized"
+  
+  validation:
+    sql_injection_response:
+      - field: "statusCode"
+        type: "number"
+        expected: [400, 401]
+        required: true
+      - field: "message"
+        type: "string"
+        should_not_contain: ["sql", "syntax", "query", "database"]
+        required: true
+    
+    xss_response:
+      - field: "firstName"
+        type: "string"
+        should_not_contain: ["<script>", "onerror=", "onload="]
+        required: true
+    
+    password_exposure:
+      - field: "password"
+        should_not_exist: true
+      - field: "passwordHash"
+        should_not_exist: true
+    
+    token_tampering_response:
+      - field: "statusCode"
+        type: "number"
+        expected: 401
+        required: true
+      - field: "message"
+        type: "string"
+        contains: "invalid|unauthorized|token"
+        required: true
+  
+  test_cases:
+    sec_001:
+      name: "SQL Injection"
+      type: "Negative"
+      priority: "Critical"
+      description: "Test SQL injection in email/password fields"
+      expected_result: "Input sanitized, no database errors"
+      vulnerability_level: "High"
+    
+    sec_002:
+      name: "XSS Attack"
+      type: "Negative"
+      priority: "Critical"
+      description: "Test XSS injection in text fields"
+      expected_result: "Input escaped, no script execution"
+      vulnerability_level: "High"
+    
+    sec_003:
+      name: "Password Hashing"
+      type: "Positive"
+      priority: "Critical"
+      description: "Verify passwords never returned in plaintext"
+      expected_result: "All passwords bcrypt hashed, never exposed"
+      vulnerability_level: "Critical"
+    
+    sec_004:
+      name: "Token Security"
+      type: "Negative"
+      priority: "Critical"
+      description: "Try to decode and modify JWT tokens"
+      expected_result: "Modified tokens rejected with 401"
+      vulnerability_level: "Critical"
+  
+  compliance:
+    standards:
+      - "OWASP Top 10"
+      - "CWE-89 (SQL Injection)"
+      - "CWE-79 (XSS)"
+      - "CWE-256 (Unprotected Credentials)"
+      - "CWE-347 (Improper JWT Verification)"

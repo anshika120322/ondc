@@ -1,0 +1,519 @@
+# =============================================================================
+# Subscribe API Workflow Tests
+# Source: docs/existing/Subscribe_API_v1.1.xlsx (APIs tab)
+#         docs/existing/Flow of APIs.pptx (NP is v3 flow)
+#
+# These 4 tests cover business scenarios explicitly defined in the design
+# documents that were not yet addressed as named workflow test cases:
+#
+# PPTX Flow (NP is v3):
+#   Admin Whitelist POST
+#     └── Success → NP Subscribe POST
+#                    ├── Success → SUBSCRIBED
+#                    └── Failure (Error 125/181/185/137)
+#                          └── Admin Subscribe PATCH → SUBSCRIBED
+#
+# Excel API tab (Prod scenarios):
+#   | Scenario              | First Call              | Second Call       |
+#   |-----------------------|-------------------------|-------------------|
+#   | New NP                | Admin Whitelist POST    | NP Subscribe POST |
+#   | Subscriber ID Change  | Admin Whitelist POST    | NP Subscribe POST |
+#   | Domain Add            | Admin Subscribe PATCH   | —                 |
+#   | Key Update            | Admin Subscribe PATCH   | —                 |
+#   | Subscriber URL Change | Admin Subscribe PATCH   | —                 |
+#
+# Error code reference (from Excel Error-codes tab):
+#   125  – Subscriber id already exists           → System hits Patch API
+#   181  – Whitelist: Subscriber id already exists → System hits Patch API
+#   185  – Subscription: Subscriber id already exists → System hits Patch API
+#   137  – Network Participant already exists     → System hits Patch API
+# =============================================================================
+
+test_suite:
+  name: "Subscribe API Workflow Tests"
+  category: "workflow"
+  total_tests: 4
+  description: >
+    End-to-end workflow tests derived from Subscribe_API_v1.1.xlsx and Flow of APIs.pptx.
+    Covers New NP Registration, Subscriber ID Change, Error-125 Retry via PATCH,
+    and Pre-prod Combined Whitelist+Subscribe flows for NP (v3) participants.
+
+config:
+  default_timeout: 30
+  retry_on_failure: false
+
+tests:
+
+  # ===========================================================================
+  # WF01 – Prod: New NP Registration
+  # Matches Excel "New" scenario (Prod table, Row 22 & 35):
+  #   First call:  Admin Whitelist (POST)
+  #   Second call: NP Subscribe  (POST)
+  #   Editable:    All attributes
+  #
+  # PPTX happy-path: Admin Whitelist POST → NP Subscribe POST → SUBSCRIBED
+  # ===========================================================================
+  - id: "WF01"
+    name: "Prod: New NP Registration (Admin Whitelist → NP Subscribe)"
+    description: >
+      Tests the canonical Prod onboarding flow for a brand-new Network Participant.
+      Admin whitelists the subscriber_id first; the NP then calls the V3 subscribe
+      endpoint with all required fields to reach SUBSCRIBED state.
+      Documents: Excel APIs tab Row 22/35 (New); PPTX happy-path.
+    workflow: true
+    steps:
+      - name: "Step 1 – Admin Whitelist POST (action=WHITELISTED)"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+
+      - name: "Step 2 – NP Subscribe POST (V3, all fields)"
+        method: "POST"
+        endpoint: "/v3.0/subscribe"
+        auth_type: "v3"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          request_id: "{{request_id}}"
+          uk_id: "{{uk_id}}"
+          participant_id: "{{subscriber_id}}"
+          credentials:
+            - cred_id: "cred_gst_wf01"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "WF01 New NP Private Limited"
+            - cred_id: "cred_pan_wf01"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+          contacts:
+            - contact_id: "contact_auth_wf01"
+            - contact_id: "contact_biz_wf01"
+              name: "WF01 Business Contact"
+              email: "biz@wf01.example.com"
+              phone: "+919876540002"
+              type: "BUSINESS"
+            - contact_id: "contact_tech_wf01"
+              name: "WF01 Technical Contact"
+              email: "tech@wf01.example.com"
+              phone: "+919876540003"
+              type: "TECHNICAL"
+              designation: "Technical Lead"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_wf01"
+            country: "IND"
+            city:
+              - "std:080"
+              - "std:022"
+            type: "SERVICEABLE"
+          uri:
+            uri_id: "uri_wf01"
+            type: "CALLBACK"
+            url: "{{participant_url}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_wf01"
+              uri_id: "uri_wf01"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+
+      - name: "Step 3 – Verify participant exists and is accessible (GET)"
+        method: "GET"
+        endpoint: "/admin/participants/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        # ParticipantV3 struct does not carry a top-level status field;
+        # HTTP 200 confirms the participant was created and is accessible.
+
+
+  # ===========================================================================
+  # WF02 – Prod: Subscriber ID Change
+  # Matches Excel "Subscriber id Change" scenario (Prod table, Row 14 & 27):
+  #   First call:  Admin Whitelist (POST) for the NEW subscriber_id
+  #   Second call: NP Subscribe  (POST) with the NEW subscriber_id
+  #   Editable:    All attributes
+  #
+  # Distinct from WF01: simulates a participant requesting a subscriber-ID
+  # change — admin whitelists the new ID and the NP self-subscribes with it.
+  # ===========================================================================
+  - id: "WF02"
+    name: "Prod: Subscriber ID Change (Re-whitelist new ID → NP Subscribe)"
+    description: >
+      Tests the Prod subscriber ID change flow where an NP transitions to a new
+      subscriber_id. Admin whitelists the new subscriber_id; NP self-subscribes
+      with the new identity. Mirrors the PPTX happy-path applied to an ID change
+      use-case. Documents: Excel APIs tab Row 14/27 (Subscriber id Change).
+    workflow: true
+    steps:
+      - name: "Step 1 – Admin Whitelist POST for NEW subscriber_id (action=WHITELISTED)"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+
+      - name: "Step 2 – NP Subscribe POST with new subscriber_id (V3)"
+        method: "POST"
+        endpoint: "/v3.0/subscribe"
+        auth_type: "v3"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          request_id: "{{request_id}}"
+          uk_id: "{{uk_id}}"
+          participant_id: "{{subscriber_id}}"
+          credentials:
+            - cred_id: "cred_gst_wf02"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "WF02 Renamed NP Private Limited"
+            - cred_id: "cred_pan_wf02"
+              type: "PAN"
+              cred_data:
+                pan: "WFCDE1234F"
+          contacts:
+            - contact_id: "contact_auth_wf02"
+            - contact_id: "contact_biz_wf02"
+              name: "WF02 Business"
+              email: "biz@wf02.example.com"
+              phone: "+919876540011"
+              type: "BUSINESS"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_wf02"
+            country: "IND"
+            city:
+              - "std:080"
+            type: "SERVICEABLE"
+          uri:
+            uri_id: "uri_wf02"
+            type: "CALLBACK"
+            url: "{{participant_url}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_wf02"
+              uri_id: "uri_wf02"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+
+      - name: "Step 3 – Verify new subscriber_id is accessible (GET)"
+        method: "GET"
+        endpoint: "/admin/participants/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        # HTTP 200 confirms participant was created; ParticipantV3 has no top-level status field.
+
+
+  # ===========================================================================
+  # WF03 – Prod: Error Code 125 Retry via Admin Subscribe PATCH   ← KEY GAP
+  # Source: Excel APIs tab note (Rows 3, 5, 7):
+  #   "If Subscriber_125 is encountered then hit patch with action as subscribe"
+  # Source: PPTX failure branch:
+  #   NP Subscribe POST → Failure (error codes 181/185/125/137)
+  #     → Admin Subscribe PATCH → SUBSCRIBED
+  #
+  # Error code 125: "Subscriber id already exists"
+  #   NP Action: "System will hit Patch API (If patch fails, consider as success)"
+  #
+  # Test scenario:
+  #   1. Admin whitelists participant (WHITELISTED)
+  #   2. NP subscribes via POST → SUBSCRIBED (participant now "already exists")
+  #   3. Admin POSTs whitelist again for same participant_id → conflict (error 125 / 409)
+  #      [simulates the "Subscriber_125" trigger condition]
+  #   4. System follows documented retry: Admin PATCH with action=SUBSCRIBED → success
+  #   5. Verify participant remains SUBSCRIBED
+  # ===========================================================================
+  - id: "WF03"
+    name: "Prod: Error Code 125 Retry – Admin PATCH after Subscriber-Already-Exists"
+    description: >
+      Tests the documented error-125 recovery path: when a POST whitelist/subscribe
+      call encounters "Subscriber id already exists" (error 125/181/185), the system
+      must retry using PATCH with action=subscribe rather than POST.
+      Steps simulate: whitelist → subscribe → duplicate POST (triggers 125/conflict)
+      → Admin PATCH (subscribe action) → SUBSCRIBED.
+      Documents: Excel APIs tab Rows 3/5/7 note; PPTX failure branch (codes 181/185/125/137).
+    workflow: true
+    steps:
+      - name: "Step 1 – Admin Whitelist POST (action=WHITELISTED)"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+
+      - name: "Step 2 – NP Subscribe POST → participant now SUBSCRIBED (already exists in registry)"
+        method: "POST"
+        endpoint: "/v3.0/subscribe"
+        auth_type: "v3"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          request_id: "{{request_id}}"
+          uk_id: "{{uk_id}}"
+          participant_id: "{{subscriber_id}}"
+          credentials:
+            - cred_id: "cred_gst_wf03"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "WF03 Test NP Private Limited"
+            - cred_id: "cred_pan_wf03"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+          contacts:
+            - contact_id: "contact_auth_wf03"
+            - contact_id: "contact_biz_wf03"
+              name: "WF03 Business"
+              email: "biz@wf03.example.com"
+              phone: "+919876540021"
+              type: "BUSINESS"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_wf03"
+            country: "IND"
+            city:
+              - "std:080"
+            type: "SERVICEABLE"
+          uri:
+            uri_id: "uri_wf03"
+            type: "CALLBACK"
+            url: "{{participant_url}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_wf03"
+              uri_id: "uri_wf03"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+
+      - name: "Step 3 – Admin attempts duplicate POST (triggers error 125 / Subscriber-id-already-exists)"
+        # Per Excel doc: POST on an already-existing subscriber_id returns error 125.
+        # The registry is expected to return HTTP 4xx (409 Conflict / 400 Bad Request).
+        # This step MUST fail — it validates the trigger condition for the retry path.
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 409  # Conflict – subscriber id already exists (error 125/181)
+
+      - name: "Step 4 – Error-125 Retry: Admin Subscribe PATCH (action=SUBSCRIBED)"
+        # Per Excel note + PPTX: when POST returns 125, the system hits PATCH instead.
+        # PATCH with action=SUBSCRIBED on an already-subscribed participant is idempotent.
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+        expected_status: 400  # Bad Request – participant is already subscribed (idempotent success)
+
+      - name: "Step 5 – Verify participant remains accessible after retry (GET)"
+        method: "GET"
+        endpoint: "/admin/participants/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        # HTTP 200 confirms participant still exists; ParticipantV3 has no top-level status field.
+
+
+  # ===========================================================================
+  # WF04 – Pre-prod: Combined Whitelist + Subscribe in Single Admin POST
+  # Source: Excel APIs tab (Pre-prod/Staging rows 2–3):
+  #   Row 2: Admin APIs POST – "Whitelist & Subscribe both will be covered in
+  #           this through action field"
+  #   Row 3: Admin APIs PATCH – "If Subscriber_125 is encountered then hit
+  #           patch with action as subscribe"
+  #
+  # Pre-prod allows a single Admin POST with action=SUBSCRIBED to perform BOTH
+  # whitelist AND subscribe in one call (no separate NP subscribe step needed).
+  # This differs from the Prod flow (WF01) where whitelist and subscribe are
+  # separate calls from different actors (admin vs NP).
+  # ===========================================================================
+  - id: "WF04"
+    name: "Pre-prod: Combined Whitelist+Subscribe in Single Admin POST (action=SUBSCRIBED)"
+    description: >
+      Tests the Pre-prod/Staging combined onboarding: a single Admin POST with
+      action=SUBSCRIBED both whitelists AND subscribes in one atomic call.
+      No separate NP subscribe step is required in this environment.
+      Then verifies the error-125 retry path for pre-prod: if the POST returns
+      125 (subscriber already exists), the Admin retries with PATCH.
+      Documents: Excel APIs tab Rows 2–3 (Pre-prod/Staging).
+    workflow: true
+    steps:
+      - name: "Step 1 – Admin POST (action=SUBSCRIBED) — combined whitelist+subscribe"
+        # Pre-prod: action field covers both WHITELISTED and SUBSCRIBED in one call.
+        # NP does NOT need to call the subscribe endpoint separately.
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_wf04"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "WF04 Pre-prod NP Private Limited"
+            - cred_id: "cred_pan_wf04"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "WF04 Pre-prod NP Private Limited"
+          contacts:
+            - contact_id: "contact_auth_wf04"
+              name: "WF04 Signatory"
+              email: "auth@wf04.example.com"
+              phone: "+919876540030"
+              type: "AUTHORISED_SIGNATORY"
+            - contact_id: "contact_biz_wf04"
+              name: "WF04 Business"
+              email: "biz@wf04.example.com"
+              phone: "+919876540031"
+              type: "BUSINESS"
+            - contact_id: "contact_tech_wf04"
+              name: "WF04 Technical"
+              email: "tech@wf04.example.com"
+              phone: "+919876540032"
+              type: "TECHNICAL"
+              designation: "Technical Lead"
+          key:
+            uk_id: "wf04key001"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-02-04T00:00:00.000Z"
+            valid_until: "2027-02-04T00:00:00.000Z"
+          location:
+            location_id: "loc_wf04"
+            type: "SERVICEABLE"
+            country: "IND"
+            city:
+              - "std:080"
+              - "std:044"
+          uri:
+            uri_id: "uri_wf04"
+            type: "CALLBACK"
+            url: "{{participant_url}}"
+            description: "Pre-prod callback endpoint"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_wf04"
+              uri_id: "uri_wf04"
+              key_id: "wf04key001"
+        expected_status: 200
+
+      - name: "Step 2 – Verify participant is accessible after combined admin POST (GET)"
+        method: "GET"
+        endpoint: "/admin/participants/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        # HTTP 200 confirms participant was created; ParticipantV3 has no top-level status field.
+
+      - name: "Step 3 – Pre-prod error-125 path: duplicate POST returns conflict"
+        # Same as WF03 but in pre-prod context: POST on existing subscriber returns 125.
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_wf04"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "WF04 Pre-prod NP Private Limited"
+          contacts:
+            - contact_id: "contact_auth_wf04"
+              name: "WF04 Signatory"
+              email: "auth@wf04.example.com"
+              phone: "+919876540030"
+              type: "AUTHORISED_SIGNATORY"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 400  # Conflict – subscriber id already exists (error 125)
+
+      - name: "Step 4 – Pre-prod error-125 retry: Admin PATCH (action=subscribe)"
+        # Per Excel Row 3: "If Subscriber_125 is encountered then hit patch with action as subscribe"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+        expected_status: 400  # Bad Request – participant is already subscribed (idempotent success)
+
+      - name: "Step 5 – Verify participant remains accessible after pre-prod retry (GET)"
+        method: "GET"
+        endpoint: "/admin/participants/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        # HTTP 200 confirms participant still exists; ParticipantV3 has no top-level status field.

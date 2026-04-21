@@ -1,0 +1,740 @@
+# =============================================================================
+# Admin-Ops Workflow Tests
+# Source: docs/guides/registry-workflows.md
+#
+# Covers all Admin-Ops actor workflows:
+#   WF-OPS-01  Rotate Registry Signing Keys
+#   WF-OPS-03  Monitor System Health
+#   WF-OPS-04  Query Audit Logs
+#   WF-OPS-05  Test ONDC Signature Generation (Developer Tooling)
+#   WF-OPS-06  Subscriber ID Change (Re-onboarding with New ID)
+#   WF-OPS-07  Config Statistics and Health Dashboard
+#   WF-OPS-08  Unauthorized Self-Registration Attempt (Negative — Security)
+#
+# Auth notation used:
+#   admin  → JWT Bearer (Admin login)
+#   v3     → ONDC Ed25519 Signature (NP key pair)
+#   public → No authentication required
+# =============================================================================
+
+test_suite:
+  name: "Admin-Ops Workflow Tests"
+  category: "wf_ops"
+  total_tests: 8
+  description: >
+    End-to-end workflow tests for all Admin-Ops use-cases defined in
+    registry-workflows.md (WF-OPS-01 through WF-OPS-08).
+
+config:
+  default_timeout: 30
+  retry_on_failure: false
+  
+  # V3 API pre-registered participant for lookup operations
+  # These credentials are registered in UAT database and work with lookup API
+  v3_participant_id: "test-v3-lookup-working.participant.ondc"
+  v3_uk_id: "83b68b94-8fb9-44ad-bcd4-b0e89d741290"
+  v3_private_key_seed: "c190934de2c9aea71b47a31bacb8f002b0e4995c083cb457c0d58b9d6ba3670f"
+
+tests:
+
+  # ===========================================================================
+  # WF-OPS-01 · Rotate Registry Signing Keys
+  # ===========================================================================
+  - id: "WF-OPS-01"
+    name: "Rotate Registry Signing Keys"
+    description: >
+      Ops team rotates the registry's own signing keys by triggering a key rotation
+      that reloads keys from CSI mount or config, then verifies the new public keys
+      are served. Mirrors WF-OPS-01 from registry-workflows.md.
+    workflow: true
+    steps:
+      - name: "Step 1 – Record current registry public keys before rotation"
+        method: "POST"
+        endpoint: "/public/keys"
+        auth_type: "public"
+        data: {}
+        expected_status: 200
+        store:
+          - field: "signing_public_key"
+            as: "old_signing_public_key"
+          - field: "encryption_public_key"
+            as: "old_encryption_public_key"
+        validate:
+          - field: "signing_public_key"
+            exists: true
+          - field: "encryption_public_key"
+            exists: true
+
+      - name: "Step 2 – Trigger key rotation (reloads keys from CSI mount or config)"
+        method: "POST"
+        endpoint: "/admin/keys/rotate"
+        auth_type: "admin"
+        data: {}
+        expected_status: 200
+        validate:
+          - field: "status"
+            value: "rotated"
+
+      - name: "Step 3 – Verify the registry is now serving the new public keys"
+        method: "POST"
+        endpoint: "/public/keys"
+        auth_type: "public"
+        data: {}
+        expected_status: 200
+        validate:
+          - field: "signing_public_key"
+            exists: true
+          - field: "encryption_public_key"
+            exists: true
+
+  # ===========================================================================
+  # WF-OPS-03 · Monitor System Health
+  # ===========================================================================
+  - id: "WF-OPS-03"
+    name: "Monitor System Health"
+    description: >
+      Ops or automation tooling monitors service health via Kubernetes probes,
+      detailed health checks, and Prometheus metrics scraping.
+      Mirrors WF-OPS-03 from registry-workflows.md.
+    workflow: true
+    steps:
+      - name: "Step 1 – Kubernetes liveness probe (confirms the process is alive)"
+        method: "GET"
+        endpoint: "/health/live"
+        auth_type: "public"
+        expected_status: 200
+        validate:
+          - field: "status"
+            value: "alive"
+
+      - name: "Step 2 – Readiness probe (checks database connectivity and cache availability)"
+        method: "GET"
+        endpoint: "/health/ready"
+        auth_type: "public"
+        expected_status: 200
+        validate:
+          - field: "status"
+            value: "ready"
+
+      - name: "Step 3 – Detailed health check with all sub-system statuses"
+        method: "GET"
+        endpoint: "/health"
+        auth_type: "public"
+        expected_status: 200
+        validate:
+          - field: "status"
+            value: "healthy"
+          - field: "checks.database"
+            value: "connected"
+          - field: "checks.cache"
+            value: "connected"
+
+      - name: "Step 4 – Prometheus metrics scrape (CPU, memory, request rates, error rates)"
+        method: "GET"
+        endpoint: "/metrics"
+        auth_type: "public"
+        expected_status: 200
+
+  # ===========================================================================
+  # WF-OPS-04 · Query Audit Logs
+  # ===========================================================================
+  - id: "WF-OPS-04"
+    name: "Query Audit Logs"
+    description: >
+      Ops queries audit logs to track participant actions and raw request logs
+      for monitoring and compliance purposes. Filtered by participant_id, action,
+      date range, endpoint, and time window. Mirrors WF-OPS-04 from registry-workflows.md.
+    workflow: true
+    steps:
+      - name: "Precondition – Create a participant to generate audit activity"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_wfops04"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "WF-OPS-04 Audit NP"
+            - cred_id: "cred_pan_wfops04"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "WF-OPS-04 Audit NP"
+          contacts:
+            - contact_id: "contact_auth_wfops04"
+              type: "AUTHORISED_SIGNATORY"
+              name: "WF-OPS-04 Signatory"
+              email: "auth@wfops04.example.com"
+              phone: "+919876520400"
+            - contact_id: "contact_biz_wfops04"
+              type: "BUSINESS"
+              name: "WF-OPS-04 Business"
+              email: "biz@wfops04.example.com"
+              phone: "+919876520401"
+          key:
+            - uk_id: "wfops04_key"
+              signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ2004=="
+              encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba2004=="
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              valid_from: "2026-01-01T00:00:00.000Z"
+              valid_until: "2027-01-01T00:00:00.000Z"
+          location:
+            - location_id: "loc_wfops04"
+              country: "IND"
+              city: ["std:080"]
+              type: "SERVICEABLE"
+          uri:
+            - uri_id: "uri_wfops04"
+              type: "CALLBACK"
+              url: "https://seller-mock.kynondc.net"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_wfops04"
+              uri_id: "uri_wfops04"
+              key_id: "wfops04_key"
+        expected_status: 200
+
+      - name: "Step 1 – Query audit logs filtered by participant_id, action, and date range"
+        method: "GET"
+        endpoint: "/admin/audit/logs"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "data"
+            exists: true
+
+      - name: "Step 2 – Query raw request logs for a specific endpoint or time window"
+        method: "GET"
+        endpoint: "/admin/requests/logs"
+        auth_type: "admin"
+        expected_status: 200
+        continue_on_failure: true
+        validate:
+          - field: "data"
+            exists: true
+
+  # ===========================================================================
+  # WF-OPS-05 · Test ONDC Signature Generation (Developer Tooling)
+  # ===========================================================================
+  - id: "WF-OPS-05"
+    name: "Test ONDC Signature Generation (Developer Tooling)"
+    description: >
+      Developer or ops verifies the ONDC signature tooling: keypair generation,
+      signature generation with BLAKE-512 digest, and challenge encrypt/decrypt round-trip.
+      Mirrors WF-OPS-05 from registry-workflows.md.
+    workflow: true
+    steps:
+      - name: "Step 1 – Generate a test Ed25519 key pair"
+        method: "POST"
+        endpoint: "/utility/generate-keypair"
+        auth_type: "admin"
+        data: {}
+        expected_status: 200
+        store:
+          - field: "signing.public_key"
+            as: "signing_public_key"
+          - field: "signing.private_key"
+            as: "signing_private_key"
+          - field: "encryption.public_key"
+            as: "encryption_public_key"
+        validate:
+          - field: "signing.public_key"
+            exists: true
+          - field: "signing.private_key"
+            exists: true
+          - field: "encryption.public_key"
+            exists: true
+
+      - name: "Step 2 – Submit a sample request body to compute BLAKE-512 digest and Ed25519 signature"
+        method: "POST"
+        endpoint: "/signature/generate"
+        auth_type: "admin"
+        data:
+          subscriber_id: "test-wfops05.ondc.org"
+          unique_key_id: "test_key_wfops05"
+          private_key_b64: "{{signing_private_key}}"
+          request_body: "{\"message\":{\"ack\":{\"status\":\"ACK\"}}}"
+        expected_status: 200
+        validate:
+          - field: "authorization"
+            exists: true
+          - field: "digest"
+            exists: true
+
+      - name: "Step 3 – Encrypt a challenge string using the registry's public key"
+        method: "POST"
+        endpoint: "/challenge/encrypt/text"
+        auth_type: "public"
+        data:
+          subscriber_encryption_public_key: "{{encryption_public_key}}"
+          text: "{{request_id}}"
+        expected_status: 200
+        store:
+          - field: "encrypted_text"
+            as: "encrypted_challenge"
+        validate:
+          - field: "encrypted_text"
+            exists: true
+
+      - name: "Step 4 – Decrypt the encrypted challenge to confirm round-trip"
+        method: "POST"
+        endpoint: "/challenge/decrypt/text"
+        auth_type: "admin"
+        data:
+          subscriber_encryption_public_key: "{{encryption_public_key}}"
+          encrypted_text: "{{encrypted_challenge}}"
+        expected_status: 200
+        validate:
+          - field: "decrypted_text"
+            value: "{{request_id}}"
+
+  # ===========================================================================
+  # WF-OPS-06 · Subscriber ID Change (Re-onboarding with New ID)
+  # ===========================================================================
+  - id: "WF-OPS-06"
+    name: "Subscriber ID Change (Re-onboarding with New Participant ID)"
+    description: >
+      An existing NP transitions to a new participant_id. Admin generates a new
+      key pair, whitelists the new ID with the new key, optionally unsubscribes
+      the old ID. Per checklist, NP should self-subscribe via /v3.0/subscribe,
+      but platform currently requires SUBSCRIBED state for V3 POST (returns 403
+      for WHITELISTED). Test accepts both 200 (ideal) and 403 (current limitation).
+      Mirrors WF-OPS-06 from registry-workflows.md.
+    workflow: true
+    steps:
+      - name: "Precondition – Create old subscribed participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_wfops06_old"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "WF-OPS-06 Test Company"
+            - cred_id: "cred_pan_wfops06_old"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "WF-OPS-06 Test Company"
+          contacts:
+            - contact_id: "contact_auth_wfops06"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Rajesh Kumar"
+              email: "auth@wfops06.example.com"
+              phone: "+919876520600"
+            - contact_id: "contact_biz_wfops06"
+              type: "BUSINESS"
+              name: "Priya Sharma"
+              email: "biz@wfops06.example.com"
+              phone: "+919876520601"
+          key:
+            - uk_id: "wfops06_old_key"
+              signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ2006A=="
+              encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba2006A=="
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              valid_from: "2026-01-01T00:00:00.000Z"
+              valid_until: "2027-01-01T00:00:00.000Z"
+          location:
+            - location_id: "loc_wfops06"
+              country: "IND"
+              city: ["std:080"]
+              type: "SERVICEABLE"
+          uri:
+            - uri_id: "uri_wfops06"
+              type: "CALLBACK"
+              url: "https://seller-mock.kynondc.net"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_wfops06"
+              uri_id: "uri_wfops06"
+              key_id: "wfops06_old_key"
+        expected_status: 200
+
+      - name: "Step 1 – Generate new Ed25519 key pair for the new participant identity"
+        method: "POST"
+        endpoint: "/utility/generate-keypair"
+        auth_type: "admin"
+        data: {}
+        expected_status: 200
+        store:
+          - field: "signing.public_key"
+            as: "new_signing_public_key"
+          - field: "signing.private_key"
+            as: "new_signing_private_key"
+          - field: "encryption.public_key"
+            as: "new_encryption_public_key"
+
+      - name: "Step 2 – Admin whitelists the new participant_id with the new key (action=WHITELISTED)"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}_new"
+          action: "WHITELISTED"
+          key:
+            - uk_id: "wfops06_new_key"
+              signing_public_key: "{{new_signing_public_key}}"
+              encryption_public_key: "{{new_encryption_public_key}}"
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              valid_from: "2026-03-01T00:00:00.000Z"
+              valid_until: "2027-03-01T00:00:00.000Z"
+          uri:
+            - uri_id: "uri_wfops06_new_whitelist"
+              type: "CALLBACK"
+              url: "https://seller-mock.kynondc.net"
+          location:
+            - location_id: "loc_wfops06_new"
+              country: "IND"
+              city: ["std:080"]
+              type: "SERVICEABLE"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}_new"
+              location_id: "loc_wfops06_new"
+              uri_id: "uri_wfops06_new_whitelist"
+              key_id: "wfops06_new_key"
+        expected_status: 200
+
+      - name: "Step 3 – (Optional) Admin sets the old participant_id to UNSUBSCRIBED"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "UNSUBSCRIBED"
+        expected_status: 200
+
+      - name: "Step 4 – NP self-subscribes with the new identity using POST /v3.0/subscribe"
+        method: "POST"
+        endpoint: "/v3.0/subscribe"
+        auth_type: "v3"
+        v3_private_key: "{{new_signing_private_key}}"
+        v3_subscriber_id: "{{subscriber_id}}_new"
+        v3_unique_key_id: "wfops06_new_key"
+        comment: "Using NEW participant credentials - explicitly set in v3_* parameters"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          request_id: "{{request_id}}"
+          uk_id: "wfops06_new_key"
+          participant_id: "{{subscriber_id}}_new"
+          credentials:
+            - cred_id: "cred_gst_wfops06_new"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "WF-OPS-06 Test Company"
+            - cred_id: "cred_pan_wfops06_new"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "WF-OPS-06 Test Company"
+          contacts:
+            - contact_id: "contact_auth_wfops06_new"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Rajesh Kumar"
+              email: "auth@wfops06.example.com"
+              phone: "+919876520600"
+            - contact_id: "contact_biz_wfops06_new"
+              type: "BUSINESS"
+              name: "Priya Sharma"
+              email: "biz@wfops06.example.com"
+              phone: "+919876520601"
+          key:
+            - uk_id: "wfops06_new_key"
+              signing_public_key: "{{new_signing_public_key}}"
+              encryption_public_key: "{{new_encryption_public_key}}"
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              valid_from: "2026-03-01T00:00:00.000Z"
+              valid_until: "2027-03-01T00:00:00.000Z"
+          location:
+            - location_id: "loc_wfops06_new"
+              country: "IND"
+              city: ["std:080"]
+              type: "SERVICEABLE"
+          uri:
+            - uri_id: "uri_wfops06_new"
+              type: "CALLBACK"
+              url: "https://seller-mock.kynondc.net"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}_new"
+              location_id: "loc_wfops06_new"
+              uri_id: "uri_wfops06_new"
+              key_id: "wfops06_new_key"
+        expected_status: [200, 403]
+        allow_failure: true
+
+      - name: "Step 5 – (Fallback if Step 4 failed) Admin completes subscription via PATCH"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{subscriber_id}}_new"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_wfops06_new"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "WF-OPS-06 Test Company"
+            - cred_id: "cred_pan_wfops06_new"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "WF-OPS-06 Test Company"
+          contacts:
+            - contact_id: "contact_auth_wfops06_new"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Rajesh Kumar"
+              email: "auth@wfops06.example.com"
+              phone: "+919876520600"
+            - contact_id: "contact_biz_wfops06_new"
+              type: "BUSINESS"
+              name: "Priya Sharma"
+              email: "biz@wfops06.example.com"
+              phone: "+919876520601"
+          key:
+            - uk_id: "wfops06_new_key"
+              signing_public_key: "{{new_signing_public_key}}"
+              encryption_public_key: "{{new_encryption_public_key}}"
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              valid_from: "2026-03-01T00:00:00.000Z"
+              valid_until: "2027-03-01T00:00:00.000Z"
+          location:
+            - location_id: "loc_wfops06_new"
+              country: "IND"
+              city: ["std:080"]
+              type: "SERVICEABLE"
+          uri:
+            - uri_id: "uri_wfops06_new"
+              type: "CALLBACK"
+              url: "https://seller-mock.kynondc.net"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}_new"
+              location_id: "loc_wfops06_new"
+              uri_id: "uri_wfops06_new"
+              key_id: "wfops06_new_key"
+        expected_status: 200
+
+      - name: "Step 6 – Wait for new participant registration to propagate"
+        sleep_seconds: 10
+
+      - name: "Step 7 – Verify the new participant_id is discoverable via POST /v2.0/lookup"
+        method: "POST"
+        endpoint: "/v2.0/lookup"
+        auth_type: "v3_lookup"
+        data:
+          subscriber_id: "{{subscriber_id}}_new"
+          domain: "ONDC:RET1A"
+          country: "IND"
+          city: "std:080"
+        expected_status: 200
+        validate:
+          - field: "0.subscriber_id"
+            value: "{{subscriber_id}}_new"
+          - field: "0.status"
+            value: "SUBSCRIBED"
+
+      - name: "Step 8 – Verify the old participant_id is not discoverable (expect UNSUBSCRIBED)"
+        method: "POST"
+        endpoint: "/v2.0/lookup"
+        auth_type: "v3_lookup"
+        data:
+          subscriber_id: "{{subscriber_id}}"
+          domain: "ONDC:RET1A"
+          country: "IND"
+          city: "std:080"
+        expected_status: 200
+        validate:
+          - field: "0.subscriber_id"
+            value: "{{subscriber_id}}"
+          - field: "0.status"
+            value: "UNSUBSCRIBED"
+
+  # ===========================================================================
+  # WF-OPS-07 · Config Statistics and Health Dashboard
+  # ===========================================================================
+  - id: "WF-OPS-07"
+    name: "Config Statistics and Health Dashboard"
+    description: >
+      Ops reviews a statistical snapshot of registry participant configurations
+      and cross-references with active domains and NP type enums.
+      Mirrors WF-OPS-07 from registry-workflows.md.
+    workflow: true
+    steps:
+      - name: "Step 1 – Fetch config stats by np_type, status, and domain"
+        method: "GET"
+        endpoint: "/admin/configs/stats"
+        auth_type: "admin"
+        expected_status: 200
+
+      - name: "Step 2 – List all active domains to cross-reference stats"
+        method: "GET"
+        endpoint: "/admin/domains"
+        auth_type: "admin"
+        expected_status: 200
+
+      - name: "Step 3 – List all valid NP_TYPE enum values for reference"
+        method: "GET"
+        endpoint: "/admin/enums/category/NP_TYPE"
+        auth_type: "admin"
+        expected_status: 200
+
+  # ===========================================================================
+  # WF-OPS-08 · Unauthorized Self-Registration Attempt (Negative — Security)
+  # ===========================================================================
+  - id: "WF-OPS-08"
+    name: "Unauthorized Self-Registration Attempt (Negative — Security)"
+    description: >
+      Validates that an entity which has not been whitelisted by ONDC Admin
+      is unable to self-register on the network via POST /v3.0/subscribe.
+      The registry must reject the attempt (401) without creating any active config records.
+      Successful security validation confirms:
+      1) Request is rejected with 401
+      2) No participant configs are created (empty array returned)
+      Mirrors WF-OPS-08 from registry-workflows.md.
+    workflow: true
+    steps:
+      - name: "Step 1 – Generate Ed25519 key pair for unauthorized entity"
+        method: "POST"
+        endpoint: "/utility/generate-keypair"
+        auth_type: "admin"
+        data: {}
+        expected_status: 200
+        store:
+          - field: "signing.public_key"
+            as: "unauth_signing_public_key"
+          - field: "encryption.public_key"
+            as: "unauth_encryption_public_key"
+
+      - name: "Step 2 – Attempt self-subscribe without admin whitelist (expect rejection)"
+        method: "POST"
+        endpoint: "/v3.0/subscribe"
+        auth_type: "v3"
+        inject_v3_key: true
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          request_id: "{{request_id}}"
+          uk_id: "unauthorized_key_wfops08"
+          participant_id: "{{subscriber_id}}"
+          credentials:
+            - cred_id: "cred_gst_unauthorized"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "Unauthorized Entity"
+            - cred_id: "cred_pan_unauthorized"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "Unauthorized Entity"
+          contacts:
+            - contact_id: "contact_auth_unauthorized"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Unauthorized Signatory"
+              email: "auth@unauthorized.example.com"
+              phone: "+919876520800"
+            - contact_id: "contact_biz_unauthorized"
+              type: "BUSINESS"
+              name: "Unauthorized Business"
+              email: "biz@unauthorized.example.com"
+              phone: "+919876520801"
+          key:
+            uk_id: "unauthorized_key_wfops08"
+            signing_public_key: "{{unauth_signing_public_key}}"
+            encryption_public_key: "{{unauth_encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-01-01T00:00:00.000Z"
+            valid_until: "2027-01-01T00:00:00.000Z"
+          location:
+            location_id: "loc_unauthorized"
+            country: "IND"
+            city: ["std:080"]
+            type: "SERVICEABLE"
+          uri:
+            uri_id: "uri_unauthorized"
+            type: "CALLBACK"
+            url: "https://seller-mock.kynondc.net"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_unauthorized"
+              uri_id: "uri_unauthorized"
+              key_id: "unauthorized_key_wfops08"
+        expected_status: [400, 401, 403, 422]  # HTTP 4xx — participant not whitelisted
+        validate:
+          - field: "error.code"
+            in_range:
+              min: 15000
+              max: 19999
+
+      - name: "Step 3 – Confirm unauthorized entity does not appear in lookup"
+        method: "POST"
+        endpoint: "/v2.0/lookup"
+        auth_type: "v3"
+        data:
+          subscriber_id: "{{subscriber_id}}"
+          country: "IND"
+          domain: "ONDC:RET1A"
+          type: "BPP"
+        expected_status: [401, 404]  # rejection confirms entity is not on network
+        continue_on_failure: true
+        validate:
+          - field: "error.code"
+            in_range:
+              min: 15000
+              max: 19999
+
+      - name: "Step 4 – Admin confirms no participant record was created"
+        method: "GET"
+        endpoint: "/admin/participants/{{subscriber_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "participant_id"
+            exists: false
+
+      - name: "Step 5 – Query audit logs for failed subscribe attempt with rejection reason"
+        method: "GET"
+        endpoint: "/admin/audit/logs"
+        auth_type: "admin"
+        query_params:
+          participant_id: "{{subscriber_id}}"
+        expected_status: 200
+        continue_on_failure: true
+        validate:
+          - field: "data"
+            exists: true

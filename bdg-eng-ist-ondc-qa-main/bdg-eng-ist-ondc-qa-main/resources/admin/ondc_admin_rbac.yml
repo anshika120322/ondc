@@ -1,0 +1,85 @@
+ondcAdminRbac: # Environment name, selected with --environment flag
+  host: "http://localhost:3000/api/v1" # Base API URL
+  swagger_ui: "http://localhost:3000/api" # Swagger UI URL (for reference)
+  
+  users: # Test accounts for different roles
+    super_admin:
+      email: "super@admin.com"
+      password: "SuperSecure@123"
+      role: "SUPER_ADMIN"
+    
+    admin:
+      email: "admin@example.com"
+      password: "AdminPass@123"
+      role: "ADMIN"
+    
+    operator:
+      email: "operator@example.com"
+      password: "OperatorPass@123"
+      role: "OPERATOR"
+  
+  # Role permissions matrix (for reference)
+  role_permissions:
+    SUPER_ADMIN:
+      - "users:create"
+      - "users:read"
+      - "users:update"
+      - "users:delete"
+      - "pages:create"
+      - "pages:read"
+      - "pages:update"
+      - "pages:delete"
+      - "groups:create"
+      - "groups:read"
+      - "groups:update"
+      - "groups:delete"
+      - "rbac:manage"
+      - "audit:read"
+      - "sessions:manage"
+    
+    ADMIN:
+      - "users:create"  # Can create OPERATOR only
+      - "users:read"
+      - "users:update"  # Limited
+      - "pages:read"
+      - "groups:create"
+      - "groups:read"
+      - "groups:update"
+      - "audit:read"
+    
+    OPERATOR:
+      - "users:read"  # Own profile only
+      - "pages:read"  # Assigned pages only
+  
+  # Endpoint access control (for reference)
+  endpoint_access:
+    super_admin_only:
+      - "POST /pages"
+      - "PATCH /pages/:id"
+      - "DELETE /pages/:id"
+      - "POST /pages/role-page"
+      - "DELETE /pages/role-page/:role"
+      - "DELETE /groups/:id"
+    
+    admin_super_admin:
+      - "POST /users"
+      - "GET /users"
+      - "PATCH /users/:id"
+      - "DELETE /users/:id"
+      - "POST /groups"
+      - "GET /groups"
+      - "PATCH /groups/:id"
+      - "POST /groups/assign-user"
+      - "DELETE /groups/remove-user/:groupId/:userId"
+    
+    all_authenticated:
+      - "GET /rbac/my-pages"
+      - "GET /auth/profile"
+      - "POST /auth/logout"
+      - "POST /auth/refresh"
+  
+  # Test data
+  test_data:
+    test_page_prefix: "test-page"
+    test_group_prefix: "test-group"
+    test_user_prefix: "testuser"

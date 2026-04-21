@@ -1,0 +1,58 @@
+# ONDC Registry - DB Sync Timing Test Configuration
+# Measures time taken for subscribed participants to appear in lookup database
+
+ondcRegistry:
+  # Base URL (required by CTF framework)
+  host: "https://registry-uat.kynondc.net"
+  
+  # Subscribe API Server
+  subscribe_host: "https://registry-uat.kynondc.net"
+  
+  # Lookup API Server (V3)
+  lookup_host: "https://registry-uat.kynondc.net"
+  
+  # Admin API Authentication
+  admin_username: "<admin-user>"
+  admin_password: "admin"
+  
+  # Test Configuration
+  max_wait_time: 300  # 5 minutes max wait per participant
+  check_interval: 2  # Check every 2 seconds for precise measurement
+  
+  # Participant Configuration
+  participant_type: "BAP"
+  participant_status: "SUBSCRIBED"
+  domain: "ONDC:RET10"
+  country: "IND"
+  city: "*"
+  
+  # ED25519 Keys (for test participants)
+  signing_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+  encr_public_key: "MCowBQYDK2VuAyEABQ3Mrz0aCgQzKEMgs7T8BrZPx4nzCOFJyNdARxxRc3E="
+  
+  # Validity period for test participants
+  valid_from: "2026-01-01T00:00:00Z"
+  valid_until: "2030-12-31T23:59:59Z"
+
+test_suite_metadata:
+  component: "registry"
+  sub_component: "subscribe"
+  api_version: "v1"
+  test_type: "performance"
+  priority: "high"
+  description: "Measures DB replication delay between subscribe and lookup services"
+
+test_cases:
+  - id: "TC-SYNC-001"
+    name: "DB Synchronization Timing"
+    description: "Register participant and measure time until it appears in lookup database"
+    test_type: "performance"
+    expected_result: "Participant appears in lookup within acceptable time (< 5 minutes)"
+    validation:
+      - "Participant successfully registered via /admin/subscribe"
+      - "Participant appears in /lookup response"
+      - "Sync time is recorded and reported"
+    success_criteria:
+      - "Average sync time < 300 seconds (5 minutes)"
+      - "No timeouts (> 600 seconds)"
+      - "All participants successfully sync"

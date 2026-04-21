@@ -1,0 +1,870 @@
+# test_suites:
+#   example_suite: # Name of the suite
+#     test_cases: # List of the tests that are part of the suite, defined in the config.yml 
+#     - example_test_ui # Test case key defined in the test_cases dictionary
+#     - example_test_api
+#     default_params: # Default values to use if are not specified in --command, can use the same params as test cases
+#       WAIT_TIME_MIN: 2 # Minimum wait to start a task
+#       WAIT_TIME_MAX: 5 # Maximum wait to start a task
+#       ITERATIONS: 2 # Number of times to execute the test
+#       # Any of the default params defined at the test case level can be used here
+  
+test_cases: # Main key of test cases object
+#   example_test_ui: # Name of test case
+#     test_case_module: tests.example_test # Python module where is located the TaskSet to run
+#     test_case_type: UI # Type of the test, can be UI or API
+#     tenants_file: resources/example_test.yml # File where is defined the environments available for the test, used along with --environment flag 
+#     app_name: Example # Name of the ModernOps application to test
+#     test_case_id: example # test case identifier used by ELK
+#     default_params: # Default params to be used if the specific flag is not specified
+#       NUM_USERS: 2  # Use with flag --users
+#       RAMP_UP_TIME: 2 # Use with flag --ramp-up
+#       SPAWN_RATE: 1 # Use with flag --spawn-rate
+#       RUN_TIME: 900 # Use with flag --run-time
+#       WAIT_TIME_MIN: 10 # Use with flag --wait-min
+#       WAIT_TIME_MAX: 20 # Use with flag --wait-max
+  
+  # example_test_api: # Name of test case
+  #   test_case_module: tests.example_test # Python module where is located the TaskSet to run
+  #   test_case_type: API # Type of the test, can be UI or API
+  #   tenants_file: resources/example_test.yml # File where is defined the environments available for the test, used along with --environment flag 
+  #   app_name: HelloWorldAPI # Name of the ModernOps application to test
+  #   test_case_id: hw002 # test case identifier used by ELK
+  #   default_params: # Default params to be used if the specific flag is not specified
+  #     WAIT_TIME_MIN: 10 # Use with flag --wait-min
+  #     WAIT_TIME_MAX: 20 # Use with flag --wait-max
+  #     ITERATIONS: 2 # Use with flag --iterations, will run the test for the specified number of iterations with a single user and no time limit.
+
+  # ========== Registry Subscribe API Tests (TC-01 to TC-54) ==========
+  
+  # REG-FUNC: Registry Subscribe Functional Tests (TC-01 to TC-23)
+  ondc_reg_subscribe_functional:
+    test_case_module: tests.registry.subscribe.test_subscribe_functional # TC-01 to TC-23: Positive scenarios
+    test_case_type: API
+    tenants_file: resources/registry/subscribe/test_subscribe_functional.yml
+    app_name: ondc_reg_subscribe_functional
+    test_case_id: ondc_reg_subscribe_func_001
+    default_params:
+      WAIT_TIME_MIN: 1
+      WAIT_TIME_MAX: 3
+      ITERATIONS: 5 # Run 5 iterations for functional validation
+
+  # REG-HAPPY: Registry Subscribe Happy Flow Tests (HF-01 to HF-06)
+  ondc_reg_happy_flows:
+    test_case_module: tests.registry.ondc_reg_happy_flows # Core happy path workflows from test-suite-v2
+    test_case_type: API
+    tenants_file: resources/registry/subscribe/test_subscribe_functional.yml
+    app_name: ondc_reg_happy_flows
+    test_case_id: ondc_reg_happy_flows_001
+    default_params:
+      WAIT_TIME_MIN: 1
+      WAIT_TIME_MAX: 2
+      ITERATIONS: 3 # Run 3 iterations for happy flow validation
+
+  # REG-V3-COMPREHENSIVE: V3 Comprehensive Test Suite (V00-V25) - Positive & Negative Scenarios
+  ondc_reg_v3_comprehensive:
+    test_case_module: tests.registry.subscribe.test_v3_comprehensive # V3 comprehensive test executor
+    test_case_type: API
+    tenants_file: resources/registry/subscribe/test_subscribe_functional.yml
+    app_name: ondc_reg_v3_comprehensive
+    test_case_id: ondc_reg_v3_comprehensive_001
+    default_params:
+      WAIT_TIME_MIN: 1
+      WAIT_TIME_MAX: 2
+      ITERATIONS: 1 # Run 1 iteration (26 tests loaded from YAML)
+
+  # REG-ADVANCED: Advanced Test Suite (15 tests: multi-domain, concurrency, edge cases)
+  ondc_reg_advanced:
+    test_case_module: tests.registry.subscribe.test_advanced # Advanced test executor
+    test_case_type: API
+    tenants_file: resources/registry/subscribe/test_subscribe_functional.yml
+    app_name: ondc_reg_advanced
+    test_case_id: ondc_reg_advanced_001
+    default_params:
+      WAIT_TIME_MIN: 1
+      WAIT_TIME_MAX: 2
+      ITERATIONS: 1 # Run 1 iteration (15 tests loaded from YAML)
+
+  # ADMIN-COMPREHENSIVE: Admin Comprehensive Test Suite (45 tests: creates, transitions, updates, workflows, validations)
+  ondc_admin_comprehensive:
+    test_case_module: tests.registry.admin.test_admin_comprehensive # Admin comprehensive test executor
+    test_case_type: API
+    tenants_file: resources/registry/subscribe/test_subscribe_functional.yml
+    app_name: ondc_admin_comprehensive
+    test_case_id: ondc_admin_comprehensive_001
+    default_params:
+      WAIT_TIME_MIN: 1
+      WAIT_TIME_MAX: 2
+      ITERATIONS: 1 # Run 1 iteration (45 tests loaded from YAML)
+
+  # POLICY-FUNCTIONAL: Policy Management Test Suite (4 tests: policy validation, upsert, and linking)
+  ondc_policy_functional:
+    test_case_module: tests.registry.policy.test_policy_functional # Policy management test executor
+    test_case_type: API
+    tenants_file: resources/registry/subscribe/test_subscribe_functional.yml
+    app_name: ondc_policy_management
+    test_case_id: ondc_policy_001
+    default_params:
+      WAIT_TIME_MIN: 1
+      WAIT_TIME_MAX: 2
+      ITERATIONS: 1 # Run 1 iteration (4 policy tests loaded from YAML)
+
+  # POLICY-NEGATIVE: Policy Negative Test Suite (20 tests: is_expired, expiry enforcement, restricted updates, version validation)
+  ondc_policy_negative:
+    test_case_module: tests.registry.policy.test_policy_negative # Policy negative test executor
+    test_case_type: API
+    tenants_file: resources/registry/subscribe/test_subscribe_functional.yml
+    app_name: ondc_policy_negative
+    test_case_id: ondc_policy_negative_001
+    default_params:
+      WAIT_TIME_MIN: 1
+      WAIT_TIME_MAX: 2
+      ITERATIONS: 1 # Run 1 iteration (20 negative tests loaded from YAML)
+
+  # POLICY-LOOKUP: Policy + Lookup Integration Test Suite (9 tests: all 3 lookup query methods)
+  ondc_policy_lookup:
+    test_case_module: tests.registry.policy.test_policy_lookup_integration # Policy + Lookup integration test executor
+    test_case_type: API
+    tenants_file: resources/registry/subscribe/test_subscribe_functional.yml
+    app_name: ondc_policy_lookup_integration
+    test_case_id: ondc_policy_lookup_001
+    default_params:
+      WAIT_TIME_MIN: 1
+      WAIT_TIME_MAX: 2
+      ITERATIONS: 1 # Run 1 iteration (9 comprehensive policy+lookup tests from YAML)
+
+  # POLICY-REQUIREMENTS: Policy Requirements Test Suite (REQ-01 to REQ-05: SYSTEM enforcement, FILTER lookup, updates, deactivation, nested normalization)
+  ondc_policy_requirements:
+    test_case_module: tests.registry.policy.test_policy_requirements # Policy requirements test executor
+    test_case_type: API
+    tenants_file: resources/registry/subscribe/test_subscribe_functional.yml
+    app_name: ondc_policy_requirements
+    test_case_id: ondc_policy_requirements_001
+    default_params:
+      WAIT_TIME_MIN: 2
+      WAIT_TIME_MAX: 3
+      ITERATIONS: 1 # Run 1 iteration (5 requirement-specific tests loaded from YAML)
+
+  # POLICY-SEARCH-COMBINATIONS: Network + Participant Policy with /search endpoint testing (PS-01 to PS-15: BROADCAST, ALLOW, NOT_ALLOW, BLOCK, Priority, Multi-domain)
+  ondc_policy_search_combinations:
+    test_case_module: tests.registry.policy.test_policy_search_combinations # Policy search combinations test executor
+    test_case_type: API
+    tenants_file: resources/registry/subscribe/test_subscribe_functional.yml
+    app_name: ondc_policy_search_combinations
+    test_case_id: ondc_policy_search_combinations_001
+    default_params:
+      WAIT_TIME_MIN: 2
+      WAIT_TIME_MAX: 3
+      ITERATIONS: 1 # Run 1 iteration (15 policy+search combination tests loaded from YAML)
+
+  # POLICY-GATEWAY-INTEGRATION: Complete gateway testing with three-layer policy evaluation (GW-01 to GW-25: BG type, Network+Buyer+Seller policies, API routing, Runtime refresh, Payload capture, Performance, 100% policy combination coverage)
+  ondc_policy_gateway_integration:
+    test_case_module: tests.registry.policy.test_policy_gateway_integration # Gateway integration test executor
+    test_case_type: API
+    tenants_file: resources/registry/subscribe/test_subscribe_functional.yml
+    app_name: ondc_policy_gateway_integration
+    test_case_id: ondc_policy_gateway_integration_001
+    default_params:
+      WAIT_TIME_MIN: 2
+      WAIT_TIME_MAX: 3
+      ITERATIONS: 1 # Run 1 iteration (25 gateway integration tests with payload capture and timing)
+
+  # KEY-MANAGEMENT: Key Management Test Suite (KEY-01 to KEY-04: multiple active keys, admin status updates, expiry filtering, rotation verification)
+  ondc_key_management:
+    test_case_module: tests.registry.keys.test_key_management # Key management test executor
+    test_case_type: API
+    tenants_file: resources/registry/subscribe/test_subscribe_functional.yml
+    app_name: ondc_key_management
+    test_case_id: ondc_key_management_001
+    default_params:
+      WAIT_TIME_MIN: 2
+      WAIT_TIME_MAX: 3
+      ITERATIONS: 1 # Run 1 iteration (4 key management tests loaded from YAML)
+
+  # BACKWARD-COMPATIBILITY: Backward Compatibility Test Suite (BC-01 to BC-05: V1/V2 deprecated endpoints, admin whitelisting, cross-version participant discovery)
+  ondc_backward_compatibility:
+    test_case_module: tests.registry.backward_compat.test_backward_compatibility # Backward compatibility test executor
+    test_case_type: API
+    tenants_file: resources/registry/subscribe/test_subscribe_functional.yml
+    app_name: ondc_backward_compatibility
+    test_case_id: ondc_backward_compatibility_001
+    default_params:
+      WAIT_TIME_MIN: 2
+      WAIT_TIME_MAX: 3
+      ITERATIONS: 1 # Run 1 iteration (5 backward compatibility tests loaded from YAML)
+
+  # ERROR-CODE-VALIDATION: Error Code Validation Test Suite (ERR_101, ERR_102, ERR_3xx, ERR_5xx, 429 with Retry-After)
+  ondc_error_code_validation:
+    test_case_module: tests.registry.test_error_code_validation # Error code validation test executor
+    test_case_type: API
+    tenants_file: resources/registry/test_error_code_validation.yml
+    app_name: ondc_error_code_validation
+    test_case_id: ondc_error_code_validation_001
+    default_params:
+      WAIT_TIME_MIN: 1
+      WAIT_TIME_MAX: 2
+      ITERATIONS: 1 # Run 1 iteration (20 error code validation tests)
+
+  # Single V3 Subscribe Test (for debugging)
+  test_single_v3_subscribe:
+    test_case_module: tests.registry.test_single_v3_subscribe
+    test_case_type: API
+    tenants_file: resources/registry/subscribe/test_subscribe_functional.yml
+    app_name: test_single_v3_subscribe
+    test_case_id: single_v3_test_001
+    default_params:
+      WAIT_TIME_MIN: 1
+      WAIT_TIME_MAX: 1
+      ITERATIONS: 1
+
+  # Single TC010 Test (Basic WHITELISTED → SUBSCRIBED workflow)
+  test_single_tc010:
+    test_case_module: tests.registry.test_single_tc010
+    test_case_type: API
+    tenants_file: resources/registry/subscribe/test_subscribe_functional.yml
+    app_name: test_single_tc010
+    test_case_id: single_tc010_001
+    default_params:
+      WAIT_TIME_MIN: 1
+      WAIT_TIME_MAX: 1
+      ITERATIONS: 1
+
+  # REG-NEG: Registry Subscribe Negative Tests (TC-24 to TC-54)
+  ondc_reg_subscribe_negative:
+    test_case_module: tests.registry.subscribe.test_subscribe_negative # TC-24 to TC-54: Error scenarios
+    test_case_type: API
+    tenants_file: resources/registry/subscribe/test_subscribe_negative.yml
+    app_name: ondc_reg_subscribe_negative
+    test_case_id: ondc_reg_subscribe_neg_001
+    default_params:
+      WAIT_TIME_MIN: 1
+      WAIT_TIME_MAX: 2
+      ITERATIONS: 3 # Run 3 iterations for error validation
+
+  # REG-PERF: Registry Subscribe Performance Tests
+  ondc_reg_subscribe_performance:
+    test_case_module: tests.registry.subscribe.test_subscribe_performance # Performance tests with weighted task distribution
+    test_case_type: API
+    tenants_file: resources/registry/subscribe/test_subscribe_functional.yml # Uses functional config
+    app_name: ondc_reg_subscribe_performance
+    test_case_id: ondc_reg_subscribe_perf_001
+    default_params:
+      NUM_USERS: 20 # 20 concurrent users for realistic load testing
+      SPAWN_RATE: 5 # Spawn 5 users per second (4 second ramp-up)
+      RUN_TIME: 300 # Run for 5 minutes
+      WAIT_TIME_MIN: 1
+      WAIT_TIME_MAX: 5
+
+  # REG-SYNC: Registry DB Synchronization Timing Test
+  ondc_reg_sync_timing:
+    test_case_module: tests.registry.subscribe.test_sync_timing # DB sync timing: subscribe -> lookup
+    test_case_type: API
+    tenants_file: resources/registry/subscribe/test_sync_timing.yml
+    app_name: ondc_reg_sync_timing
+    test_case_id: ondc_reg_sync_timing_001
+    default_params:
+      ITERATIONS: 5 # Create 5 participants to measure sync timing
+      WAIT_TIME_MIN: 1
+      WAIT_TIME_MAX: 1
+
+  # ondc_reg_subscribe_api: # Name of test case
+  #   test_case_module: tests.registry.ondc_reg_subscribe # Python module where is located the TaskSet to run
+  #   test_case_type: API # Type of the test, can be UI or API
+  #   tenants_file: resources/registry/ondc_reg_subscribe.yml # File where is defined the environments available for the test, used along with --environment flag 
+  #   app_name: ondc_reg # Name of the ModernOps application to test
+  #   test_case_id: ondc_reg_001 # test case identifier used by ELK
+  #   default_params: # Default params to be used if the specific flag is not specified
+  #     WAIT_TIME_MIN: 10 # Use with flag --wait-min
+  #     WAIT_TIME_MAX: 20 # Use with flag --wait-max
+  #     ITERATIONS: 2 # Use with flag --iterations, will run the test for the specified number of iterations with a single user and no time limit.
+
+  # gw_search_api: # Name of test case
+  #   test_case_module: tests.gw_search # Python module where is located the TaskSet to run
+  #   test_case_type: API # Type of the test, can be UI or API
+  #   tenants_file: resources/gw_search.yml # File where is defined the environments available for the test, used along with --environment flag 
+  #   app_name: ondc_GW # Name of the ModernOps application to test
+  #   test_case_id: ondc_GW_Search_001 # test case identifier used by ELK
+  #   default_params: # Default params to be used if the specific flag is not specified
+  #     WAIT_TIME_MIN: 10 # Use with flag --wait-min
+  #     WAIT_TIME_MAX: 20 # Use with flag --wait-max
+  #     ITERATIONS: 2 # Use with flag --iterations, will run the test for the specified number of iterations with a single user and no time limit.
+
+  # gw_lookup_api: # Name of test case
+  #   test_case_module: tests.gw_lookup # Python module where is located the TaskSet to run
+  #   test_case_type: API # Type of the test, can be UI or API
+  #   tenants_file: resources/gw_lookup.yml # File where is defined the environments available for the test, used along with --environment flag 
+  #   app_name: ondc_GW # Name of the ModernOps application to test
+  #   test_case_id: ondc_GW_Lookup_001 # test case identifier used by ELK
+  #   default_params: # Default params to be used if the specific flag is not specified
+  #     WAIT_TIME_MIN: 10 # Use with flag --wait-min
+  #     WAIT_TIME_MAX: 20 # Use with flag --wait-max
+  #     ITERATIONS: 2 # Use with flag --iterations, will run the test for the specified number of iterations with a single user and no time limit.
+
+  # ondc_admin_token_api: # Name of test case
+  #   test_case_module: tests.admin.ondc_admin_token # Python module where is located the TaskSet to run
+  #   test_case_type: API # Type of the test, can be UI or API
+  #   tenants_file: resources/admin/ondc_admin_token.yml # File where is defined the environments available for the test, used along with --environment flag 
+  #   app_name: ondc_admin_token # Name of the ModernOps application to test
+  #   test_case_id: ondc_admin_001 # test case identifier used by ELK
+  #   default_params: # Default params to be used if the specific flag is not specified
+  #     WAIT_TIME_MIN: 10 # Use with flag --wait-min
+  #     WAIT_TIME_MAX: 20 # Use with flag --wait-max
+  #     ITERATIONS: 2 # Use with flag --iterations, will run the test for the specified number of iterations with a single user and no time limit.
+
+  ondc_admin_auth_api: # Name of test case
+    test_case_module: tests.admin.ondc_admin_auth # Python module where is located the TaskSet to run
+    test_case_type: API # Type of the test, can be UI or API
+    tenants_file: resources/admin/ondc_admin_auth.yml # File where is defined the environments available for the test, used along with --environment flag 
+    app_name: ondc_admin_auth # Name of the ModernOps application to test
+    test_case_id: ondc_admin_auth_001 # test case identifier used by ELK
+    default_params: # Default params to be used if the specific flag is not specified
+      WAIT_TIME_MIN: 5 # Use with flag --wait-min
+      WAIT_TIME_MAX: 10 # Use with flag --wait-max
+      ITERATIONS: 1 # Use with flag --iterations, will run the test for the specified number of iterations with a single user and no time limit.
+
+  ondc_admin_users_api: # Name of test case
+    test_case_module: tests.admin.ondc_admin_users # Python module where is located the TaskSet to run
+    test_case_type: API # Type of the test, can be UI or API
+    tenants_file: resources/admin/ondc_admin_users.yml # File where is defined the environments available for the test, used along with --environment flag 
+    app_name: ondc_admin_users # Name of the ModernOps application to test
+    test_case_id: ondc_admin_users_001 # test case identifier used by ELK
+    default_params: # Default params to be used if the specific flag is not specified
+      WAIT_TIME_MIN: 5 # Use with flag --wait-min
+      WAIT_TIME_MAX: 10 # Use with flag --wait-max
+      ITERATIONS: 1 # Use with flag --iterations, will run the test for the specified number of iterations with a single user and no time limit.
+
+  ondc_admin_rbac_api: # Name of test case
+    test_case_module: tests.admin.ondc_admin_rbac # Python module where is located the TaskSet to run
+    test_case_type: API # Type of the test, can be UI or API
+    tenants_file: resources/admin/ondc_admin_rbac.yml # File where is defined the environments available for the test, used along with --environment flag 
+    app_name: ondc_admin_rbac # Name of the ModernOps application to test
+    test_case_id: ondc_admin_rbac_001 # test case identifier used by ELK
+    default_params: # Default params to be used if the specific flag is not specified
+      WAIT_TIME_MIN: 5 # Use with flag --wait-min
+      WAIT_TIME_MAX: 10 # Use with flag --wait-max
+      ITERATIONS: 1 # Use with flag --iterations, will run the test for the specified number of iterations with a single user and no time limit.
+
+  ondc_admin_domain_management: # Domain Management CRUD Operations (DM-001 to DM-006)
+    test_case_module: tests.admin.test_admin_domain_management # Python module for domain management tests
+    test_case_type: API # Type of the test, can be UI or API
+    tenants_file: resources/admin/test_admin_domain_management.yml # File where is defined the environments available for the test
+    app_name: ondc_admin_domain_mgmt # Name of the ModernOps application to test
+    test_case_id: ondc_admin_domain_mgmt_001 # test case identifier used by ELK
+    default_params: # Default params to be used if the specific flag is not specified
+      WAIT_TIME_MIN: 1 # Use with flag --wait-min
+      WAIT_TIME_MAX: 2 # Use with flag --wait-max
+      ITERATIONS: 1 # Use with flag --iterations, will run the test for the specified number of iterations with a single user and no time limit.
+
+  ondc_admin_auth_rbac_comprehensive: # Comprehensive Auth & RBAC Tests (TC-AUTH-001 to TC-AUDIT-002)
+    test_case_module: tests.registry.admin.test_admin_auth_rbac_comprehensive # Python module where is located the TaskSet to run
+    test_case_type: API # Type of the test, can be UI or API
+    tenants_file: resources/registry/admin/ondc_admin_auth.yml # File where is defined the environments available for the test, used along with --environment flag 
+    app_name: ondc_admin_auth_rbac_comp # Name of the ModernOps application to test
+    test_case_id: ondc_admin_auth_rbac_comp_001 # test case identifier used by ELK
+    default_params: # Default params to be used if the specific flag is not specified
+      WAIT_TIME_MIN: 2 # Use with flag --wait-min
+      WAIT_TIME_MAX: 5 # Use with flag --wait-max
+      ITERATIONS: 3 # Use with flag --iterations, will run the test for the specified number of iterations with a single user and no time limit.
+
+  ondc_admin_audit_api: # Name of test case
+    test_case_module: tests.admin.ondc_admin_audit # Python module where is located the TaskSet to run
+    test_case_type: API # Type of the test, can be UI or API
+    tenants_file: resources/admin/ondc_admin_audit.yml # File where is defined the environments available for the test, used along with --environment flag 
+    app_name: ondc_admin_audit # Name of the ModernOps application to test
+    test_case_id: ondc_admin_audit_001 # test case identifier used by ELK
+    default_params: # Default params to be used if the specific flag is not specified
+      WAIT_TIME_MIN: 5 # Use with flag --wait-min
+      WAIT_TIME_MAX: 10 # Use with flag --wait-max
+      ITERATIONS: 1 # Use with flag --iterations, will run the test for the specified number of iterations with a single user and no time limit.
+
+  ondc_admin_audit_comprehensive: # Comprehensive Audit Log Tests
+    test_case_module: tests.admin.test_admin_audit_comprehensive
+    test_case_type: API
+    tenants_file: resources/registry/subscribe/test_subscribe_functional.yml
+    app_name: ondc_admin_audit_comprehensive
+    test_case_id: ondc_admin_audit_comprehensive_001
+    default_params:
+      WAIT_TIME_MIN: 2
+      WAIT_TIME_MAX: 3
+      ITERATIONS: 1
+
+  ondc_admin_health_comprehensive: # Comprehensive Health Check Tests (HEALTH-01 to HEALTH-06)
+    test_case_module: tests.admin.test_admin_health_comprehensive
+    test_case_type: API
+    tenants_file: resources/registry/subscribe/test_subscribe_functional.yml
+    app_name: ondc_admin_health_comprehensive
+    test_case_id: ondc_admin_health_comprehensive_001
+    default_params:
+      WAIT_TIME_MIN: 2
+      WAIT_TIME_MAX: 3
+      ITERATIONS: 1
+
+  ondc_admin_security_api: # Name of test case
+    test_case_module: tests.admin.ondc_admin_security # Python module where is located the TaskSet to run
+    test_case_type: API # Type of the test, can be UI or API
+    tenants_file: resources/admin/ondc_admin_security.yml # File where is defined the environments available for the test, used along with --environment flag 
+    app_name: ondc_admin_security # Name of the ModernOps application to test
+    test_case_id: ondc_admin_security_001 # test case identifier used by ELK
+    default_params: # Default params to be used if the specific flag is not specified
+      WAIT_TIME_MIN: 5 # Use with flag --wait-min
+      WAIT_TIME_MAX: 10 # Use with flag --wait-max
+      ITERATIONS: 1 # Use with flag --iterations, will run the test for the specified number of iterations with a single user and no time limit.
+
+  # Performance Test Cases
+  ondc_admin_auth_performance: # PT-001: Login Load Test
+    test_case_module: tests.admin.ondc_admin_auth # Python module where is located the TaskSet to run
+    test_case_type: API # Type of the test, can be UI or API
+    tenants_file: resources/admin/ondc_admin_auth.yml # File where is defined the environments available for the test, used along with --environment flag 
+    app_name: ondc_admin_auth_perf # Name of the ModernOps application to test
+    test_case_id: ondc_admin_auth_perf_001 # test case identifier used by ELK
+    default_params: # Default params to be used if the specific flag is not specified
+      NUM_USERS: 100  # 100 concurrent login requests
+      SPAWN_RATE: 10  # Spawn 10 users per second (10 second ramp-up)
+      RUN_TIME: 60  # Run for 60 seconds
+      WAIT_TIME_MIN: 1 # Minimal wait time for performance testing
+      WAIT_TIME_MAX: 2 # Maximum 2 seconds wait time
+
+  ondc_admin_users_performance: # PT-002: API Response Time Test
+    test_case_module: tests.admin.ondc_admin_users # Python module where is located the TaskSet to run
+    test_case_type: API # Type of the test, can be UI or API
+    tenants_file: resources/admin/ondc_admin_users.yml # File where is defined the environments available for the test, used along with --environment flag 
+    app_name: ondc_admin_users_perf # Name of the ModernOps application to test
+    test_case_id: ondc_admin_users_perf_001 # test case identifier used by ELK
+    default_params: # Default params to be used if the specific flag is not specified
+      NUM_USERS: 50  # Normal load for response time testing
+      SPAWN_RATE: 5  # Spawn 5 users per second (10 second ramp-up)
+      RUN_TIME: 300  # Run for 5 minutes
+      WAIT_TIME_MIN: 1 # Minimal wait time
+      WAIT_TIME_MAX: 3 # Maximum 3 seconds wait time
+
+  ondc_admin_stress_performance: # PT-003: Database Connection Pool Test
+    test_case_module: tests.admin.ondc_admin_auth # Python module where is located the TaskSet to run
+    test_case_type: API # Type of the test, can be UI or API
+    tenants_file: resources/admin/ondc_admin_auth.yml # File where is defined the environments available for the test, used along with --environment flag 
+    app_name: ondc_admin_stress_perf # Name of the ModernOps application to test
+    test_case_id: ondc_admin_stress_perf_001 # test case identifier used by ELK
+    default_params: # Default params to be used if the specific flag is not specified
+      NUM_USERS: 1000  # 1000 concurrent requests for stress testing
+      SPAWN_RATE: 50  # Spawn 50 users per second (20 second ramp-up)
+      RUN_TIME: 120  # Run for 2 minutes
+      WAIT_TIME_MIN: 0 # No wait time for maximum stress
+      WAIT_TIME_MAX: 1 # Maximum 1 second wait time
+
+  # Security Test Cases (Advanced)
+  ondc_admin_security_advanced_api: # SEC-001 to SEC-004: SQL Injection, XSS, Password Hashing, Token Security
+    test_case_module: tests.admin.ondc_admin_security_advanced # Python module where is located the TaskSet to run
+    test_case_type: API # Type of the test, can be UI or API
+    tenants_file: resources/admin/ondc_admin_security_advanced.yml # File where is defined the environments available for the test, used along with --environment flag 
+    app_name: ondc_admin_security_advanced # Name of the ModernOps application to test
+    test_case_id: ondc_admin_security_advanced_001 # test case identifier used by ELK
+    default_params: # Default params to be used if the specific flag is not specified
+      WAIT_TIME_MIN: 5 # Use with flag --wait-min
+      WAIT_TIME_MAX: 10 # Use with flag --wait-max
+      ITERATIONS: 1 # Use with flag --iterations, will run the test for the specified number of iterations with a single user and no time limit.
+
+  # ONDC Gateway Search API Test Cases
+  # ========== Gateway Search Tests (Separated by Type) ==========
+  
+  # GW-001: Functional Test (Positive Scenarios Only)
+  ondc_gateway_search_functional:
+    test_case_module: tests.gateway.ondc_gateway_search_functional # Positive test scenarios
+    test_case_type: API
+    tenants_file: resources/gateway/ondc_gateway_search_functional.yml
+    app_name: ondc_gateway_search_functional
+    test_case_id: ondc_gateway_search_func_001
+    default_params:
+      WAIT_TIME_MIN: 1
+      WAIT_TIME_MAX: 3
+      ITERATIONS: 5
+
+  # GW-001a: Domains Functional Test (TC-002 Different Domains Only)
+  ondc_gateway_search_domains_functional:
+    test_case_module: tests.gateway.ondc_gateway_search_domains_functional # TC-002: Different domains
+    test_case_type: API
+    tenants_file: resources/gateway/ondc_gateway_search_functional.yml
+    app_name: ondc_gateway_search_domains_functional
+    test_case_id: ondc_gateway_search_domains_func_001a
+    default_params:
+      WAIT_TIME_MIN: 1
+      WAIT_TIME_MAX: 3
+      ITERATIONS: 5
+
+  # GW-001b: Large Payload Test (TC-004 Only)
+  ondc_gateway_search_large_payload:
+    test_case_module: tests.gateway.ondc_gateway_search_large_payload # TC-004: Large payload test
+    test_case_type: API
+    tenants_file: resources/gateway/ondc_gateway_search_functional.yml
+    app_name: ondc_gateway_search_large_payload
+    test_case_id: ondc_gateway_search_large_payload_001b
+    default_params:
+      WAIT_TIME_MIN: 1
+      WAIT_TIME_MAX: 3
+      ITERATIONS: 5
+  
+  # GW-002: Negative Test (Error Scenarios Only)
+  ondc_gateway_search_negative:
+    test_case_module: tests.gateway.ondc_gateway_search_negative # Negative test scenarios
+    test_case_type: API
+    tenants_file: resources/gateway/ondc_gateway_search_negative.yml
+    app_name: ondc_gateway_search_negative
+    test_case_id: ondc_gateway_search_neg_002
+    default_params:
+      WAIT_TIME_MIN: 1
+      WAIT_TIME_MAX: 3
+      ITERATIONS: 5
+
+  # GW-003: Performance Light (Realistic Load Distribution)
+  ondc_gateway_search_performance:
+    test_case_module: tests.gateway.ondc_gateway_search_performance # Weighted task distribution
+    test_case_type: API
+    tenants_file: resources/gateway/ondc_gateway_search_performance.yml
+    app_name: ondc_gateway_search_perf
+    test_case_id: ondc_gateway_search_perf_003
+    default_params:
+      NUM_USERS: 10  # 10 concurrent users
+      SPAWN_RATE: 2  # Spawn 2 users per second
+      RUN_TIME: 60  # Run for 1 minute
+      WAIT_TIME_MIN: 1
+      WAIT_TIME_MAX: 2
+
+  # GW-003a: Performance Light (Realistic Load Distribution)
+  ondc_gateway_search_performance_light:
+    test_case_module: tests.gateway.ondc_gateway_search_performance # Weighted task distribution
+    test_case_type: API
+    tenants_file: resources/gateway/ondc_gateway_search_performance.yml
+    app_name: ondc_gateway_search_perf
+    test_case_id: ondc_gateway_search_perf_003_light
+    default_params:
+      NUM_USERS: 10  # 10 concurrent users
+      SPAWN_RATE: 2  # Spawn 2 users per second
+      RUN_TIME: 60  # Run for 1 minute
+      WAIT_TIME_MIN: 1
+      WAIT_TIME_MAX: 2
+
+  # GW-004: Performance Medium (Higher Load)
+  ondc_gateway_search_performance_medium:
+    test_case_module: tests.gateway.ondc_gateway_search_performance # Weighted task distribution
+    test_case_type: API
+    tenants_file: resources/gateway/ondc_gateway_search_performance.yml
+    app_name: ondc_gateway_search_perf
+    test_case_id: ondc_gateway_search_perf_004
+    default_params:
+      NUM_USERS: 50  # 50 concurrent users (may exceed Gateway capacity)
+      SPAWN_RATE: 10  # Spawn 10 users per second
+      RUN_TIME: 180  # Run for 3 minutes
+      WAIT_TIME_MIN: 1
+      WAIT_TIME_MAX: 2
+
+  # GW-005: Performance Heavy (Stress Test)
+  ondc_gateway_search_performance_heavy:
+    test_case_module: tests.gateway.ondc_gateway_search_performance # Weighted task distribution
+    test_case_type: API
+    tenants_file: resources/gateway/ondc_gateway_search_performance.yml
+    app_name: ondc_gateway_search_perf
+    test_case_id: ondc_gateway_search_perf_005
+    default_params:
+      NUM_USERS: 100  # 100 concurrent users (will exceed Gateway capacity)
+      SPAWN_RATE: 20  # Spawn 20 users per second
+      RUN_TIME: 300  # Run for 5 minutes
+      WAIT_TIME_MIN: 1
+      WAIT_TIME_MAX: 2
+
+  # GW-006: Stress Test (Maximum Load)
+  ondc_gateway_search_stress:
+    test_case_module: tests.gateway.ondc_gateway_search_performance # Weighted task distribution
+    test_case_type: API
+    tenants_file: resources/gateway/ondc_gateway_search_performance.yml
+    app_name: ondc_gateway_search_stress
+    test_case_id: ondc_gateway_search_stress_006
+    default_params:
+      NUM_USERS: 200  # 200 concurrent users for stress testing
+      SPAWN_RATE: 50  # Spawn 50 users per second
+      RUN_TIME: 120  # Run for 2 minutes
+      WAIT_TIME_MIN: 0
+      WAIT_TIME_MAX: 1
+
+  # ========== Gateway Confirm Tests ==========
+
+  # GW-C001: Confirm Functional Test (Happy-Path Scenarios)
+  ondc_gateway_confirm_functional:
+    test_case_module: tests.gateway.ondc_gateway_confirm_functional
+    test_case_type: API
+    tenants_file: resources/gateway/ondc_gateway_confirm_functional.yml
+    app_name: ondc_gateway_confirm_functional
+    test_case_id: ondc_gateway_confirm_func_001
+    default_params:
+      WAIT_TIME_MIN: 1
+      WAIT_TIME_MAX: 3
+      ITERATIONS: 5
+
+  # GW-C002: Confirm Negative Test (Unhappy-Path / Error Scenarios)
+  ondc_gateway_confirm_negative:
+    test_case_module: tests.gateway.ondc_gateway_confirm_negative
+    test_case_type: API
+    tenants_file: resources/gateway/ondc_gateway_confirm_negative.yml
+    app_name: ondc_gateway_confirm_negative
+    test_case_id: ondc_gateway_confirm_neg_002
+    default_params:
+      WAIT_TIME_MIN: 1
+      WAIT_TIME_MAX: 3
+      ITERATIONS: 5
+
+  # ========== Gateway Init Tests ==========
+
+  # GW-I001: Init Functional Test (Happy-Path Scenarios)
+  ondc_gateway_init_functional:
+    test_case_module: tests.gateway.ondc_gateway_init_functional
+    test_case_type: API
+    tenants_file: resources/gateway/ondc_gateway_init_functional.yml
+    app_name: ondc_gateway_init_functional
+    test_case_id: ondc_gateway_init_func_001
+    default_params:
+      WAIT_TIME_MIN: 1
+      WAIT_TIME_MAX: 3
+      ITERATIONS: 5
+
+  # GW-I002: Init Negative Test (Unhappy-Path / Error Scenarios)
+  ondc_gateway_init_negative:
+    test_case_module: tests.gateway.ondc_gateway_init_negative
+    test_case_type: API
+    tenants_file: resources/gateway/ondc_gateway_init_negative.yml
+    app_name: ondc_gateway_init_negative
+    test_case_id: ondc_gateway_init_neg_002
+    default_params:
+      WAIT_TIME_MIN: 1
+      WAIT_TIME_MAX: 3
+      ITERATIONS: 5
+
+  # ========== Gateway Select Tests ==========
+
+  # GW-SEL001: Select Functional Test (Happy-Path Scenarios)
+  ondc_gateway_select_functional:
+    test_case_module: tests.gateway.ondc_gateway_select_functional
+    test_case_type: API
+    tenants_file: resources/gateway/ondc_gateway_select_functional.yml
+    app_name: ondc_gateway_select_functional
+    test_case_id: ondc_gateway_select_func_001
+    default_params:
+      WAIT_TIME_MIN: 1
+      WAIT_TIME_MAX: 3
+      ITERATIONS: 5
+
+  # GW-SEL002: Select Negative Test (Unhappy-Path / Error Scenarios)
+  ondc_gateway_select_negative:
+    test_case_module: tests.gateway.ondc_gateway_select_negative
+    test_case_type: API
+    tenants_file: resources/gateway/ondc_gateway_select_negative.yml
+    app_name: ondc_gateway_select_negative
+    test_case_id: ondc_gateway_select_neg_002
+    default_params:
+      WAIT_TIME_MIN: 1
+      WAIT_TIME_MAX: 3
+      ITERATIONS: 5
+
+# ========== Gateway Lookup Tests (Separated by Type) ==========
+  
+  # LK-001: Functional Test (Positive Scenarios Only)
+  ondc_gateway_lookup_functional:
+    test_case_module: tests.gateway.ondc_gateway_lookup_functional # Positive test scenarios
+    test_case_type: API
+    tenants_file: resources/gateway/ondc_gateway_lookup_functional.yml
+    app_name: ondc_gateway_lookup_functional
+    test_case_id: ondc_gateway_lookup_func_001
+    default_params:
+      WAIT_TIME_MIN: 1
+      WAIT_TIME_MAX: 3
+      ITERATIONS: 5
+  
+  # LK-002: Negative Test (Error Scenarios Only)
+  ondc_gateway_lookup_negative:
+    test_case_module: tests.gateway.ondc_gateway_lookup_negative # Negative test scenarios
+    test_case_type: API
+    tenants_file: resources/gateway/ondc_gateway_lookup_negative.yml
+    app_name: ondc_gateway_lookup_negative
+    test_case_id: ondc_gateway_lookup_neg_002
+    default_params:
+      WAIT_TIME_MIN: 1
+      WAIT_TIME_MAX: 3
+      ITERATIONS: 5
+
+  # LK-003: Performance Test (Realistic Load Distribution)
+  ondc_gateway_lookup_performance:
+    test_case_module: tests.gateway.ondc_gateway_lookup_performance # Weighted task distribution
+    test_case_type: API
+    tenants_file: resources/gateway/ondc_gateway_lookup_performance.yml
+    app_name: ondc_gateway_lookup_perf
+    test_case_id: ondc_gateway_lookup_perf_003
+    default_params:
+      NUM_USERS: 50  # 50 concurrent users
+      SPAWN_RATE: 10  # Spawn 10 users per second
+      RUN_TIME: 180  # Run for 3 minutes
+      WAIT_TIME_MIN: 1
+      WAIT_TIME_MAX: 2
+
+  # REG-LK-001: Registry V3 Lookup Functional Test (Positive Scenarios Only)
+  ondc_reg_v3_lookup_functional:
+    test_case_module: tests.registry.lookup.v3.test_lookup_functional # Python module where V3 lookup functional test cases are implemented
+    test_case_type: API
+    tenants_file: resources/registry/lookup/v3/test_lookup_functional.yml # Environment configuration file
+    app_name: ondc_reg_v3_lookup_functional
+    test_case_id: ondc_reg_v3_lookup_func_001
+    default_params:
+      WAIT_TIME_MIN: 1
+      WAIT_TIME_MAX: 3
+      ITERATIONS: 1 # SequentialTaskSet runs all 11 test cases once per iteration
+
+  # REG-LK-002: Registry V3 Lookup Comprehensive Negative Tests (Auth, Validation, Format)
+  ondc_reg_v3_lookup_negative:
+    test_case_module: tests.registry.lookup.v3.test_lookup_negative
+    test_case_type: API
+    tenants_file: resources/registry/lookup/v3/test_lookup_negative.yml
+    app_name: ondc_reg_v3_lookup_negative
+    test_case_id: ondc_reg_v3_lookup_neg_002
+    default_params:
+      WAIT_TIME_MIN: 1
+      WAIT_TIME_MAX: 3
+      ITERATIONS: 1 # SequentialTaskSet runs all 37 test cases once per iteration
+
+  # REG-LK-BOUNDARY: Registry V3 Lookup Boundary Tests (Edge Cases & Security)
+  ondc_reg_v3_lookup_boundary:
+    test_case_module: tests.registry.lookup.v3.test_lookup_boundary
+    test_case_type: API
+    tenants_file: resources/registry/lookup/v3/test_lookup_functional.yml
+    app_name: ondc_reg_v3_lookup_boundary
+    test_case_id: ondc_reg_v3_lookup_boundary_001
+    default_params:
+      WAIT_TIME_MIN: 1
+      WAIT_TIME_MAX: 2
+      ITERATIONS: 1 # SequentialTaskSet runs all 10 test cases once per iteration
+
+  # REG-LK-FILTER: Registry V3 Lookup Filter Combination & Data Quality Tests
+  ondc_reg_v3_lookup_filter_combinations:
+    test_case_module: tests.registry.lookup.v3.test_lookup_filter_combinations
+    test_case_type: API
+    tenants_file: resources/registry/lookup/v3/test_lookup_filter_combinations.yml
+    app_name: ondc_reg_v3_lookup_filter_combinations
+    test_case_id: ondc_reg_v3_lookup_filter_001
+    default_params:
+      WAIT_TIME_MIN: 1
+      WAIT_TIME_MAX: 2
+      ITERATIONS: 1 # SequentialTaskSet runs all 21 test cases once per iteration
+
+  # REG-LK-CACHE: Registry V3 Lookup Cache & Performance Tests
+  ondc_reg_v3_lookup_cache:
+    test_case_module: tests.registry.lookup.v3.test_lookup_cache
+    test_case_type: API
+    tenants_file: resources/registry/lookup/v3/test_lookup_functional.yml
+    app_name: ondc_reg_v3_lookup_cache
+    test_case_id: ondc_reg_v3_lookup_cache_001
+    default_params:
+      WAIT_TIME_MIN: 1
+      WAIT_TIME_MAX: 2
+      ITERATIONS: 3 # Run 3 iterations to test cache warming and consistency
+
+  # REG-LK-001: Registry V1 Lookup Functional Tests - QA
+  ondc_reg_v1_lookup_functional:
+    test_case_module: tests.registry.lookup.v1.test_lookup_functional
+    test_case_type: API
+    tenants_file: resources/registry/lookup/v1/test_lookup_v1.yml
+    app_name: ondc_reg_v1_lookup_functional
+    test_case_id: ondc_reg_v1_lookup_func_001
+    default_params:
+      WAIT_TIME_MIN: 1
+      WAIT_TIME_MAX: 3
+      ITERATIONS: 1 # SequentialTaskSet runs all 12 test cases once per iteration
+
+  # REG-LK-002: Registry V1 Lookup Comprehensive Negative Tests (Error Response Validation for QA and PROD)
+  ondc_reg_v1_lookup_negative:
+    test_case_module: tests.registry.lookup.v1.test_lookup_negative_comprehensive
+    test_case_type: API
+    tenants_file: resources/registry/lookup/v1/test_lookup_v1.yml
+    app_name: ondc_reg_v1_lookup_negative
+    test_case_id: ondc_reg_v1_lookup_neg_002
+    default_params:
+      WAIT_TIME_MIN: 1
+      WAIT_TIME_MAX: 3
+      ITERATIONS: 1 # SequentialTaskSet runs all 20 test cases once per iteration
+
+  # REG-LK-FILTER-V1: Registry V1 Lookup Filter Combination Tests (Type-based filtering, schema validation, performance)
+  ondc_reg_v1_lookup_filter_combinations:
+    test_case_module: tests.registry.lookup.v1.test_lookup_filter_combinations
+    test_case_type: API
+    tenants_file: resources/registry/lookup/v1/test_lookup_filter_combinations_v1.yml
+    app_name: ondc_reg_v1_lookup_filter_combinations
+    test_case_id: ondc_reg_v1_lookup_filter_comb_001
+    default_params:
+      WAIT_TIME_MIN: 1
+      WAIT_TIME_MAX: 3
+      ITERATIONS: 1 # SequentialTaskSet runs all 13 test cases once per iteration
+
+  # REG-LK-BOUNDARY-V1: Registry V1 Lookup Boundary & Edge Case Tests (Security, Unicode, Whitespace, Invalid Inputs)
+  ondc_reg_v1_lookup_boundary:
+    test_case_module: tests.registry.lookup.v1.test_lookup_boundary
+    test_case_type: API
+    tenants_file: resources/registry/lookup/v1/test_lookup_v1.yml
+    app_name: ondc_reg_v1_lookup_boundary
+    test_case_id: ondc_reg_v1_lookup_boundary_001
+    default_params:
+      WAIT_TIME_MIN: 1
+      WAIT_TIME_MAX: 3
+      ITERATIONS: 1 # SequentialTaskSet runs all 12 test cases once per iteration
+
+  # REG-LK-003: Registry V2 Lookup Functional Tests
+  ondc_reg_v2_lookup_functional:
+    test_case_module: tests.registry.lookup.v2.test_lookup_functional
+    test_case_type: API
+    tenants_file: resources/registry/lookup/v2/test_lookup_v2.yml
+    app_name: ondc_reg_v2_lookup_functional
+    test_case_id: ondc_reg_v2_lookup_func_003
+    default_params:
+      WAIT_TIME_MIN: 1
+      WAIT_TIME_MAX: 3
+      ITERATIONS: 1 # SequentialTaskSet runs all 11 test cases once per iteration
+
+  ondc_reg_v2_lookup_filter_combinations:
+    test_case_module: tests.registry.lookup.v2.test_lookup_filter_combinations
+    test_case_type: API
+    tenants_file: resources/registry/lookup/v2/test_lookup_filter_combinations_v2.yml
+    app_name: ondc_reg_v2_lookup_filter_combinations
+    test_case_id: ondc_reg_v2_lookup_filter_comb_001
+    default_params:
+      WAIT_TIME_MIN: 1
+      WAIT_TIME_MAX: 3
+      ITERATIONS: 1 # SequentialTaskSet runs all 11 test cases once per iteration
+
+  ondc_reg_v2_lookup_negative:
+    test_case_module: tests.registry.lookup.v2.test_lookup_negative
+    test_case_type: API
+    tenants_file: resources/registry/lookup/v2/test_lookup_negative_v2.yml
+    app_name: ondc_reg_v2_lookup_negative
+    test_case_id: ondc_reg_v2_lookup_negative_001
+    default_params:
+      WAIT_TIME_MIN: 1
+      WAIT_TIME_MAX: 2
+      ITERATIONS: 1 # SequentialTaskSet runs all 30 test cases once per iteration
+
+  # REG-LK-BOUNDARY-V2: Registry V2 Lookup Boundary Tests (Edge Cases & Security)
+  ondc_reg_v2_lookup_boundary:
+    test_case_module: tests.registry.lookup.v2.test_lookup_boundary
+    test_case_type: API
+    tenants_file: resources/registry/lookup/v2/test_lookup_v2.yml
+    app_name: ondc_reg_v2_lookup_boundary
+    test_case_id: ondc_reg_v2_lookup_boundary_001
+    default_params:
+      WAIT_TIME_MIN: 1
+      WAIT_TIME_MAX: 2
+      ITERATIONS: 1 # SequentialTaskSet runs all 10 test cases once per iteration
+
+  ondc_reg_version_comparison:
+    test_case_module: tests.registry.lookup.common.test_version_comparison
+    test_case_type: API
+    tenants_file: resources/registry/lookup/common/test_version_comparison.yml
+    app_name: ondc_reg_version_comparison
+    test_case_id: ondc_reg_version_comparison_001
+    default_params:
+      WAIT_TIME_MIN: 1
+      WAIT_TIME_MAX: 2
+      ITERATIONS: 1
+
+
+    

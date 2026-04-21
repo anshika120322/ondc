@@ -1,0 +1,9 @@
+
+ondcEnv: # Environment name, selected with --environment flag
+  host: "http://localhost:8080/admin/v3.0" # Tenant URL
+  users: # List of users to use in the test, can be retrieved using the get_user_data() function
+    admin: # User key
+      username: null # Username
+      password: null # Password encrypted
+      otp_secret: null # OTP secret encrypted
+  # Specify any data required for the test

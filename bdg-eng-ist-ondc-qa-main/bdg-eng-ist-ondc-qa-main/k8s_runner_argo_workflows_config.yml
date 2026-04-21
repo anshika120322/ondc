@@ -1,0 +1,15 @@
+k8s_configurations:
+  performance_config:
+    cluster: "" # name of the cluster previously created
+    region: "" # region where the cluster is located
+    namespace: "" # namespace previously created
+    command: python3 driver.py --driver-headless --html {test}-report.html --csv {test}-results.csv 
+      --logfile {test}.log --print-stats --exit-code-on-error 0 --expect-workers-max-wait 900 --upload-results-s3 --autostart --autoquit 1
+      --cmd-interval-stats 60 # driver.py command with the main parameters
+    image-pull-secret: "" # name of the dockerconfig secret previously created
+    image: kyndryl.jfrog.io/kyn-ist-reg-docker-local/... # docker image saved into the registry
+    image-tag: latest # version of the image
+    files-prefix: "" # prefix to give to the generated artifacts
+    volume-claim: "" # persistent volume claim previously created
+    env-secrets-group: "" # name of the opaque secret previously created
+    s3-artifacts: "[{\"bucket\":\"ist-perf-results-har\",\"path\":\"har\",\"download\":false}, ...]" # list of S3 buckets to upload the artifacts

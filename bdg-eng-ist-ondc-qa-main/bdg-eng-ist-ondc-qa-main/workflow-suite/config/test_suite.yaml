@@ -1,0 +1,148 @@
+# ONDC Registry Test Suite v2.0
+# Main orchestration configuration
+
+suite_info:
+  name: "ONDC Registry Comprehensive Test Suite"
+  version: "2.0.0"
+  description: "Complete end-to-end testing for ONDC Registry Admin and V3 APIs"
+  total_tests: 189
+  
+# Test categories
+categories:
+  - name: "admin"
+    description: "Admin End-to-End Tests"
+    config_file: "admin_tests.yaml"
+    test_count: 57
+    enabled: true
+    
+  - name: "v3"
+    description: "V3 End-to-End Tests"
+    config_file: "v3_tests.yaml"
+    test_count: 27
+    enabled: true
+    
+  - name: "combined"
+    description: "Combined Admin + V3 Tests"
+    config_file: "combined_tests.yaml"
+    test_count: 20
+    enabled: true
+    
+  - name: "advanced"
+    description: "Advanced Scenarios"
+    config_file: "advanced_tests.yaml"
+    test_count: 15
+    enabled: true
+    
+  - name: "integration"
+    description: "Integration & Regression Tests"
+    config_file: "integration_tests.yaml"
+    test_count: 15
+    enabled: true
+    
+  - name: "negative"
+    description: "Negative & Error Scenario Tests"
+    config_file: "negative_tests.yaml"
+    test_count: 30
+    enabled: true
+    
+  - name: "admin_entity"
+    description: "Admin Entity CRUD Tests"
+    config_file: "admin_entity_tests.yaml"
+    test_count: 63
+    enabled: true
+
+  - name: "workflow"
+    description: "Subscribe API Workflow Tests (from design docs)"
+    config_file: "workflow_tests.yaml"
+    test_count: 4
+    enabled: true
+
+# Global configuration
+config:
+  # localhost for local testing
+  # base_url: "http://localhost:8080" 
+  # dev environment
+  # base_url: "http://34.180.2.104" 
+  # staging environment
+  # base_url: "http://34.14.152.92"
+  # uat environment 
+  # base_url: "http://34.93.208.52"
+  # base_url: "https://registry-uat.kynondc.net"
+  # preprod environment
+  base_url: "https://registry-preprod.ondc.org"
+
+  # -----------------------------------------------------------------------
+  # Multi-URL comparison targets (used by: python run_tests.py compare)
+  # Each entry needs a unique label (shown in the report) and a url.
+  # Leave this list empty (or remove it) to rely on --url CLI flags instead.
+  # -----------------------------------------------------------------------
+  comparison_targets:
+    # - label: "Local"
+    #   url: "http://localhost:8080"
+    # - label: "Dev"
+    #   url: "http://34.180.2.104"
+    - label: "Staging"
+      url: "https://registry-qa.kynondc.net"
+    - label: "UAT"
+      url: "https://registry-uat.kynondc.net" 
+    - label: "preprod"
+      url: "https://registry-preprod.ondc.org"
+    # - label: "UAT 2"
+    #   url: "https://registry-uat.kynondc.net"
+
+
+
+  admin_username: "admin@ondc.org"
+  admin_password: "Admin@123"
+  # External auth service login URL. When set, login requests are sent here
+  # instead of {base_url}/admin/auth/login.
+  # auth_url: "https://authservice.kynondc.net/api/auth/login"
+  auth_url: "https://admin-auth-preprod.ondc.org/api/auth/login"
+  # Field names used in the login request payload.
+  # Internal default: username + password
+  # External auth service expects: email + password
+  auth_username_field: "email"
+  auth_password_field: "password"
+  # Key name of the token in the login response body.
+  # Internal default: "access_token". External auth service returns: "accessToken"
+  auth_token_field: "accessToken"
+  default_timeout: 30
+  retry_on_failure: false
+  parallel_execution: false
+  continue_on_failure: true
+  
+# Test execution order (when running full suite)
+execution_order:
+  - "admin"        # Foundation tests first
+  - "v3"           # V3 operations
+  - "combined"     # Mixed workflows
+  - "workflow"     # Subscribe API workflow tests (from design docs)
+  - "integration"  # Integration tests
+  - "advanced"     # Complex scenarios (concurrency, performance)
+  - "negative"     # Error scenarios
+  - "admin_entity" # Entity CRUD operations
+
+# Output configuration
+output:
+  directory: "./output"
+  formats:
+    - "json"
+    - "html"
+    - "junit"
+  log_level: "INFO"
+  save_responses: true
+  save_failed_only: false
+
+# Performance thresholds
+performance:
+  max_response_time_ms: 2000
+  max_workflow_time_ms: 30000
+  max_batch_time_ms: 60000
+
+# Reporting
+reporting:
+  generate_summary: true
+  include_timestamps: true
+  include_request_details: true
+  include_response_bodies: true
+  screenshot_on_failure: false

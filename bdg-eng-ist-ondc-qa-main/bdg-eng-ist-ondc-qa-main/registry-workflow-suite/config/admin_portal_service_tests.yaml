@@ -1,0 +1,481 @@
+# Admin Portal Service Test Configuration
+# Tests for ondc-admin-service (NestJS on port 3022, prefix /api/v1)
+# Base URL for this suite: http://localhost:3022/api/v1  (Local)
+#                          https://admin-service-uat.kynondc.net/api/v1 (UAT)
+#
+# Authentication: admin JWT obtained from ondc-auth-service
+#   auth_url (in test_suite.yaml environments): https://admin-auth-uat.kynondc.net/api/v1/auth/login
+#   credentials: admin@ondc.org / Admin@123
+#   token field: accessToken
+#
+# The {{admin_service_url}} variable must resolve to the base URL of the admin service.
+# The {{participant_id}} variable is seeded from the UAT participant:
+#   test-qa-434564-8123e37f.participant.ondc
+
+test_suite:
+  name: "Admin Portal Service Tests"
+  category: "admin_portal_service"
+  total_tests: 35
+  description: "Comprehensive tests for ondc-admin-service covering health, RBAC, audit logs, page/group management, group assignments, registry proxy endpoints (participants, credentials, locations, URIs, contacts, policies, domains, enums, configs)"
+  base_url: "https://admin-service-uat.kynondc.net/api/v1"
+
+config:
+  default_timeout: 30
+  retry_on_failure: false
+
+# ==================================================================
+# SECTION 1: HEALTH (1 test)
+# ==================================================================
+
+tests:
+  - id: "ADM-HEALTH-01"
+    name: "GET /health returns service status"
+    description: "Admin service health endpoint should respond OK without authentication"
+    method: "GET"
+    endpoint: "/health"
+    auth_type: "none"
+    expected_status: 200
+
+# ==================================================================
+# SECTION 2: AUTH MIDDLEWARE — unauthenticated access (3 tests)
+# ==================================================================
+
+  - id: "ADM-AUTH-01"
+    name: "Protected endpoint without token returns 401"
+    description: "Any admin protected route without Authorization header should be rejected"
+    method: "GET"
+    endpoint: "/audit/logs"
+    auth_type: "none"
+    expected_status: 401
+
+  - id: "ADM-AUTH-02"
+    name: "Protected endpoint with invalid token returns 401"
+    description: "Tampered or expired JWT should be rejected"
+    method: "GET"
+    endpoint: "/rbac/my-pages"
+    auth_type: "none"
+    headers:
+      Authorization: "Bearer invalid.jwt.token"
+    expected_status: 401
+
+  - id: "ADM-AUTH-03"
+    name: "Registry proxy without token returns 401"
+    description: "Admin service proxy to registry should also enforce authentication"
+    method: "GET"
+    endpoint: "/admin/participants"
+    auth_type: "none"
+    expected_status: 401
+
+# ==================================================================
+# SECTION 3: AUDIT LOGS (3 tests)
+# ==================================================================
+
+  - id: "ADM-AUDIT-01"
+    name: "GET /audit/logs returns paginated audit entries"
+    description: "Admin can list audit log entries"
+    method: "GET"
+    endpoint: "/audit/logs"
+    auth_type: "admin"
+    expected_status: 200
+
+  - id: "ADM-AUDIT-02"
+    name: "GET /audit/logs with pagination params"
+    description: "Audit logs support page and limit query parameters"
+    method: "GET"
+    endpoint: "/audit/logs?page=1&limit=5"
+    auth_type: "admin"
+    expected_status: 200
+
+  - id: "ADM-AUDIT-03"
+    name: "GET /audit/all returns all audit entries"
+    description: "The /audit/all endpoint returns comprehensive audit history"
+    method: "GET"
+    endpoint: "/audit/all"
+    auth_type: "admin"
+    expected_status: [200, 403]
+
+# ==================================================================
+# SECTION 4: RBAC (3 tests)
+# ==================================================================
+
+  - id: "ADM-RBAC-01"
+    name: "GET /rbac/my-pages returns pages accessible to current user"
+    description: "RBAC endpoint returns the navigation pages the logged-in admin can access"
+    method: "GET"
+    endpoint: "/rbac/my-pages"
+    auth_type: "admin"
+    expected_status: 200
+
+  - id: "ADM-RBAC-02"
+    name: "GET /rbac/roles-pages returns role-page mapping"
+    description: "Admin can retrieve the full role-to-page assignment matrix"
+    method: "GET"
+    endpoint: "/rbac/roles-pages"
+    auth_type: "admin"
+    expected_status: [200, 403, 500]
+
+  - id: "ADM-RBAC-03"
+    name: "RBAC endpoint returns valid page structure"
+    description: "Each page entry should contain at minimum a page identifier or name"
+    method: "GET"
+    endpoint: "/rbac/my-pages"
+    auth_type: "admin"
+    expected_status: 200
+
+# ==================================================================
+# SECTION 5: PAGES & GROUPS MANAGEMENT (4 tests)
+# ==================================================================
+
+  - id: "ADM-PAGE-01"
+    name: "GET /pages returns page list"
+    description: "Admin can list all navigation pages"
+    method: "GET"
+    endpoint: "/pages"
+    auth_type: "admin"
+    expected_status: 200
+
+  - id: "ADM-PAGE-02"
+    name: "POST /pages creates a new page"
+    description: "Admin creates a navigation page and verifies 201 response"
+    method: "POST"
+    endpoint: "/pages"
+    auth_type: "admin"
+    data:
+      name: "Test Page {{fake:uuid}}"
+      path: "/test-page"
+      icon: "dashboard"
+      isActive: true
+    expected_status: [201, 200, 409, 500]
+
+  - id: "ADM-GROUP-01"
+    name: "GET /groups returns group list"
+    description: "Admin can list all user groups"
+    method: "GET"
+    endpoint: "/groups"
+    auth_type: "admin"
+    expected_status: 200
+
+  - id: "ADM-GROUP-02"
+    name: "POST /groups creates a new group"
+    description: "Admin creates a user group and verifies creation response"
+    method: "POST"
+    endpoint: "/groups"
+    auth_type: "admin"
+    data:
+      name: "Test Group {{fake:uuid}}"
+      description: "Auto-created by test suite"
+    expected_status: [201, 200, 409]
+
+  - id: "ADM-GROUP-03"
+    name: "POST /groups/assign-user assigns user to group"
+    description: "Admin can assign a user to a group, user inherits group pages (TC-035)"
+    workflow: true
+    steps:
+      - name: "Create a test group"
+        method: "POST"
+        endpoint: "/groups"
+        auth_type: "admin"
+        data:
+          name: "Test Group {{fake:uuid}}"
+          description: "For user assignment test"
+        expected_status: [201, 200, 409]
+        store:
+          - field: "id"
+            as: "group_id"
+
+      - name: "Get user list to extract user ID"
+        method: "GET"
+        endpoint: "/users"
+        auth_type: "admin"
+        expected_status: [200, 404]
+        store:
+          - field: "0.id"
+            as: "user_id"
+
+      - name: "Assign user to group"
+        method: "POST"
+        endpoint: "/groups/assign-user"
+        auth_type: "admin"
+        data:
+          userId: "{{user_id}}"
+          groupId: "{{group_id}}"
+        expected_status: [201, 200, 404]
+
+  - id: "ADM-GROUP-04"
+    name: "POST /groups/assign-page assigns page to group"
+    description: "Admin can assign a page to a group, all group members can access the page (TC-036)"
+    workflow: true
+    steps:
+      - name: "Get or create a test group"
+        method: "POST"
+        endpoint: "/groups"
+        auth_type: "admin"
+        data:
+          name: "Test Group {{fake:uuid}}"
+          description: "For page assignment test"
+        expected_status: [201, 200, 409]
+        store:
+          - field: "id"
+            as: "group_id"
+
+      - name: "Get page list to extract page ID"
+        method: "GET"
+        endpoint: "/pages"
+        auth_type: "admin"
+        expected_status: 200
+        store:
+          - field: "0.id"
+            as: "page_id"
+
+      - name: "Assign page to group"
+        method: "POST"
+        endpoint: "/groups/assign-page"
+        auth_type: "admin"
+        data:
+          pageId: "{{page_id}}"
+          groupId: "{{group_id}}"
+        expected_status: [201, 200, 404]
+
+# ==================================================================
+# SECTION 6: REGISTRY PROXY — Enums & Configs (4 tests)
+# ==================================================================
+
+  - id: "ADM-ENUM-01"
+    name: "GET /admin/enums returns all enum values"
+    description: "Proxy to registry /admin/enums should return the complete list of enums (73+ entries expected)"
+    method: "GET"
+    endpoint: "/admin/enums"
+    auth_type: "admin"
+    expected_status: [200, 403]
+
+  - id: "ADM-CFG-01"
+    name: "GET /admin/configs/stats returns all statistics dimensions"
+    description: "Stats endpoint with no filter returns aggregated counts across all dimensions"
+    method: "GET"
+    endpoint: "/admin/configs/stats"
+    auth_type: "admin"
+    expected_status: [200, 403]
+
+  - id: "ADM-CFG-02"
+    name: "GET /admin/configs/stats?include=np_type returns np_type breakdown"
+    description: "Stats endpoint with include filter returns subset of dimensions"
+    method: "GET"
+    endpoint: "/admin/configs/stats?include=np_type"
+    auth_type: "admin"
+    expected_status: [200, 403]
+
+  - id: "ADM-CFG-03"
+    name: "GET /admin/configs/stats?include=domain&period=last30d filters by period"
+    description: "Stats endpoint supports period filter for time-boxed aggregation"
+    method: "GET"
+    endpoint: "/admin/configs/stats?include=domain&period=last30d"
+    auth_type: "admin"
+    expected_status: [200, 403]
+
+# ==================================================================
+# SECTION 7: REGISTRY PROXY — Participants (5 tests)
+# ==================================================================
+
+  - id: "ADM-PART-01"
+    name: "GET /admin/participants returns paginated participant list"
+    description: "Admin can list all registered participants"
+    method: "GET"
+    endpoint: "/admin/participants?page=1&page_size=5"
+    auth_type: "admin"
+    expected_status: 200
+
+  - id: "ADM-PART-02"
+    name: "GET /admin/participants/:id/contacts returns contact list"
+    description: "Admin can list contacts for a known participant"
+    method: "GET"
+    endpoint: "/admin/participants/test-qa-434564-8123e37f.participant.ondc/contacts"
+    auth_type: "admin"
+    expected_status: 200
+
+  - id: "ADM-PART-03"
+    name: "GET /admin/participants/:id/credentials returns credential list"
+    description: "Admin can list credentials for a known participant"
+    method: "GET"
+    endpoint: "/admin/participants/test-qa-434564-8123e37f.participant.ondc/credentials"
+    auth_type: "admin"
+    expected_status: 200
+
+  - id: "ADM-PART-04"
+    name: "GET /admin/participants/:id/keys returns key list"
+    description: "Admin can list cryptographic keys for a known participant"
+    method: "GET"
+    endpoint: "/admin/participants/test-qa-434564-8123e37f.participant.ondc/keys"
+    auth_type: "admin"
+    expected_status: 200
+
+  - id: "ADM-PART-05"
+    name: "GET /admin/participants/:id/keys/active returns active keys"
+    description: "Admin can fetch active (non-revoked) keys for a participant"
+    method: "GET"
+    endpoint: "/admin/participants/test-qa-434564-8123e37f.participant.ondc/keys/active"
+    auth_type: "admin"
+    expected_status: 200
+
+  - id: "ADM-PART-06"
+    name: "GET /admin/participants/:id/locations returns location list"
+    description: "Admin can list service locations for a known participant"
+    method: "GET"
+    endpoint: "/admin/participants/test-qa-434564-8123e37f.participant.ondc/locations"
+    auth_type: "admin"
+    expected_status: 200
+
+  - id: "ADM-PART-07"
+    name: "GET /admin/participants/:id/uris returns URI list"
+    description: "Admin can list registered URIs (callbacks, endpoints) for a participant"
+    method: "GET"
+    endpoint: "/admin/participants/test-qa-434564-8123e37f.participant.ondc/uris"
+    auth_type: "admin"
+    expected_status: 200
+
+  - id: "ADM-PART-INVALID"
+    name: "GET /admin/participants/:id with non-existent participant"
+    description: "Registry should return 404 or error for unknown participant_id"
+    method: "GET"
+    endpoint: "/admin/participants/non-existent-participant-id-xyz/contacts"
+    auth_type: "admin"
+    expected_status: [200, 404, 400, 500]
+
+# ==================================================================
+# SECTION 8: REGISTRY PROXY — PUT Sub-resources (4 workflow tests)
+# ==================================================================
+
+  - id: "ADM-PUT-CRED"
+    name: "PUT /admin/participants/:id/credentials/:cred_id updates credential"
+    description: "Admin can update a participant credential via the proxy (returns 200 from registry)"
+    workflow: true
+    steps:
+      - name: "Get existing credentials to extract cred_id"
+        method: "GET"
+        endpoint: "/admin/participants/test-qa-434564-8123e37f.participant.ondc/credentials"
+        auth_type: "admin"
+        expected_status: 200
+        store:
+          - field: "0.cred_id"
+            as: "cred_id"
+
+      - name: "PUT credential update"
+        method: "PUT"
+        endpoint: "/admin/participants/test-qa-434564-8123e37f.participant.ondc/credentials/{{cred_id}}"
+        auth_type: "admin"
+        data:
+          type: "GST"
+          cred_data:
+            gstin: "29ABCDE1234F1Z5"
+            legal_name: "Example Retail Pvt Ltd"
+        expected_status: [200, 403]
+
+  - id: "ADM-PUT-LOC"
+    name: "PUT /admin/participants/:id/locations/:location_id updates location"
+    description: "Admin can update a participant location record via the proxy"
+    workflow: true
+    steps:
+      - name: "Get existing locations to extract location_id"
+        method: "GET"
+        endpoint: "/admin/participants/test-qa-434564-8123e37f.participant.ondc/locations"
+        auth_type: "admin"
+        expected_status: 200
+        store:
+          - field: "0.location_id"
+            as: "location_id"
+
+      - name: "PUT location update"
+        method: "PUT"
+        endpoint: "/admin/participants/test-qa-434564-8123e37f.participant.ondc/locations/{{location_id}}"
+        auth_type: "admin"
+        data:
+          type: "WAREHOUSE"
+          country: "IND"
+          city:
+            - "std:080"
+        expected_status: [200, 403]
+
+  - id: "ADM-PUT-URI"
+    name: "PUT /admin/participants/:id/uris/:uri_id updates URI"
+    description: "Admin can update a registered URI for a participant via the proxy"
+    workflow: true
+    steps:
+      - name: "Get existing URIs to extract uri_id"
+        method: "GET"
+        endpoint: "/admin/participants/test-qa-434564-8123e37f.participant.ondc/uris"
+        auth_type: "admin"
+        expected_status: 200
+        store:
+          - field: "0.uri_id"
+            as: "uri_id"
+
+      - name: "PUT URI update"
+        method: "PUT"
+        endpoint: "/admin/participants/test-qa-434564-8123e37f.participant.ondc/uris/{{uri_id}}"
+        auth_type: "admin"
+        data:
+          type: "CALLBACK"
+          url: "https://test-qa-434564-8123e37f.participant.ondc/callback"
+          description: "Updated callback endpoint"
+        expected_status: [200, 403]
+
+  - id: "ADM-PUT-CONTACT"
+    name: "PUT /admin/participants/:id/contacts/:contact_id updates contact"
+    description: "Admin can update a participant contact via the proxy"
+    workflow: true
+    steps:
+      - name: "Get existing contacts to extract contact_id"
+        method: "GET"
+        endpoint: "/admin/participants/test-qa-434564-8123e37f.participant.ondc/contacts"
+        auth_type: "admin"
+        expected_status: 200
+        store:
+          - field: "0.contact_id"
+            as: "contact_id"
+
+      - name: "PUT contact update"
+        method: "PUT"
+        endpoint: "/admin/participants/test-qa-434564-8123e37f.participant.ondc/contacts/{{contact_id}}"
+        auth_type: "admin"
+        data:
+          type: "AUTHORISED_SIGNATORY"
+          name: "Auth Signatory"
+          email: "auth@test-qa-434564-8123e37f.participant.ondc"
+          phone: "+919876543210"
+          designation: "Director"
+        expected_status: [200, 403]
+
+# ==================================================================
+# SECTION 9: REGISTRY PROXY — Policies & Domains (3 tests)
+# ==================================================================
+
+  - id: "ADM-POLICY-01"
+    name: "GET /admin/policies returns policy list"
+    description: "Admin can list all policies via the registry proxy"
+    method: "GET"
+    endpoint: "/admin/policies"
+    auth_type: "admin"
+    expected_status: [200, 403]
+
+  - id: "ADM-POLICY-02"
+    name: "GET /admin/participants/:id/policies returns participant policies"
+    description: "Admin can retrieve policies for a specific participant"
+    method: "GET"
+    endpoint: "/admin/participants/test-qa-434564-8123e37f.participant.ondc/policies"
+    auth_type: "admin"
+    expected_status: 200
+
+  - id: "ADM-DOMAIN-01"
+    name: "GET /admin/domains returns domain list"
+    description: "Admin can list all registered ONDC domains via the proxy"
+    method: "GET"
+    endpoint: "/admin/domains"
+    auth_type: "admin"
+    expected_status: [200, 500]
+
+  - id: "ADM-DOMAIN-02"
+    name: "GET /admin/domains?status=ACTIVE filters by status"
+    description: "Domain list supports status filter"
+    method: "GET"
+    endpoint: "/admin/domains?status=ACTIVE"
+    auth_type: "admin"
+    expected_status: [200, 500]

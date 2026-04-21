@@ -1,0 +1,175 @@
+ondcRegistry:
+  environments:
+    uat:
+      host: https://registry-uat.kynondc.net
+      auth_host: https://admin-auth-uat.kynondc.net
+      verify_ssl: true
+    preprod:
+      host: https://registry-preprod.ondc.org
+      auth_host: https://admin-auth-preprod.ondc.org
+      verify_ssl: true
+
+endpoints:
+  # ── Health & Metrics ─────────────────────────────────────────────────
+  - method: GET
+    path: /
+  - method: GET
+    path: /health
+  - method: GET
+    path: /health/live
+  - method: GET
+    path: /health/ready
+  - method: GET
+    path: /metrics
+  - method: GET
+    path: /api/health
+
+  # ── Auth ─────────────────────────────────────────────────────────────
+  - method: GET
+    path: /api/auth/csrf-token
+  - method: GET
+    path: /api/auth/google
+  - method: GET
+    path: /api/auth/google/callback
+  - method: GET
+    path: /api/auth/me
+  - method: GET
+    path: /api/auth/profile
+  - method: POST
+    path: /api/auth/login
+  - method: POST
+    path: /api/auth/check-email
+  - method: POST
+    path: /api/auth/refresh
+  - method: POST
+    path: /api/auth/change-password
+  - method: POST
+    path: /api/auth/forgot-password
+  - method: POST
+    path: /api/auth/logout
+  - method: POST
+    path: /api/auth/logout-all
+  - method: POST
+    path: /api/auth/reset-password
+  - method: PUT
+    path: /api/auth/profile
+
+  # ── Admin - Participants ─────────────────────────────────────────────
+  - method: GET
+    path: /admin/participants
+  - method: GET
+    path: /admin/participants/1
+  - method: GET
+    path: /admin/participants/1/contacts
+  - method: GET
+    path: /admin/participants/1/contacts/primary
+  - method: GET
+    path: /admin/participants/1/credentials
+  - method: GET
+    path: /admin/participants/1/keys
+  - method: GET
+    path: /admin/participants/1/keys/active
+  - method: GET
+    path: /admin/participants/1/locations
+  - method: GET
+    path: /admin/participants/1/uris
+  - method: GET
+    path: /admin/participants/subscriber/test
+  - method: POST
+    path: /admin/participants
+  - method: PUT
+    path: /admin/participants/1
+  - method: DELETE
+    path: /admin/participants/1
+
+  # ── Admin - Subscribe ────────────────────────────────────────────────
+  - method: POST
+    path: /admin/subscribe
+  - method: PATCH
+    path: /admin/subscribe
+
+  # ── Admin - Policies ─────────────────────────────────────────────────
+  - method: GET
+    path: /admin/policies/1
+  - method: POST
+    path: /admin/policies
+  - method: PATCH
+    path: /admin/policies/1
+
+  # ── Admin - Domains ──────────────────────────────────────────────────
+  - method: GET
+    path: /admin/domains/1
+  - method: GET
+    path: /admin/domains/name/test
+  - method: POST
+    path: /admin/domains
+  - method: PUT
+    path: /admin/domains/1
+
+  # ── Admin - Enums ────────────────────────────────────────────────────
+  - method: GET
+    path: /admin/enums
+  - method: GET
+    path: /admin/enums/1
+  - method: GET
+    path: /admin/enums/category/test
+  - method: GET
+    path: /admin/enums/lookup
+  - method: POST
+    path: /admin/enums
+  - method: PUT
+    path: /admin/enums/1
+
+  # ── Admin - Configs / Audit ──────────────────────────────────────────
+  - method: GET
+    path: /admin/configs/participant/1
+  - method: GET
+    path: /admin/audit/logs
+
+  # ── Users ────────────────────────────────────────────────────────────
+  - method: GET
+    path: /api/users
+  - method: GET
+    path: /api/users/1
+  - method: GET
+    path: /api/users/batch
+  - method: GET
+    path: /api/users/me
+  - method: GET
+    path: /api/users/roles
+  - method: POST
+    path: /api/users
+  - method: POST
+    path: /api/users/change-password
+  - method: PATCH
+    path: /api/users/1
+  - method: PATCH
+    path: /api/users/me
+  - method: DELETE
+    path: /api/users/1
+
+  # ── Sessions ─────────────────────────────────────────────────────────
+  - method: GET
+    path: /api/sessions
+  - method: DELETE
+    path: /api/sessions
+  - method: DELETE
+    path: /api/sessions/1
+
+  # ── Lookup / Subscribe / Utility ─────────────────────────────────────
+  - method: POST
+    path: /lookup
+  - method: POST
+    path: /v2.0/lookup
+  - method: POST
+    path: /v3.0/lookup
+  - method: POST
+    path: /v3.0/subscribe
+  - method: POST
+    path: /api/v3/subscribe
+  - method: PATCH
+    path: /api/v3/subscribe
+  - method: POST
+    path: /public/keys
+  - method: POST
+    path: /utility/generate-keypair

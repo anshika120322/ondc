@@ -1,0 +1,65 @@
+
+ondcGatewaySearch: # Environment name for all Gateway Search tests
+#  host: http://35.200.236.235:8080 # QA Gateway API URL (Ingress service) - UPDATED IP
+  host: http://34.100.154.102:8080 # UAT Gateway API URL (Ingress service) - UPDATED IP
+
+#  host: "http://34.47.180.5:8080" # Gateway API URL (Ingress service)
+  
+  # Lookup Configuration (disabled - using direct credentials instead)
+  lookup_host: null  # Leave empty to skip lookup
+  lookup_domain: null
+  lookup_city: null
+  
+  # ONDC Authentication: Using registered test participant
+  # This is the ACTUAL private key extracted from PKCS#8 format
+  private_key_seed: "f1adec7bfabf2da168ad388a98816e0534a26a3f2068ecfa19ae184fa35e46df"
+  
+  # Credentials matching working curl command (participant-1.participant.ondc)
+  participant_id: "test-v3-feb2026-fresh.participant.ondc"
+  uk_id: "f4c50520-23e2-4f73-acc6-c026d47e7421"
+  bap_id: "test-v3-feb2026-fresh.participant.ondc"
+  bap_uri: "https://test-v3-feb2026-fresh.participant.ondc/ondc"
+  core_version: "1.2.0"
+  
+  # Test domains
+  domains:
+    - "ONDC:RET10"  # Grocery
+    - "ONDC:RET11"  # F&B
+    - "ONDC:RET12"  # Fashion
+    - "ONDC:RET13"  # Electronics
+    - "ONDC:RET14"  # Home & Kitchen
+    - "ONDC:RET15"  # Beauty & Personal Care
+    - "ONDC:RET16"  # Health & Wellness
+  
+  # Test cities
+  cities:
+    - "std:080"  # Bangalore
+    - "std:022"  # Mumbai
+    - "std:011"  # Delhi
+    - "std:040"  # Hyderabad
+    - "std:033"  # Kolkata
+    - "std:020"  # Pune
+    - "std:044"  # Chennai
+  
+  # Test search items
+  search_items:
+    - "laptop"
+    - "mobile"
+    - "shirt"
+    - "grocery"
+    - "electronics"
+    - "fashion"
+    - "food"
+    - "medicine"
+  
+  # Performance thresholds
+  performance:
+    max_response_time_ms: 500
+    max_p95_response_time_ms: 1000
+    min_throughput_rps: 100
+  
+  # Test configuration
+  test_config:
+    signature_ttl_seconds: 300
+    request_timeout_seconds: 10
+    max_retries: 3

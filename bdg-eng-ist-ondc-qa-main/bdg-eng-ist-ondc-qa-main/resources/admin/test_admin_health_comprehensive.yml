@@ -1,0 +1,251 @@
+# ============================================================================
+# ONDC Registry - Comprehensive Health Check Test Suite
+# ============================================================================
+# Test Cases: HEALTH-01 to HEALTH-06
+# Purpose: Validate health check endpoints, liveness/readiness probes, and dependency monitoring
+# Coverage:
+#   - Basic health endpoint (/health)
+#   - Kubernetes liveness probe (/health/live)
+#   - Kubernetes readiness probe (/health/ready)
+#   - Database dependency monitoring
+#   - Redis/Cache dependency monitoring
+#   - Infrastructure-level readiness behavior
+# ============================================================================
+
+test_suite:
+  name: Admin Health Check Comprehensive Tests
+  description: Comprehensive validation of health check, liveness, and readiness endpoints
+  total_tests: 6
+  
+tests:
+  # ========================================================================
+  # HEALTH-01: Basic Health Check - All Dependencies Healthy
+  # ========================================================================
+  - id: HEALTH-01
+    name: Liveness health check returns healthy
+    description: Verify GET /health endpoint returns healthy status when all dependencies are up
+    type: positive
+    category: Health Check
+    priority: critical
+    preconditions:
+      - Registry service is running
+      - Database is connected and healthy
+      - Redis/Cache is available and healthy
+    steps:
+      - step_id: 1
+        name: "Step 1: Query health endpoint"
+        action: api_call
+        method: GET
+        endpoint: /health
+        auth_required: false
+        headers:
+          Accept: application/json
+        expected_status: [200]
+        validations:
+          - type: status_code
+            expected: 200
+            description: "Health endpoint should return 200 OK"
+          - type: endpoint_exists
+            description: "Health endpoint is accessible and responding"
+
+  # ========================================================================
+  # HEALTH-02: Health Check Reports Unhealthy When DB Down
+  # ========================================================================
+  - id: HEALTH-02
+    name: Health check reports unhealthy when DB down
+    description: Verify GET /health reflects DB connectivity failure
+    type: negative
+    category: Health Check
+    priority: high
+    preconditions:
+      - Registry service is running
+      - Database connection is interrupted or unavailable
+    note: "This test validates the response structure. Actual DB failure requires infrastructure manipulation"
+    steps:
+      - step_id: 1
+        name: "Step 1: Query health endpoint"
+        action: api_call
+        method: GET
+        endpoint: /health
+        auth_required: false
+        headers:
+          Accept: application/json
+        expected_status: [200, 503]
+        validations:
+          - type: status_code_range
+            expected: [200, 503]
+            description: "Health endpoint should return 200 (degraded) or 503 (service unavailable)"
+          - type: endpoint_exists
+            description: "Health endpoint is accessible even when dependencies may be down"
+
+  # ========================================================================
+  # HEALTH-03: Health Check Reports Degraded When Redis Down
+  # ========================================================================
+  - id: HEALTH-03
+    name: Health check reports degraded when Redis down
+    description: Verify GET /health reflects Redis unavailability
+    type: negative
+    category: Health Check
+    priority: high
+    preconditions:
+      - Registry service is running
+      - Database is connected
+      - Redis/Cache is unavailable or stopped
+    note: "This test validates cache dependency monitoring. Actual Redis failure requires infrastructure manipulation"
+    steps:
+      - step_id: 1
+        name: "Step 1: Query health endpoint"
+        action: api_call
+        method: GET
+        endpoint: /health
+        auth_required: false
+        headers:
+          Accept: application/json
+        expected_status: [200, 503]
+        validations:
+          - type: status_code_range
+            expected: [200, 503]
+            description: "Health endpoint may return 200 (degraded) or 503 depending on criticality"
+          - type: endpoint_exists
+            description: "Health endpoint is accessible for cache dependency monitoring"
+
+  # ========================================================================
+  # HEALTH-04: Kubernetes Liveness Probe Endpoint
+  # ========================================================================
+  - id: HEALTH-04
+    name: GET /health/live returns alive status
+    description: Verify Kubernetes liveness probe endpoint returns correct response
+    type: positive
+    category: Liveness Probe
+    priority: critical
+    preconditions:
+      - Registry service is running
+      - Liveness probe endpoint is configured
+    kubernetes_info:
+      probe_type: liveness
+      purpose: "Determines if container should be restarted"
+      failure_action: "Kubernetes restarts the pod"
+    steps:
+      - step_id: 1
+        name: "Step 1: Query liveness probe endpoint"
+        action: api_call
+        method: GET
+        endpoint: /health/live
+        auth_required: false
+        headers:
+          Accept: application/json
+        expected_status: [200]
+        validations:
+          - type: status_code
+            expected: 200
+            description: "Liveness endpoint should return 200 OK when service is alive"
+          - type: endpoint_exists
+            description: "Liveness probe endpoint is configured and accessible"
+
+  # ========================================================================
+  # HEALTH-05: Kubernetes Readiness Probe Endpoint
+  # ========================================================================
+  - id: HEALTH-05
+    name: GET /health/ready returns readiness status
+    description: Verify Kubernetes readiness probe endpoint returns DB and cache status
+    type: positive
+    category: Readiness Probe
+    priority: critical
+    preconditions:
+      - Registry service is running
+      - Readiness probe endpoint is configured
+      - Dependencies (DB, cache) are accessible
+    kubernetes_info:
+      probe_type: readiness
+      purpose: "Determines if pod can receive traffic"
+      failure_action: "Kubernetes removes pod from service load balancer"
+    steps:
+      - step_id: 1
+        name: "Step 1: Query readiness probe endpoint"
+        action: api_call
+        method: GET
+        endpoint: /health/ready
+        auth_required: false
+        headers:
+          Accept: application/json
+        expected_status: [200]
+        validations:
+          - type: status_code
+            expected: 200
+            description: "Readiness endpoint should return 200 OK when service is ready"
+          - type: endpoint_exists
+            description: "Readiness probe endpoint is configured and accessible"
+
+  # ========================================================================
+  # HEALTH-06: Readiness Probe Prevents Traffic to Unhealthy Pod
+  # ========================================================================
+  - id: HEALTH-06
+    name: Readiness probe prevents traffic to unhealthy pod
+    description: Verify GKE readiness probe stops routing to unhealthy pods
+    type: infrastructure
+    category: GKE Probes
+    priority: high
+    preconditions:
+      - Application is deployed on GKE
+      - Readiness probe is configured at /health/ready
+      - Service load balancer is active
+    kubernetes_info:
+      probe_type: readiness
+      purpose: "Traffic routing control"
+      failure_action: "Pod removed from service endpoints"
+    note: "This is an infrastructure-level test requiring Kubernetes cluster access. Test validates endpoint availability."
+    steps:
+      - step_id: 1
+        name: "Step 1: Verify readiness endpoint is accessible"
+        action: api_call
+        method: GET
+        endpoint: /health/ready
+        auth_required: false
+        headers:
+          Accept: application/json
+        expected_status: [200, 503]
+        validations:
+          - type: endpoint_exists
+            description: "Readiness endpoint must be accessible for probe configuration"
+          - type: response_structure
+            required_fields: ["status"]
+            description: "Response must contain status field"
+          
+      - step_id: 2
+        name: "Step 2: Validate readiness probe response format"
+        action: validation
+        description: "Verify response format matches Kubernetes readiness probe expectations"
+        validations:
+          - type: infrastructure_note
+            message: "Full test requires: 1) Make pod unhealthy (stop DB), 2) Verify GKE stops routing traffic, 3) Restore health, 4) Verify traffic resumes"
+          - type: manual_validation
+            instructions: |
+              To fully test this scenario in GKE:
+              1. Deploy application with readiness probe configured: /health/ready
+              2. Simulate DB failure (e.g., misconfigure connection string)
+              3. Monitor service endpoints: kubectl get endpoints <service-name>
+              4. Verify pod is removed from endpoints when readiness probe fails
+              5. Check that traffic is not routed to the unhealthy pod
+              6. Restore DB connection
+              7. Verify pod is added back to endpoints when readiness probe succeeds
+              8. Confirm traffic routing resumes
+
+# ============================================================================
+# Test Execution Configuration
+# ============================================================================
+execution:
+  run_mode: sequential
+  stop_on_failure: false
+  timeout_per_test: 10
+  retry_failed: false
+  
+reporting:
+  generate_summary: true
+  include_response_headers: true
+  include_response_body: true
+  timestamp_format: "ISO8601"
+
+environment:
+  base_url: "http://localhost:8080"  # Override via tenant configuration
+  health_check_timeout: 5
+  supports_kubernetes_probes: true

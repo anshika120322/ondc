@@ -1,0 +1,1504 @@
+test_suite:
+  name: ONDC Policy Gateway Integration Test Suite
+  description: 'Complete gateway testing: BG type lookup, three-layer policy evaluation,
+    API routing, runtime refresh'
+  total_tests: 30
+  version: '1.0'
+config:
+  test_environment: ondcRegistry
+  default_wait_time: 2
+  fail_on_error: false
+  gateway_participant: gateway.network_service.ondc
+  gateway_type: BG
+  capture_payloads: true
+gateway_config:
+  gateway_url: https://gateway-preprod.ondc.org
+  gateway_participant_id: gateway.network_service.ondc
+lookup_config:
+  host: https://registry-preprod.ondc.org
+  core_version: 1.2.0
+tests:
+- id: GW-00
+  name: 'Setup: Create test gateway participant for policy testing'
+  description: Create test gateway (BG type) that can be modified for policy tests
+  capture_payload: true
+  steps:
+  - name: 'Step 1: Create test gateway participant'
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    expected_status:
+    - 200
+    - 201
+    - 409
+    data:
+      participant_id: test-gateway-{{timestamp}}.network.ondc
+      action: SUBSCRIBED
+      dns_skip: true
+      skip_ssl_verification: true
+      credentials:
+      - cred_id: cred_gst_testgw
+        type: GST
+        cred_data:
+          gstin: 29TESTGW1234F1Z5
+          legal_name: Test Gateway Ltd
+      - cred_id: cred_pan_testgw
+        type: PAN
+        cred_data:
+          pan: TESTG1234W
+          name: Test Gateway Ltd
+      contacts:
+      - contact_id: contact_gw_001
+        type: AUTHORISED_SIGNATORY
+        name: Gateway Admin
+        email: admin@testgateway.ondc.test
+        phone: '+919876543210'
+      - contact_id: contact_gw_002
+        type: BUSINESS
+        name: Gateway Business Contact
+        email: business@testgateway.ondc.test
+        phone: '+919876543210'
+      key:
+        uk_id: key_gw_001
+        signing_public_key: DtEP6Jqt7OdrgyC5Qjp2tVNxGJy4qoLHyglPPscoA7I=
+        encryption_public_key: sggUQXWRch5t8tfPZrdYqrrJOamgLZVkBfqye2ac0Wk=
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '2026-03-01T00:00:00.000Z'
+        valid_until: '2027-03-01T00:00:00.000Z'
+      location:
+        location_id: loc_gw_001
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri_gw_001
+        type: CALLBACK
+        url: https://seller-mock.kynondc.net/callback
+      configs:
+      - domain: ONDC:RET10
+        np_type: BG
+        subscriber_id: test-gateway.network.ondc
+        location_id: loc_gw_001
+        uri_id: uri_gw_001
+        key_id: key_gw_001
+    save_response:
+      test_gateway_id: participant_id
+      test_gateway_subscriber_id: configs[0].subscriber_id
+    note: Test gateway can have policies created/modified unlike production gateway
+- id: GW-01
+  name: Gateway BG Type - Lookup gateway participant
+  description: Query type=BG to get gateway configuration from registry
+  capture_payload: true
+  steps:
+  - name: 'Step 1: Query gateway with type=BG'
+    method: POST
+    endpoint: /lookup
+    expected_status: 200
+    data:
+      country: IND
+      type: BG
+    validate:
+    - field: ''
+      condition: exists
+    - field: '[0].subscriber_id'
+      condition: exists
+    - field: '[0].type'
+      condition: equals
+      value: BG
+    save_response:
+      gateway_subscriber_id: '[0].subscriber_id'
+      gateway_uk_id: '[0].uk_id'
+    note: Gateway must be registered as type BG in registry
+- id: GW-02
+  name: Gateway BG Type - V3 Lookup with policies
+  description: 'Test V3 lookup endpoint with ED25519 signature authentication'
+  capture_payload: true
+  v3_participant_id: test-v3-lookup-working.participant.ondc
+  v3_uk_id: 83b68b94-8fb9-44ad-bcd4-b0e89d741290
+  v3_private_key_seed: c190934de2c9aea71b47a31bacb8f002b0e4995c083cb457c0d58b9d6ba3670f
+  steps:
+  - name: 'Step 1: V3 Lookup for gateway participant'
+    method: POST
+    endpoint: /v3.0/lookup
+    auth_type: v3_signature
+    expected_status:
+    - 200
+    params:
+      type: BG
+      country: IND
+    validate:
+    - field: ''
+      condition: exists
+- id: GW-03
+  name: Verify gateway has Network policies
+  description: Check that gateway participant has type=NETWORK policies attached
+  capture_payload: true
+  steps:
+  - name: 'Step 1: Get policies for gateway participant'
+    method: GET
+    endpoint: /admin/policies
+    auth_type: admin
+    expected_status: 200
+    query_params:
+      participant_id: '{{test_gateway_id}}'
+    validate:
+    - field: policies
+      condition: exists
+    - field: policies
+      condition: is_array
+    save_response:
+      gateway_policy_count: policies.length
+- id: GW-04
+  name: 'Three-Layer: Network ALLOW, Buyer ALLOW, Seller ALLOW → SUCCESS'
+  description: 'Test complete flow: Network allows → Buyer allows → Seller allows
+    → Request succeeds'
+  capture_payload: true
+  steps:
+  - name: 'Step 1: Create Network policy - ALLOW RET10 search'
+    method: POST
+    endpoint: /admin/policies
+    auth_type: admin
+    expected_status: 201
+    data:
+      policy_id: gw_network_allow_ret10_search_{{timestamp}}
+      participant_id: '{{test_gateway_id}}'
+      type: NETWORK
+      name: Network Allow RET10 Search {{timestamp}}
+      description: 'Layer 1: Network allows RET10 search'
+      is_active: true
+      priority: 100
+      rule_definition:
+        default_action: BLOCK
+        rules:
+        - id: NW-RET10-SEARCH-ALLOW
+          description: Allow RET10 search at network layer
+          priority: 100
+          status: ENABLED
+          match_condition:
+            domain: ONDC:RET10
+            action: search
+          action_to_take:
+            action_type: BROADCAST
+    save_response:
+      network_policy_id: policy_id
+  - name: 'Step 2: Register Buyer participant'
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    expected_status:
+    - 200
+    - 201
+    - 409
+    data:
+      participant_id: buyer_3layer_{{timestamp}}
+      action: SUBSCRIBED
+      dns_skip: true
+      skip_ssl_verification: true
+      credentials:
+      - cred_id: cred_gst_001
+        type: GST
+        cred_data:
+          gstin: 29BUYER1234F1Z5
+          legal_name: Buyer 3Layer Ltd
+      - cred_id: cred_pan_001
+        type: PAN
+        cred_data:
+          pan: ABCDE1234F
+          name: Buyer 3Layer Ltd
+      contacts:
+      - contact_id: contact_001
+        type: AUTHORISED_SIGNATORY
+        name: Buyer Admin
+        email: admin@buyer3layer.ondc.org
+        phone: '+919876543210'
+      - contact_id: contact_business_001
+        type: BUSINESS
+        name: Business Contact
+        email: business@participant.ondc.org
+        phone: '+919876543210'
+      key:
+        uk_id: key_001
+        signing_public_key: MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCD==
+        encryption_public_key: MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAz==
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '2026-03-01T00:00:00.000Z'
+        valid_until: '2027-03-01T00:00:00.000Z'
+      location:
+        location_id: loc_001
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri_001
+        type: CALLBACK
+        url: https://seller-mock.kynondc.net/callback
+      configs:
+      - domain: ONDC:RET10
+        np_type: BAP
+        subscriber_id: buyer-3layer.ondc.org
+        location_id: loc_001
+        uri_id: uri_001
+        key_id: key_001
+    save_response:
+      buyer_participant_id: participant_id
+      buyer_subscriber_id: configs[0].subscriber_id
+  - name: 'Step 3: Register Seller participant'
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    expected_status:
+    - 200
+    - 201
+    - 409
+    data:
+      participant_id: seller_3layer_{{timestamp}}
+      action: SUBSCRIBED
+      dns_skip: true
+      skip_ssl_verification: true
+      credentials:
+      - cred_id: cred_gst_001
+        type: GST
+        cred_data:
+          gstin: 29SELLER1234F1Z5
+          legal_name: Seller 3Layer Ltd
+      - cred_id: cred_pan_001
+        type: PAN
+        cred_data:
+          pan: ABCDE1234F
+          name: Seller 3Layer Ltd
+      contacts:
+      - contact_id: contact_001
+        type: AUTHORISED_SIGNATORY
+        name: Seller Admin
+        email: admin@seller3layer.ondc.org
+        phone: '+919876543210'
+      - contact_id: contact_business_001
+        type: BUSINESS
+        name: Business Contact
+        email: business@participant.ondc.org
+        phone: '+919876543210'
+      key:
+        uk_id: key_001
+        signing_public_key: MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCD==
+        encryption_public_key: MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAz==
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '2026-03-01T00:00:00.000Z'
+        valid_until: '2027-03-01T00:00:00.000Z'
+      location:
+        location_id: loc_001
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri_001
+        type: CALLBACK
+        url: https://seller-mock.kynondc.net/callback
+      configs:
+      - domain: ONDC:RET10
+        np_type: BPP
+        subscriber_id: seller-3layer.ondc.org
+        location_id: loc_001
+        uri_id: uri_001
+        key_id: key_001
+    save_response:
+      seller_participant_id: participant_id
+      seller_subscriber_id: configs[0].subscriber_id
+  - name: 'Step 4: Create Buyer policy - ALLOW this seller'
+    method: POST
+    endpoint: /admin/policies
+    auth_type: admin
+    expected_status: 201
+    data:
+      policy_id: gw_buyer_allow_seller_{{timestamp}}
+      participant_id: '{{buyer_participant_id}}'
+      type: NETWORK_PARTICIPANT
+      name: Buyer Allow Seller {{timestamp}}
+      description: 'Layer 2: Buyer allows this seller'
+      is_active: true
+      priority: 100
+      rule_definition:
+        rules:
+        - id: BUYER-ALLOW-SELLER
+          description: Buyer allows seller for RET10 search
+          priority: 100
+          status: ENABLED
+          match_condition:
+            domain: ONDC:RET10
+            action: search
+            bap_id: '{{buyer_subscriber_id}}'
+            bpp_id: '{{seller_subscriber_id}}'
+          action_to_take:
+            action_type: ALLOW
+    save_response:
+      buyer_policy_id: policy_id
+  - name: 'Step 5: Create Seller policy - ALLOW this buyer'
+    method: POST
+    endpoint: /admin/policies
+    auth_type: admin
+    expected_status: 201
+    data:
+      policy_id: gw_seller_allow_buyer_{{timestamp}}
+      participant_id: '{{seller_participant_id}}'
+      type: NETWORK_PARTICIPANT
+      name: Seller Allow Buyer {{timestamp}}
+      description: 'Layer 3: Seller allows this buyer'
+      is_active: true
+      priority: 100
+      rule_definition:
+        rules:
+        - id: SELLER-ALLOW-BUYER
+          description: Seller allows buyer for RET10 search
+          priority: 100
+          status: ENABLED
+          match_condition:
+            domain: ONDC:RET10
+            action: search
+            bap_id: '{{buyer_subscriber_id}}'
+            bpp_id: '{{seller_subscriber_id}}'
+          action_to_take:
+            action_type: ALLOW
+    save_response:
+      seller_policy_id: policy_id
+    note: 'All three layers now allow: Network → Buyer → Seller'
+- id: GW-05
+  name: 'Three-Layer: Network BLOCK → Request fails at Layer 1'
+  description: Network blocks at Layer 1, so Layers 2&3 never evaluated
+  capture_payload: true
+  steps:
+  - name: 'Step 1: Create Network policy - BLOCK RET11 confirm'
+    method: POST
+    endpoint: /admin/policies
+    auth_type: admin
+    expected_status: 201
+    data:
+      policy_id: gw_network_block_ret11_{{timestamp}}
+      participant_id: '{{test_gateway_id}}'
+      type: NETWORK
+      name: Network Block RET11 Confirm {{timestamp}}
+      description: 'Layer 1: Network blocks RET11 confirm'
+      is_active: true
+      priority: 100
+      rule_definition:
+        default_action: ALLOW
+        rules:
+        - id: NW-RET11-CONFIRM-BLOCK
+          description: Block RET11 confirm at network layer
+          priority: 100
+          status: ENABLED
+          match_condition:
+            domain: ONDC:RET11
+            action: confirm
+          action_to_take:
+            action_type: BLOCK
+    note: Even if participant policies allow, network blocks first
+- id: GW-06
+  name: 'Three-Layer: Network ALLOW, Buyer BLOCK → Fails at Layer 2'
+  description: Network allows but buyer blocks seller
+  capture_payload: true
+  steps:
+  - name: 'Step 1: Create Network policy - ALLOW RET12'
+    method: POST
+    endpoint: /admin/policies
+    auth_type: admin
+    expected_status: 201
+    data:
+      policy_id: gw_network_allow_ret12_{{timestamp}}
+      participant_id: '{{test_gateway_id}}'
+      type: NETWORK
+      name: Network Allow RET12 {{timestamp}}
+      description: 'Layer 1: Network allows RET12'
+      is_active: true
+      priority: 100
+      rule_definition:
+        default_action: BLOCK
+        rules:
+        - id: NW-RET12-ALLOW
+          description: Allow RET12 at network layer
+          priority: 100
+          status: ENABLED
+          match_condition:
+            domain: ONDC:RET12
+            action: search
+          action_to_take:
+            action_type: BROADCAST
+  - name: 'Step 2: Create Buyer policy - NOT_ALLOW specific seller'
+    method: POST
+    endpoint: /admin/policies
+    auth_type: admin
+    expected_status: 201
+    data:
+      policy_id: gw_buyer_block_seller_{{timestamp}}
+      participant_id: '{{test_gateway_id}}'
+      type: NETWORK
+      name: Buyer Block Seller {{timestamp}}
+      description: 'Layer 2: Buyer blocks seller (high cancel ratio)'
+      is_active: true
+      priority: 100
+      rule_definition:
+        rules:
+        - id: BUYER-BLOCK-SELLER
+          description: Buyer blocks specific seller
+          priority: 100
+          status: ENABLED
+          match_condition:
+            domain: ONDC:RET12
+            action: search
+            bap_id: buyer-test.ondc.org
+            bpp_id: seller-blocked.ondc.org
+          action_to_take:
+            action_type: NOT_ALLOW
+    note: Request fails at Layer 2 even though Layer 1 allowed
+- id: GW-07
+  name: 'Three-Layer: Network ALLOW, Buyer ALLOW, Seller BLOCK → Fails at Layer 3'
+  description: Network and buyer allow but seller blocks buyer
+  capture_payload: true
+  steps:
+  - name: 'Step 1: Create Seller policy - NOT_ALLOW specific buyer'
+    method: POST
+    endpoint: /admin/policies
+    auth_type: admin
+    expected_status: 201
+    data:
+      policy_id: gw_seller_block_buyer_{{timestamp}}
+      participant_id: '{{test_gateway_id}}'
+      type: NETWORK
+      name: Seller Block Buyer {{timestamp}}
+      description: 'Layer 3: Seller blocks buyer (low fulfillment)'
+      is_active: true
+      priority: 100
+      rule_definition:
+        rules:
+        - id: SELLER-BLOCK-BUYER
+          description: Seller blocks specific buyer
+          priority: 100
+          status: ENABLED
+          match_condition:
+            domain: ONDC:RET13
+            action: search
+            bap_id: buyer-blocked.ondc.org
+            bpp_id: seller-test.ondc.org
+          action_to_take:
+            action_type: NOT_ALLOW
+    note: Final decision is NOT_ALLOW from Layer 3
+- id: GW-08
+  name: Gateway API - Search call with policy enforcement
+  description: 'Gateway search endpoint with ED25519 signature authentication'
+  capture_payload: true
+  gateway_api: true
+  auth_type: v3_signature
+  v3_participant_id: test-v3-gateway-bap.ondc.org
+  v3_uk_id: 83b68b94-8fb9-44ad-bcd4-b0e89d741290
+  v3_private_key_seed: c190934de2c9aea71b47a31bacb8f002b0e4995c083cb457c0d58b9d6ba3670f
+  steps:
+  - name: 'Step 1: Register test BAP participant with ED25519 keys'
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    gateway_call: false
+    expected_status:
+    - 200
+    - 201
+    - 409
+    data:
+      participant_id: test-v3-gateway-bap_{{timestamp}}
+      action: SUBSCRIBED
+      dns_skip: true
+      skip_ssl_verification: true
+      credentials:
+      - cred_id: cred_gst_bap
+        type: GST
+        cred_data:
+          gstin: 29TESTBAP1234F1Z5
+          legal_name: Test BAP Ltd
+      - cred_id: cred_pan_bap
+        type: PAN
+        cred_data:
+          pan: TESTB1234P
+          name: Test BAP Ltd
+      contacts:
+      - contact_id: contact_bap_001
+        type: AUTHORISED_SIGNATORY
+        name: BAP Admin
+        email: admin@test-v3-gateway-bap.ondc.org
+        phone: '+919876543210'
+      - contact_id: contact_bap_002
+        type: BUSINESS
+        name: BAP Business Contact
+        email: business@test-v3-gateway-bap.ondc.org
+        phone: '+919876543210'
+      key:
+        uk_id: 83b68b94-8fb9-44ad-bcd4-b0e89d741290
+        signing_public_key: pyM58NGU8nnAXSPyUfm48Pt7gyg+0iTK7FdhRMSKkNs=
+        encryption_public_key: pyM58NGU8nnAXSPyUfm48Pt7gyg+0iTK7FdhRMSKkNs=
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '2024-01-01T00:00:00.000Z'
+        valid_until: '2027-12-31T23:59:59.000Z'
+      location:
+        location_id: loc_bap_001
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri_bap_001
+        type: CALLBACK
+        url: https://seller-mock.kynondc.net/callback
+      configs:
+      - domain: ONDC:FIS12
+        np_type: BAP
+        subscriber_id: test-v3-gateway-bap.ondc.org
+        location_id: loc_bap_001
+        uri_id: uri_bap_001
+        key_id: 83b68b94-8fb9-44ad-bcd4-b0e89d741290
+    save_response:
+      test_bap_participant_id: participant_id
+      test_bap_subscriber_id: configs[0].subscriber_id
+    note: 'Register BAP with ED25519 keys for gateway authentication'
+  - name: 'Step 2: Setup Network policy allowing search'
+    method: POST
+    endpoint: /admin/policies
+    auth_type: admin
+    gateway_call: false
+    expected_status: 201
+    data:
+      policy_id: gw_search_test_policy_{{timestamp}}
+      participant_id: '{{test_gateway_id}}'
+      type: NETWORK
+      name: Allow FIS12 Search {{timestamp}}
+      description: Policy for testing gateway search routing
+      is_active: true
+      priority: 100
+      rule_definition:
+        default_action: BLOCK
+        rules:
+        - id: ALLOW-FIS12-SEARCH
+          description: Allow FIS12 search
+          priority: 100
+          status: ENABLED
+          match_condition:
+            domain: ONDC:FIS12
+            action: search
+          action_to_take:
+            action_type: BROADCAST
+    save_response:
+      search_policy_id: policy_id
+  - name: 'Step 3: Call /search through gateway'
+    method: POST
+    endpoint: /search
+    gateway_call: true
+    auth_type: v3_signature
+    expected_status:
+    - 200
+    - 202
+    data:
+      context:
+        domain: ONDC:FIS12
+        action: search
+        version: 1.1.0
+        bap_id: '{{test_bap_subscriber_id}}'
+        bap_uri: https://seller-mock.kynondc.net
+        transaction_id: '{{uuid}}'
+        message_id: '{{uuid}}'
+        timestamp: '{{timestamp_iso}}'
+      message:
+        intent:
+          category:
+            descriptor:
+              code: PERSONAL_LOAN
+          provider:
+            categories:
+            - descriptor:
+                code: PERSONAL_LOAN
+    validate:
+    - field: context
+      condition: exists
+- id: GW-09
+  name: Gateway API - Confirm call with policy blocking
+  description: 'Gateway confirm endpoint with ED25519 signature authentication'
+  capture_payload: true
+  gateway_api: true
+  auth_type: v3_signature
+  v3_participant_id: test-v3-gateway-bap-confirm.ondc.org
+  v3_uk_id: 83b68b94-8fb9-44ad-bcd4-b0e89d741290
+  v3_private_key_seed: c190934de2c9aea71b47a31bacb8f002b0e4995c083cb457c0d58b9d6ba3670f
+  steps:
+  - name: 'Step 1: Register test BAP participant for confirm test'
+    method: POST
+    endpoint: /admin/subscribe
+    auth_type: admin
+    gateway_call: false
+    expected_status:
+    - 200
+    - 201
+    - 409
+    data:
+      participant_id: test-v3-gateway-bap-confirm_{{timestamp}}
+      action: SUBSCRIBED
+      dns_skip: true
+      skip_ssl_verification: true
+      credentials:
+      - cred_id: cred_gst_bap_confirm
+        type: GST
+        cred_data:
+          gstin: 29TESTBAP2345F1Z5
+          legal_name: Test BAP Confirm Ltd
+      - cred_id: cred_pan_bap_confirm
+        type: PAN
+        cred_data:
+          pan: TESTC1234P
+          name: Test BAP Confirm Ltd
+      contacts:
+      - contact_id: contact_bap_confirm_001
+        type: AUTHORISED_SIGNATORY
+        name: BAP Confirm Admin
+        email: admin@test-v3-gateway-bap-confirm.ondc.org
+        phone: '+919876543211'
+      - contact_id: contact_bap_confirm_002
+        type: BUSINESS
+        name: BAP Confirm Business Contact
+        email: business@test-v3-gateway-bap-confirm.ondc.org
+        phone: '+919876543211'
+      key:
+        uk_id: 83b68b94-8fb9-44ad-bcd4-b0e89d741290
+        signing_public_key: pyM58NGU8nnAXSPyUfm48Pt7gyg+0iTK7FdhRMSKkNs=
+        encryption_public_key: pyM58NGU8nnAXSPyUfm48Pt7gyg+0iTK7FdhRMSKkNs=
+        signed_algorithm: ED25519
+        encryption_algorithm: X25519
+        valid_from: '2024-01-01T00:00:00.000Z'
+        valid_until: '2027-12-31T23:59:59.000Z'
+      location:
+        location_id: loc_bap_confirm_001
+        type: SERVICEABLE
+        country: IND
+        city:
+        - std:080
+      uri:
+        uri_id: uri_bap_confirm_001
+        type: CALLBACK
+        url: https://seller-mock.kynondc.net/callback
+      configs:
+      - domain: ONDC:FIS12
+        np_type: BAP
+        subscriber_id: test-v3-gateway-bap-confirm.ondc.org
+        location_id: loc_bap_confirm_001
+        uri_id: uri_bap_confirm_001
+        key_id: 83b68b94-8fb9-44ad-bcd4-b0e89d741290
+    save_response:
+      test_bap_confirm_participant_id: participant_id
+      test_bap_confirm_subscriber_id: configs[0].subscriber_id
+    note: 'Register BAP with ED25519 keys for gateway confirm test'
+  - name: 'Step 2: Setup Network policy blocking confirm'
+    method: POST
+    endpoint: /admin/policies
+    auth_type: admin
+    gateway_call: false
+    expected_status: 201
+    data:
+      policy_id: gw_confirm_block_policy_{{timestamp}}
+      participant_id: '{{test_gateway_id}}'
+      type: NETWORK
+      name: Block FIS12 Confirm {{timestamp}}
+      description: Policy to block confirm for testing
+      is_active: true
+      priority: 100
+      rule_definition:
+        default_action: ALLOW
+        rules:
+        - id: BLOCK-FIS12-CONFIRM
+          description: Block FIS12 confirm
+          priority: 100
+          status: ENABLED
+          match_condition:
+            domain: ONDC:FIS12
+            action: confirm
+          action_to_take:
+            action_type: BLOCK
+  - name: 'Step 3: Call /confirm through gateway'
+    method: POST
+    endpoint: /confirm
+    gateway_call: true
+    auth_type: v3_signature
+    expected_status:
+    - 403
+    - 400
+    data:
+      context:
+        domain: ONDC:FIS12
+        action: confirm
+        version: 1.1.0
+        bap_id: '{{test_bap_confirm_subscriber_id}}'
+        bpp_id: test-seller.ondc.org
+        transaction_id: '{{uuid}}'
+        message_id: '{{uuid}}'
+        timestamp: '{{timestamp_iso}}'
+      message:
+        order:
+          provider:
+            id: PROVIDER_001
+          items:
+          - id: ITEM_001
+            quantity:
+              selected:
+                count: 1
+    validate:
+    - field: error.message
+      condition: contains
+      value: blocked by policy
+    note: 'Expected: request blocked by policy message'
+- id: GW-10
+  pending: true
+  pending_reason: 'PUT /admin/policies/{id} endpoint not implemented (ERR_316). Policies may be immutable or require delete+recreate pattern.'
+  name: Runtime Refresh - Policy change from ALLOW to BLOCK
+  description: 'Test policy update via PUT endpoint - runtime policy refresh'
+  capture_payload: true
+  measure_time: true
+  steps:
+  - name: 'Step 1: Create policy with ALLOW'
+    method: POST
+    endpoint: /admin/policies
+    auth_type: admin
+    expected_status: 201
+    data:
+      policy_id: gw_runtime_test_{{timestamp}}
+      participant_id: '{{test_gateway_id}}'
+      type: NETWORK
+      name: Runtime Test ALLOW {{timestamp}}
+      description: Initial policy allowing traffic
+      is_active: true
+      priority: 100
+      rule_definition:
+        default_action: BLOCK
+        rules:
+        - id: RUNTIME-TEST-ALLOW
+          description: Initially allow
+          priority: 100
+          status: ENABLED
+          match_condition:
+            domain: ONDC:RET14
+            action: search
+          action_to_take:
+            action_type: BROADCAST
+    save_response:
+      runtime_policy_id: policy_id
+    record_timestamp: policy_created_at
+  - name: 'Step 2: Wait for policy propagation'
+    wait: 2000
+    note: Allow policy to propagate to gateway
+  - name: 'Step 3: Verify policy is active via lookup'
+    method: POST
+    endpoint: /lookup
+    expected_status: 200
+    data:
+      country: IND
+      type: BG
+    validate:
+    - field: '[0].policies'
+      condition: exists
+    note: Confirm policy is visible in lookup
+  - name: 'Step 4: Update policy to BLOCK'
+    method: PUT
+    endpoint: /admin/policies/{{runtime_policy_id}}
+    auth_type: admin
+    expected_status:
+    - 200
+    - 404
+    data:
+      rule_definition:
+        default_action: BLOCK
+        rules:
+        - id: RUNTIME-TEST-BLOCK
+          description: Changed to block
+          priority: 100
+          status: ENABLED
+          match_condition:
+            domain: ONDC:RET14
+            action: search
+          action_to_take:
+            action_type: BLOCK
+    record_timestamp: policy_updated_at
+    note: Policy changed from BROADCAST to BLOCK
+  - name: 'Step 5: Wait and verify policy change reflected'
+    wait: 2000
+    note: Policy change should reflect within milliseconds to 1 minute
+  - name: 'Step 6: Verify updated policy via lookup'
+    method: POST
+    endpoint: /lookup
+    auth_type: admin
+    expected_status: 200
+    data:
+      country: IND
+      type: BG
+    validate:
+    - field: rule_definition.rules[0].action_to_take.action_type
+      condition: equals
+      value: BLOCK
+    calculate_time_diff: policy_updated_at
+    note: Verify change took effect (should be < 60 seconds)
+- id: GW-11
+  pending: true
+  pending_reason: 'PUT /admin/policies/{id} endpoint not implemented (ERR_316). Policies may be immutable or require delete+recreate pattern.'
+  name: Runtime Refresh - Participant policy immediate effect
+  description: 'Test participant policy update via PATCH endpoint - runtime refresh'
+  capture_payload: true
+  measure_time: true
+  steps:
+  - name: 'Step 1: Create participant with ALLOW policy'
+    method: POST
+    endpoint: /admin/policies
+    auth_type: admin
+    expected_status: 201
+    data:
+      policy_id: gw_participant_runtime_{{timestamp}}
+      participant_id: '{{test_gateway_id}}'
+      type: NETWORK
+      name: Participant Runtime Test {{timestamp}}
+      description: Test participant policy runtime refresh
+      is_active: true
+      priority: 100
+      rule_definition:
+        rules:
+        - id: PARTICIPANT-RUNTIME-ALLOW
+          description: Initially allow
+          priority: 100
+          status: ENABLED
+          match_condition:
+            domain: ONDC:RET15
+            action: search
+            bap_id: runtime-buyer.ondc.org
+            bpp_id: runtime-seller.ondc.org
+          action_to_take:
+            action_type: ALLOW
+    save_response:
+      participant_runtime_policy_id: policy_id
+  - name: 'Step 2: Update to NOT_ALLOW'
+    method: PUT
+    endpoint: /admin/policies/{{participant_runtime_policy_id}}
+    auth_type: admin
+    expected_status:
+    - 200
+    - 404
+    data:
+      rule_definition:
+        rules:
+        - id: PARTICIPANT-RUNTIME-BLOCK
+          description: Changed to not allow
+          priority: 100
+          status: ENABLED
+          match_condition:
+            domain: ONDC:RET15
+            action: search
+            bap_id: runtime-buyer.ondc.org
+            bpp_id: runtime-seller.ondc.org
+          action_to_take:
+            action_type: NOT_ALLOW
+    record_timestamp: participant_policy_updated
+  - name: 'Step 3: Verify change via lookup (should be < 60s)'
+    method: POST
+    endpoint: /lookup
+    expected_status: 200
+    data:
+      country: IND
+      subscriber_id: runtime-seller.ondc.org
+    validate:
+    - field: ''
+      condition: exists
+    note: Policy change should be visible in lookup within 1 minute
+- id: GW-12
+  name: ROUTE action - Override with target_url
+  description: Test ROUTE action_type that overrides BPP URI with target_url
+  capture_payload: true
+  steps:
+  - name: 'Step 1: Create Network policy with ROUTE and target_url'
+    method: POST
+    endpoint: /admin/policies
+    auth_type: admin
+    expected_status: 201
+    data:
+      policy_id: gw_route_override_{{timestamp}}
+      participant_id: '{{test_gateway_id}}'
+      type: NETWORK
+      name: ROUTE Override Test {{timestamp}}
+      description: Route to specific target_url instead of BPP URI
+      is_active: true
+      priority: 100
+      rule_definition:
+        default_action: BLOCK
+        rules:
+        - id: ROUTE-TO-CUSTOM-URL
+          description: Route RET16 to custom URL
+          priority: 100
+          status: ENABLED
+          match_condition:
+            domain: ONDC:RET16
+            action: search
+          action_to_take:
+            action_type: ROUTE
+            target_url: https://seller-mock.kynondc.net/search
+    save_response:
+      route_policy_id: policy_id
+    validate:
+    - field: rule_definition.rules[0].action_to_take.action_type
+      condition: equals
+      value: ROUTE
+    - field: rule_definition.rules[0].action_to_take.target_url
+      condition: exists
+- id: GW-13
+  name: ROUTE action - Context BPP URI ignored
+  description: When ROUTE with target_url, gateway ignores context.bpp_uri
+  capture_payload: true
+  steps:
+  - name: 'Step 1: Create ROUTE policy using context.bpp_uri variable'
+    method: POST
+    endpoint: /admin/policies
+    auth_type: admin
+    expected_status: 201
+    data:
+      policy_id: gw_route_context_bppuri_{{timestamp}}
+      participant_id: '{{test_gateway_id}}'
+      type: NETWORK
+      name: ROUTE Using Context BPPURI {{timestamp}}
+      description: Route using context.bpp_uri if present, else block
+      is_active: true
+      priority: 100
+      rule_definition:
+        default_action: BLOCK
+        rules:
+        - id: ROUTE-CONTEXT-BPPURI
+          description: Route to context.bpp_uri if present
+          priority: 100
+          status: ENABLED
+          match_condition:
+            domain: ONDC:RET17
+            action: select
+          action_to_take:
+            action_type: ROUTE
+            target_url: '{{context.bpp_uri}}'
+    note: If context.bpp_uri is empty, this will block
+- id: GW-14
+  name: ROUTE vs BROADCAST - Different behaviors
+  description: Compare ROUTE (unicast to target) vs BROADCAST (multicast to all BPPs)
+  capture_payload: true
+  steps:
+  - name: 'Step 1: Create BROADCAST policy for comparison'
+    method: POST
+    endpoint: /admin/policies
+    auth_type: admin
+    expected_status: 201
+    data:
+      policy_id: gw_broadcast_compare_{{timestamp}}
+      participant_id: '{{test_gateway_id}}'
+      type: NETWORK
+      name: BROADCAST for Comparison {{timestamp}}
+      description: Broadcast to all BPPs
+      is_active: true
+      priority: 100
+      rule_definition:
+        default_action: BLOCK
+        rules:
+        - id: BROADCAST-ALL-BPPS
+          description: Broadcast to all registered BPPs
+          priority: 100
+          status: ENABLED
+          match_condition:
+            domain: ONDC:RET18
+            action: search
+          action_to_take:
+            action_type: BROADCAST
+    note: BROADCAST sends to all BPPs, ROUTE sends to specific target
+- id: GW-15
+  name: Default Action - BLOCK all unmatched
+  description: Verify gateway blocks all traffic when no policy matches
+  capture_payload: true
+  steps:
+  - name: 'Step 1: Create policy with default_action BLOCK'
+    method: POST
+    endpoint: /admin/policies
+    auth_type: admin
+    expected_status: 201
+    data:
+      policy_id: gw_default_block_{{timestamp}}
+      participant_id: '{{test_gateway_id}}'
+      type: NETWORK
+      name: Default Block Policy {{timestamp}}
+      description: Block everything by default, explicit rules allow
+      is_active: true
+      priority: 100
+      rule_definition:
+        default_action: BLOCK
+        rules:
+        - id: ALLOW-ONLY-RET19
+          description: Only RET19 search allowed
+          priority: 100
+          status: ENABLED
+          match_condition:
+            domain: ONDC:RET19
+            action: search
+          action_to_take:
+            action_type: BROADCAST
+    note: All other domains/actions will be blocked by default
+- id: GW-16
+  name: Default Action - Explicit requirement
+  description: Gateway MUST have at least one policy, otherwise everything blocked
+  capture_payload: true
+  steps:
+  - name: 'Step 1: Verify gateway has at least one active policy'
+    method: GET
+    endpoint: /admin/policies
+    auth_type: admin
+    expected_status: 200
+    params:
+      participant_id: '{{test_gateway_id}}'
+      type: NETWORK
+      country: IND
+      is_active: true
+    validate:
+    - field: policies
+      condition: exists
+    - field: policies
+      condition: is_array
+    - field: policies.length
+      condition: greater_than
+      value: 0
+    note: Gateway must have at least one policy to allow any traffic
+- id: GW-17
+  name: Performance - 100 policy rules
+  description: Create policy with 100 rules and measure lookup/evaluation performance
+  capture_payload: false
+  measure_time: true
+  steps:
+  - name: 'Step 1: Create policy with 100 rules'
+    method: POST
+    endpoint: /admin/policies
+    auth_type: admin
+    expected_status: 201
+    data:
+      policy_id: gw_perf_100_rules_{{timestamp}}
+      participant_id: '{{test_gateway_id}}'
+      type: NETWORK
+      name: Performance Test 100 Rules {{timestamp}}
+      description: Policy with 100 rules for performance testing
+      is_active: true
+      priority: 100
+      rule_definition:
+        default_action: BLOCK
+        rules: '{{generate_100_rules}}'
+    save_response:
+      perf_policy_id: policy_id
+    record_timestamp: policy_creation_start
+  - name: 'Step 2: Measure lookup time with 100 rules'
+    method: POST
+    endpoint: /lookup
+    expected_status: 200
+    data:
+      country: IND
+      type: BG
+    record_timestamp: lookup_with_100_rules
+    note: Measure impact of 100 rules on lookup performance
+- id: GW-18
+  name: Performance - 500 policy rules
+  description: Create policy with 500 rules and measure performance
+  capture_payload: false
+  measure_time: true
+  steps:
+  - name: 'Step 1: Create policy with 500 rules'
+    method: POST
+    endpoint: /admin/policies
+    auth_type: admin
+    expected_status: 201
+    data:
+      policy_id: gw_perf_500_rules_{{timestamp}}
+      participant_id: '{{test_gateway_id}}'
+      type: NETWORK
+      name: Performance Test 500 Rules {{timestamp}}
+      description: Policy with 500 rules for performance testing
+      is_active: true
+      priority: 100
+      rule_definition:
+        default_action: BLOCK
+        rules: '{{generate_500_rules}}'
+    note: Test performance with 500 rules
+- id: GW-19
+  name: Performance - 1200 policy rules (Production-like)
+  description: Test with 1200 rules like Network-Policy 1.json to simulate production
+  capture_payload: false
+  measure_time: true
+  steps:
+  - name: 'Step 1: Create policy with 1200 rules'
+    method: POST
+    endpoint: /admin/policies
+    auth_type: admin
+    expected_status: 201
+    data:
+      policy_id: gw_perf_1200_rules_{{timestamp}}
+      participant_id: '{{test_gateway_id}}'
+      type: NETWORK
+      name: Performance Test 1200 Rules {{timestamp}}
+      description: Production-like policy with 1200 rules (30 domains × 20 APIs ×
+        2 actions)
+      is_active: true
+      priority: 100
+      rule_definition:
+        default_action: BLOCK
+        rules: '{{generate_1200_rules}}'
+    note: Simulate production load with 1200 rules
+- id: GW-20
+  name: 'End-to-End: Complete policy flow validation'
+  description: 'Full workflow: Register gateway → Create all policy types → Verify
+    lookup → Test routing'
+  capture_payload: true
+  steps:
+  - name: 'Step 1: Verify gateway participant exists'
+    method: POST
+    endpoint: /lookup
+    expected_status: 200
+    data:
+      country: IND
+      type: BG
+    validate:
+    - field: ''
+      condition: exists
+    - field: '[0].type'
+      condition: equals
+      value: BG
+  - name: 'Step 2: Verify Network policies exist'
+    method: GET
+    endpoint: /admin/policies
+    auth_type: admin
+    expected_status: 200
+    params:
+      type: NETWORK
+      country: IND
+      is_active: true
+    validate:
+    - field: policies
+      condition: exists
+  - name: 'Step 3: Verify Participant policies exist'
+    method: GET
+    endpoint: /admin/policies
+    auth_type: admin
+    expected_status: 200
+    params:
+      type: NETWORK_PARTICIPANT
+      country: IND
+      is_active: true
+    validate:
+    - field: policies
+      condition: exists
+  - name: 'Step 4: Verify V3 lookup shows policies'
+    method: POST
+    endpoint: /lookup
+    expected_status: 200
+    data:
+      country: IND
+      type: BG
+    validate:
+    - field: ''
+      condition: exists
+    - field: '[0].type'
+      condition: equals
+      value: BG
+    note: 'Complete validation: Gateway + Network policies + Participant policies
+      all active'
+- id: GW-21
+  name: BROADCAST + No Participant Policies → SUCCESS (default allow)
+  description: 'Combination #5: Network BROADCAST without any participant policies
+    (default allow)'
+  capture_payload: true
+  steps:
+  - name: 'Step 1: Create Network policy - BROADCAST for RET20'
+    method: POST
+    endpoint: /admin/policies
+    auth_type: admin
+    expected_status: 201
+    data:
+      policy_id: gw_broadcast_no_participant_{{timestamp}}
+      participant_id: '{{test_gateway_id}}'
+      type: NETWORK
+      name: BROADCAST No Participant {{timestamp}}
+      description: Network layer broadcasts, no participant policies exist
+      is_active: true
+      priority: 100
+      rule_definition:
+        default_action: BLOCK
+        rules:
+        - id: NW-RET20-BROADCAST
+          description: Broadcast RET20 search to all BPPs
+          priority: 100
+          status: ENABLED
+          match_condition:
+            domain: ONDC:RET20
+            action: search
+          action_to_take:
+            action_type: BROADCAST
+    save_response:
+      broadcast_no_participant_policy_id: policy_id
+    note: No buyer or seller participant policies - request should succeed with BROADCAST
+- id: GW-22
+  name: ROUTING + ALLOW + ALLOW → ROUTE SUCCESS
+  description: 'Combination #6: Network ROUTING with both buyer and seller allowing (reuses GW-04 participants)'
+  capture_payload: true
+  steps:
+  - name: 'Step 1: Create Network policy - ROUTING'
+    method: POST
+    endpoint: /admin/policies
+    auth_type: admin
+    expected_status: 201
+    data:
+      policy_id: gw_route_allow_allow_{{timestamp}}
+      participant_id: '{{test_gateway_id}}'
+      type: NETWORK
+      name: ROUTE Allow-Allow {{timestamp}}
+      description: 'Layer 1: Network routes to seller'
+      is_active: true
+      priority: 100
+      rule_definition:
+        default_action: BLOCK
+        rules:
+        - id: NW-ROUTE-ALLOW
+          description: Route search to seller
+          priority: 100
+          status: ENABLED
+          match_condition:
+            domain: ONDC:RET10
+            action: search
+          action_to_take:
+            action_type: ROUTE
+    save_response:
+      gw22_network_policy_id: policy_id
+  - name: 'Step 2: Create Buyer policy - ALLOW'
+    method: POST
+    endpoint: /admin/policies
+    auth_type: admin
+    expected_status: 201
+    data:
+      policy_id: gw22_buyer_allow_{{timestamp}}
+      participant_id: '{{buyer_participant_id}}'
+      type: NETWORK_PARTICIPANT
+      name: GW-22 Buyer ALLOW {{timestamp}}
+      description: 'Layer 2: Buyer allows transactions'
+      is_active: true
+      priority: 100
+      rule_definition:
+        rules:
+        - id: GW22-BUYER-ALLOW
+          description: Buyer allows seller
+          priority: 100
+          status: ENABLED
+          match_condition:
+            domain: ONDC:RET10
+            action: search
+          action_to_take:
+            action_type: ALLOW
+    save_response:
+      gw22_buyer_policy_id: policy_id
+  - name: 'Step 3: Create Seller policy - ALLOW'
+    method: POST
+    endpoint: /admin/policies
+    auth_type: admin
+    expected_status: 201
+    data:
+      policy_id: gw22_seller_allow_{{timestamp}}
+      participant_id: '{{seller_participant_id}}'
+      type: NETWORK_PARTICIPANT
+      name: GW-22 Seller ALLOW {{timestamp}}
+      description: 'Layer 3: Seller allows transactions'
+      is_active: true
+      priority: 100
+      rule_definition:
+        rules:
+        - id: GW22-SELLER-ALLOW
+          description: Seller allows buyer
+          priority: 100
+          status: ENABLED
+          match_condition:
+            domain: ONDC:RET10
+            action: search
+          action_to_take:
+            action_type: ALLOW
+    save_response:
+      gw22_seller_policy_id: policy_id
+    note: '✅ Combination #6: ROUTING + ALLOW + ALLOW → ROUTE SUCCESS'
+- id: GW-23
+  name: ROUTING + ALLOW + NOT_ALLOW → BLOCKED at Layer 3
+  description: 'Combination #7: Network ROUTING, buyer allows, seller blocks (reuses GW-04 participants)'
+  capture_payload: true
+  steps:
+  - name: 'Step 1: Create Network policy - ROUTING'
+    method: POST
+    endpoint: /admin/policies
+    auth_type: admin
+    expected_status: 201
+    data:
+      policy_id: gw23_route_allow_block_{{timestamp}}
+      participant_id: '{{test_gateway_id}}'
+      type: NETWORK
+      name: ROUTE Allow-Block {{timestamp}}
+      description: 'Layer 1: Network routes'
+      is_active: true
+      priority: 100
+      rule_definition:
+        default_action: BLOCK
+        rules:
+        - id: NW-ROUTE-ALLOW-BLOCK
+          description: Route search
+          priority: 100
+          status: ENABLED
+          match_condition:
+            domain: ONDC:RET10
+            action: search
+          action_to_take:
+            action_type: ROUTE
+    save_response:
+      gw23_network_policy_id: policy_id
+  - name: 'Step 2: Create Buyer policy - ALLOW'
+    method: POST
+    endpoint: /admin/policies
+    auth_type: admin
+    expected_status: 201
+    data:
+      policy_id: gw23_buyer_allow_{{timestamp}}
+      participant_id: '{{buyer_participant_id}}'
+      type: NETWORK_PARTICIPANT
+      name: GW-23 Buyer ALLOW {{timestamp}}
+      description: 'Layer 2: Buyer allows'
+      is_active: true
+      priority: 100
+      rule_definition:
+        rules:
+        - id: GW23-BUYER-ALLOW
+          description: Buyer allows seller
+          priority: 100
+          status: ENABLED
+          match_condition:
+            domain: ONDC:RET10
+            action: search
+          action_to_take:
+            action_type: ALLOW
+    save_response:
+      gw23_buyer_policy_id: policy_id
+  - name: 'Step 3: Create Seller policy - NOT_ALLOW (blocks)'
+    method: POST
+    endpoint: /admin/policies
+    auth_type: admin
+    expected_status: 201
+    data:
+      policy_id: gw23_seller_block_{{timestamp}}
+      participant_id: '{{seller_participant_id}}'
+      type: NETWORK_PARTICIPANT
+      name: GW-23 Seller BLOCK {{timestamp}}
+      description: 'Layer 3: Seller blocks buyer'
+      is_active: true
+      priority: 100
+      rule_definition:
+        rules:
+        - id: GW23-SELLER-BLOCK
+          description: Seller blocks buyer
+          priority: 100
+          status: ENABLED
+          match_condition:
+            domain: ONDC:RET10
+            action: search
+          action_to_take:
+            action_type: NOT_ALLOW
+    save_response:
+      gw23_seller_policy_id: policy_id
+    note: '✅ Combination #7: ROUTING + ALLOW + NOT_ALLOW → BLOCKED at Layer 3'
+- id: GW-24
+  name: ROUTING + NOT_ALLOW + ANY → BLOCKED at Layer 2
+  description: 'Combination #8: Network ROUTING, buyer blocks (seller policy doesn''t matter, reuses GW-04 participants)'
+  capture_payload: true
+  steps:
+  - name: 'Step 1: Create Network policy - ROUTING'
+    method: POST
+    endpoint: /admin/policies
+    auth_type: admin
+    expected_status: 201
+    data:
+      policy_id: gw24_route_block_any_{{timestamp}}
+      participant_id: '{{test_gateway_id}}'
+      type: NETWORK
+      name: ROUTE Block-Any {{timestamp}}
+      description: 'Layer 1: Network routes'
+      is_active: true
+      priority: 100
+      rule_definition:
+        default_action: BLOCK
+        rules:
+        - id: NW-ROUTE-BLOCK
+          description: Route search
+          priority: 100
+          status: ENABLED
+          match_condition:
+            domain: ONDC:RET10
+            action: search
+          action_to_take:
+            action_type: ROUTE
+    save_response:
+      gw24_network_policy_id: policy_id
+  - name: 'Step 2: Create Buyer policy - NOT_ALLOW (blocks)'
+    method: POST
+    endpoint: /admin/policies
+    auth_type: admin
+    expected_status: 201
+    data:
+      policy_id: gw24_buyer_block_{{timestamp}}
+      participant_id: '{{buyer_participant_id}}'
+      type: NETWORK_PARTICIPANT
+      name: GW-24 Buyer BLOCK {{timestamp}}
+      description: 'Layer 2: Buyer blocks transactions'
+      is_active: true
+      priority: 100
+      rule_definition:
+        rules:
+        - id: GW24-BUYER-BLOCK
+          description: Buyer blocks seller
+          priority: 100
+          status: ENABLED
+          match_condition:
+            domain: ONDC:RET10
+            action: search
+          action_to_take:
+            action_type: NOT_ALLOW
+    save_response:
+      gw24_buyer_policy_id: policy_id
+    note: '✅ Combination #8: ROUTING + NOT_ALLOW + ANY → BLOCKED at Layer 2'
+- id: GW-25
+  name: ROUTING + No Participant Policies → ROUTE SUCCESS
+  description: 'Combination #9: Network ROUTING without participant policies (default allow)'
+  capture_payload: true
+  steps:
+  - name: 'Step 1: Create Network policy - ROUTING without participant policies'
+    method: POST
+    endpoint: /admin/policies
+    auth_type: admin
+    expected_status: 201
+    data:
+      policy_id: gw25_route_no_participant_{{timestamp}}
+      participant_id: '{{test_gateway_id}}'
+      type: NETWORK
+      name: ROUTE No Participant {{timestamp}}
+      description: Network routes, no buyer or seller participant policies
+      is_active: true
+      priority: 100
+      rule_definition:
+        default_action: BLOCK
+        rules:
+        - id: NW-ROUTE-DEFAULT
+          description: Route search
+          priority: 100
+          status: ENABLED
+          match_condition:
+            domain: ONDC:RET10
+            action: search
+          action_to_take:
+            action_type: ROUTE
+    save_response:
+      gw25_network_policy_id: policy_id
+    note: '✅ Combination #9: ROUTING + No Participant Policies → ROUTE SUCCESS'

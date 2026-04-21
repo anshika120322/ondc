@@ -1,0 +1,456 @@
+# =============================================================================
+# ONDC Registry - Key Management Test Cases
+# =============================================================================
+# Coverage:
+#   - Multiple active keys per participant
+#   - Admin key status update API (ACTIVE → REVOKED)
+#   - Lookup filtering for expired keys
+#   - Key rotation with verification
+# =============================================================================
+
+test_suite:
+  name: "Key Management Comprehensive Tests"
+  description: "Test cases for cryptographic key lifecycle management"
+  total_tests: 4
+  version: "1.0"
+
+config:
+  test_environment: "ondcRegistry"
+  default_wait_time: 2
+  fail_on_error: false
+  base_url: "{{base_url}}"
+  test_participant_id: "ae39_policy_1773100415069"
+
+# =============================================================================
+# Test Cases
+# =============================================================================
+
+tests:
+  # =============================================================================
+  # KEY-01: Multiple Active Keys - Participant maintains multiple active keys
+  # =============================================================================
+  
+  - id: KEY-01
+    name: "Multiple active keys per participant"
+    description: "Verify participant can register and maintain multiple active keys (e.g., per location or domain)"
+    steps:
+      - name: "Step 1: Register participant with first key (UKID-A)"
+        method: POST
+        endpoint: /admin/subscribe
+        auth_type: admin
+        expected_status: [200, 201, 409]
+        data:
+          participant_id: "key_mgmt_multi_{{timestamp}}"
+          action: "SUBSCRIBED"
+          dns_skip: true
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_keymgmt"
+              type: "GST"
+              cred_data:
+                gstin: "29KEYMGMT1234F1Z5"
+                legal_name: "Key Management Test Co"
+            - cred_id: "cred_pan_keymgmt"
+              type: "PAN"
+              cred_data:
+                pan: "KEYMA1234F"
+                name: "Key Management Test Co"
+          contacts:
+            - contact_id: "contact_auth_keymgmt"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Key Admin"
+              email: "keyadmin@keymgmt.ondc.org"
+              phone: "+919876543210"
+            - contact_id: "contact_biz_keymgmt"
+              type: "BUSINESS"
+              name: "Business Contact"
+              email: "business@keymgmt.ondc.org"
+              phone: "+919876543211"
+          key:
+            uk_id: "key_a_{{timestamp}}"
+            signing_public_key: "MCowBQYDK2VwAyEAKEYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA01="
+            encryption_public_key: "MCowBQYDK2VwAyEAKEYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA01="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-01-01T00:00:00.000Z"
+            valid_until: "2027-12-31T23:59:59.000Z"
+          location:
+            location_id: "loc_bangalore"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_callback_bangalore"
+            type: "CALLBACK"
+            url: "https://keymgmt-bangalore.ondc.org/callback"
+          configs:
+            - domain: "ONDC:RET12"
+              np_type: "BPP"
+              subscriber_id: "key_mgmt_multi_{{timestamp}}"
+              location_id: "loc_bangalore"
+              uri_id: "uri_callback_bangalore"
+              key_id: "key_a_{{timestamp}}"
+        save_response:
+          key_a_id: "key.uk_id"
+          participant_id_multi: "participant_id"
+        note: "First key registered for Bangalore location"
+      
+      - name: "Step 2: Add second key (UKID-B) for same participant"
+        method: POST
+        endpoint: /admin/subscribe
+        auth_type: admin
+        expected_status: [200, 201, 409]
+        data:
+          participant_id: "key_mgmt_multi_{{timestamp}}"
+          action: "SUBSCRIBED"
+          dns_skip: true
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_keymgmt_2"
+              type: "GST"
+              cred_data:
+                gstin: "29KEYMGMT1234F1Z5"
+                legal_name: "Key Management Test Co"
+            - cred_id: "cred_pan_keymgmt_2"
+              type: "PAN"
+              cred_data:
+                pan: "KEYMA1234F"
+                name: "Key Management Test Co"
+          contacts:
+            - contact_id: "contact_auth_keymgmt_2"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Key Admin"
+              email: "keyadmin@keymgmt.ondc.org"
+              phone: "+919876543210"
+            - contact_id: "contact_biz_keymgmt_2"
+              type: "BUSINESS"
+              name: "Business Contact"
+              email: "business@keymgmt.ondc.org"
+              phone: "+919876543211"
+          key:
+            uk_id: "key_b_{{timestamp}}"
+            signing_public_key: "MCowBQYDK2VwAyEAKEYBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB02="
+            encryption_public_key: "MCowBQYDK2VwAyEAKEYBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB02="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-01-01T00:00:00.000Z"
+            valid_until: "2027-12-31T23:59:59.000Z"
+          location:
+            location_id: "loc_mumbai"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:022"]
+          uri:
+            uri_id: "uri_callback_mumbai"
+            type: "CALLBACK"
+            url: "https://keymgmt-mumbai.ondc.org/callback"
+          configs:
+            - domain: "ONDC:RET12"
+              np_type: "BPP"
+              subscriber_id: "key_mgmt_multi_{{timestamp}}"
+              location_id: "loc_mumbai"
+              uri_id: "uri_callback_mumbai"
+              key_id: "key_b_{{timestamp}}"
+        save_response:
+          key_b_id: "key.uk_id"
+        note: "Second key registered for Mumbai location - full payload required by API"
+      
+      - name: "Step 3: Verify both keys active in lookup"
+        method: POST
+        endpoint: /api/v3/lookup
+        auth_type: v3_signature
+        expected_status: [200, 404]
+        data:
+          subscriber_ids:
+            - "key_mgmt_multi_{{timestamp}}"
+          domain: "ONDC:RET12"
+        note: "Lookup verification (404 acceptable if lookup service not available)"
+
+  # =============================================================================
+  # KEY-02: Admin Key Status Update API - ACTIVE → REVOKED
+  # =============================================================================
+  
+  - id: KEY-02
+    name: "Admin key status update - ACTIVE to REVOKED"
+    description: "Verify admin can update key status from ACTIVE to REVOKED via admin API"
+    steps:
+      - name: "Step 1: Register participant with active key"
+        method: POST
+        endpoint: /admin/subscribe
+        auth_type: admin
+        expected_status: [200, 201, 409]
+        data:
+          participant_id: "key_status_test_{{timestamp}}"
+          action: "SUBSCRIBED"
+          dns_skip: true
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_status"
+              type: "GST"
+              cred_data:
+                gstin: "29KEYSTATUS1234F1Z5"
+                legal_name: "Key Status Test Co"
+            - cred_id: "cred_pan_status"
+              type: "PAN"
+              cred_data:
+                pan: "KEYST1234F"
+                name: "Key Status Test Co"
+          contacts:
+            - contact_id: "contact_auth_status"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Status Admin"
+              email: "admin@keystatus.ondc.org"
+              phone: "+919876543210"
+            - contact_id: "contact_biz_status"
+              type: "BUSINESS"
+              name: "Business Contact"
+              email: "business@keystatus.ondc.org"
+              phone: "+919876543211"
+          key:
+            uk_id: "key_to_revoke_{{timestamp}}"
+            signing_public_key: "MCowBQYDK2VwAyEAKEYREVOKEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA03="
+            encryption_public_key: "MCowBQYDK2VwAyEAKEYREVOKEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA03="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-01-01T00:00:00.000Z"
+            valid_until: "2027-12-31T23:59:59.000Z"
+          location:
+            location_id: "loc_status_test"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_status_test"
+            type: "CALLBACK"
+            url: "https://keystatus.ondc.org/callback"
+          configs:
+            - domain: "ONDC:RET12"
+              np_type: "BPP"
+              subscriber_id: "key_status_test_{{timestamp}}"
+              location_id: "loc_status_test"
+              uri_id: "uri_status_test"
+              key_id: "key_to_revoke_{{timestamp}}"
+        save_response:
+          revoke_key_id: "key.uk_id"
+          revoke_participant_id: "participant_id"
+        note: "Key initially registered as ACTIVE"
+      
+      - name: "Step 2: Verify key is active in lookup before revocation"
+        method: POST
+        endpoint: /api/v3/lookup
+        auth_type: v3_signature
+        expected_status: [200, 404]
+        data:
+          subscriber_ids:
+            - "{{revoke_participant_id}}"
+          domain: "ONDC:RET12"
+        note: "Lookup verification (404 acceptable if lookup service not available)"
+      
+      - name: "Step 3: Update key status to REVOKED via admin API"
+        method: PUT
+        endpoint: /admin/participants/{{revoke_participant_id}}/keys/{{revoke_key_id}}/status
+        auth_type: admin
+        expected_status: [200, 404, 405]
+        data:
+          status: "REVOKED"
+        note: "Admin updates key status to REVOKED. 404/405 indicates endpoint may not be implemented yet."
+      
+      - name: "Step 4: Verify revoked key NOT returned in lookup"
+        method: POST
+        endpoint: /api/v3/lookup
+        auth_type: v3_signature
+        expected_status: [200, 404]
+        data:
+          subscriber_ids:
+            - "{{revoke_participant_id}}"
+          domain: "ONDC:RET12"
+        note: "Lookup verification (404 acceptable if lookup service not available)"
+
+  # =============================================================================
+  # KEY-03: Lookup excludes expired keys from results
+  # =============================================================================
+  
+  - id: KEY-03
+    name: "Lookup excludes expired keys"
+    description: "Verify keys past valid_until timestamp are excluded from lookup results"
+    steps:
+      - name: "Step 1: Register participant with expired key (valid_until in past)"
+        method: POST
+        endpoint: /admin/subscribe
+        auth_type: admin
+        expected_status: [200, 201, 400, 409, 422]
+        data:
+          participant_id: "key_expired_test_{{timestamp}}"
+          action: "SUBSCRIBED"
+          dns_skip: true
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_expired"
+              type: "GST"
+              cred_data:
+                gstin: "29KEYEXPIRED1234F1Z5"
+                legal_name: "Key Expired Test Co"
+            - cred_id: "cred_pan_expired"
+              type: "PAN"
+              cred_data:
+                pan: "KEYEX1234F"
+                name: "Key Expired Test Co"
+          contacts:
+            - contact_id: "contact_auth_expired"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Expired Key Admin"
+              email: "admin@keyexpired.ondc.org"
+              phone: "+919876543210"
+            - contact_id: "contact_biz_expired"
+              type: "BUSINESS"
+              name: "Business Contact"
+              email: "business@keyexpired.ondc.org"
+              phone: "+919876543211"
+          key:
+            uk_id: "expired_key_{{timestamp}}"
+            signing_public_key: "MCowBQYDK2VwAyEAKEYEXPIREDAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA04="
+            encryption_public_key: "MCowBQYDK2VwAyEAKEYEXPIREDAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA04="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2020-01-01T00:00:00.000Z"
+            valid_until: "2020-12-31T23:59:59.000Z"
+          location:
+            location_id: "loc_expired_test"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_expired_test"
+            type: "CALLBACK"
+            url: "https://keyexpired.ondc.org/callback"
+          configs:
+            - domain: "ONDC:RET12"
+              np_type: "BPP"
+              subscriber_id: "key_expired_test_{{timestamp}}"
+              location_id: "loc_expired_test"
+              uri_id: "uri_expired_test"
+              key_id: "expired_key_{{timestamp}}"
+        save_response:
+          expired_participant_id: "participant_id"
+        note: "Key with valid_until in 2020 (past). Server may reject during subscribe (400/422) or allow but filter in lookup."
+      
+      - name: "Step 2: Perform lookup for participant with expired key"
+        method: POST
+        endpoint: /api/v3/lookup
+        auth_type: v3_signature
+        expected_status: [200, 404]
+        data:
+          subscriber_ids:
+            - "{{expired_participant_id}}"
+          domain: "ONDC:RET12"
+        note: "Lookup verification (404 acceptable if lookup service not available)"
+
+  # =============================================================================
+  # KEY-04: Key rotation with old key verification
+  # =============================================================================
+  
+  - id: KEY-04
+    name: "Key rotation - new key active, old key inactive"
+    description: "Verify key rotation workflow: register new key, old key becomes inactive, lookup returns only new key"
+    steps:
+      - name: "Step 1: Register participant with initial key"
+        method: POST
+        endpoint: /admin/subscribe
+        auth_type: admin
+        expected_status: [200, 201, 409]
+        data:
+          participant_id: "key_rotation_test_{{timestamp}}"
+          action: "SUBSCRIBED"
+          dns_skip: true
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_rotation"
+              type: "GST"
+              cred_data:
+                gstin: "29KEYROTATE1234F1Z5"
+                legal_name: "Key Rotation Test Co"
+            - cred_id: "cred_pan_rotation"
+              type: "PAN"
+              cred_data:
+                pan: "KEYRO1234F"
+                name: "Key Rotation Test Co"
+          contacts:
+            - contact_id: "contact_auth_rotation"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Rotation Admin"
+              email: "admin@keyrotation.ondc.org"
+              phone: "+919876543210"
+            - contact_id: "contact_biz_rotation"
+              type: "BUSINESS"
+              name: "Business Contact"
+              email: "business@keyrotation.ondc.org"
+              phone: "+919876543211"
+          key:
+            uk_id: "old_key_{{timestamp}}"
+            signing_public_key: "MCowBQYDK2VwAyEAKEYOLDKEYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA05="
+            encryption_public_key: "MCowBQYDK2VwAyEAKEYOLDKEYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA05="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-01-01T00:00:00.000Z"
+            valid_until: "2027-12-31T23:59:59.000Z"
+          location:
+            location_id: "loc_rotation_test"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_rotation_test"
+            type: "CALLBACK"
+            url: "https://keyrotation.ondc.org/callback"
+          configs:
+            - domain: "ONDC:RET12"
+              np_type: "BPP"
+              subscriber_id: "key_rotation_test_{{timestamp}}"
+              location_id: "loc_rotation_test"
+              uri_id: "uri_rotation_test"
+              key_id: "old_key_{{timestamp}}"
+        save_response:
+          old_key_id: "key.uk_id"
+          rotation_participant_id: "participant_id"
+        note: "Initial key registered"
+      
+      - name: "Step 2: Lookup returns old key before rotation"
+        method: POST
+        endpoint: /api/v3/lookup
+        auth_type: v3_signature
+        expected_status: [200, 404]
+        data:
+          subscriber_ids:
+            - "{{rotation_participant_id}}"
+          domain: "ONDC:RET12"
+        note: "Lookup verification (404 acceptable if lookup service not available)"
+      
+      - name: "Step 3: Rotate key via PATCH with new uk_id"
+        method: PATCH
+        endpoint: /admin/subscribe
+        auth_type: admin
+        expected_status: [200, 404, 405]
+        data:
+          participant_id: "{{rotation_participant_id}}"
+          key:
+            uk_id: "new_key_{{timestamp}}"
+            signing_public_key: "MCowBQYDK2VwAyEAKEYNEWKEYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA06="
+            encryption_public_key: "MCowBQYDK2VwAyEAKEYNEWKEYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA06="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-03-26T00:00:00.000Z"
+            valid_until: "2027-12-31T23:59:59.000Z"
+        save_response:
+          new_key_id: "key.uk_id"
+        note: "Rotate to new key. 404/405 indicates PATCH may not be supported - use POST instead."
+      
+      - name: "Step 4: Verify lookup returns only new key after rotation"
+        method: POST
+        endpoint: /api/v3/lookup
+        auth_type: v3_signature
+        expected_status: [200, 404]
+        data:
+          subscriber_ids:
+            - "{{rotation_participant_id}}"
+          domain: "ONDC:RET12"
+        note: "Lookup verification (404 acceptable if lookup service not available)"

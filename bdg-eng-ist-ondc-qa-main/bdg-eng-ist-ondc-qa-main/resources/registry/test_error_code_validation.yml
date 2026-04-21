@@ -1,0 +1,240 @@
+# ============================================================================
+# ONDC Registry - Error Code Validation Tests
+# ============================================================================
+# Purpose: Validate specific ONDC error codes in responses
+# Coverage: ERR_101, ERR_102, ERR_301-ERR_315, ERR_509, ERR_513
+# Created: 2026-03-27
+# ============================================================================
+
+ondcRegistry:
+  host: https://registry-uat.kynondc.net
+  admin_auth_url: https://admin-auth-uat.kynondc.net/api/auth/login
+  admin_username: admin@example.com
+  admin_password: admin123
+  # Valid token until April 10, 2026 (from ADMIN_CREDENTIALS_FOR_TESTING.txt)
+  admin_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2MjFlZTZiYi0zMDc1LTQ2MTQtODMyNC1lMzJjZTUxYjZjMzkiLCJlbWFpbCI6InVhdC1hZG1pbkBvbmRjLnRlc3QiLCJyb2xlIjoiU1VQRVJfQURNSU4iLCJyb2xlSWQiOiJkYjJlNDYxOS0wNDQ2LTQ0YzItOTNlNi1mYWJkNGIxOTlmNDciLCJpYXQiOjE3NzMxOTc5OTgsImV4cCI6MTc3NTc4OTk5OH0.7I314fWUstN_xFdBGeI79CDpv3OOhHFXn723O2Tjl8E
+  participant_id: buyer.ondc.zionmart.in
+  uk_id: 6c939b20-35ac-4102-9c53-ec8b1b60139d
+  private_key_seed: 06fb9cb9daa3234a165a0307629e45fc2c1a8b30b0bbb273142deab42a17803f
+  signing_public_key: sU5CIDY3HjC58sG5f+pYbM0hmcFcn7Ylwu4OEmFEcoM=
+  encryption_public_key: WMCuW4HwT/BVTtHBVQJC58X/NJjn9ho+pneabs04aDA=
+  use_fixed_participant: false
+  domains:
+  - ONDC:RET10
+  - ONDC:RET11
+  - ONDC:RET12
+  cities:
+  - std:080
+  - std:011
+  np_types:
+  - seller
+  - buyer
+
+ondc_error_code_validation:
+  description: "Test suite to validate specific ONDC error codes (ERR_xxx format)"
+  
+  endpoints:
+    base_url: "https://registry-uat.kynondc.net"
+    lookup_v3: "/v3.0/lookup"
+    subscribe_v3: "/v3.0/subscribe"
+    admin_subscribe: "/participant/v2.0/subscribe"
+  
+  error_codes:
+    # Schema Validation Errors (ERR_1xx)
+    schema_validation:
+      ERR_101:
+        code: "ERR_101"
+        description: "Invalid JSON format"
+        expected_status: 400
+        test_scenarios:
+          - name: "Malformed JSON body"
+            payload: '{invalid json'
+            expected_message: "Invalid JSON"
+      
+      ERR_102:
+        code: "ERR_102"
+        description: "Missing required field"
+        expected_status: 400
+        test_scenarios:
+          - name: "Missing subscriber_id in lookup"
+            payload:
+              domain: "RET10"
+              # subscriber_id missing
+            expected_message: "Missing required field"
+            expected_field: "subscriber_id"
+          
+          - name: "Missing domain in lookup"
+            payload:
+              subscriber_id: "test.mycompany.com"
+              # domain missing
+            expected_message: "Missing required field"
+            expected_field: "domain"
+    
+    # Business Rule Violations (ERR_3xx)
+    business_rules:
+      ERR_301:
+        code: "ERR_301"
+        description: "Duplicate participant"
+        expected_status: 400
+        test_scenarios:
+          - name: "Attempt to create duplicate subscriber_id"
+            action: "create"
+            expected_message: "Participant already exists"
+      
+      ERR_302:
+        code: "ERR_302"
+        description: "Invalid state transition"
+        expected_status: 400
+        test_scenarios:
+          - name: "Transition from SUBSCRIBED to INITIATED"
+            from_state: "SUBSCRIBED"
+            to_state: "INITIATED"
+            expected_message: "Invalid state transition"
+      
+      ERR_303:
+        code: "ERR_303"
+        description: "Domain not allowed for participant type"
+        expected_status: 400
+        test_scenarios:
+          - name: "NP subscribing to gateway-only domain"
+            participant_type: "NP"
+            domain: "GATEWAY_DOMAIN"
+            expected_message: "Domain not allowed"
+      
+      ERR_304:
+        code: "ERR_304"
+        description: "Participant suspended"
+        expected_status: 403
+        test_scenarios:
+          - name: "Suspended participant attempts operation"
+            status: "SUSPENDED"
+            expected_message: "Participant is suspended"
+      
+      ERR_305:
+        code: "ERR_305"
+        description: "Whitelist required"
+        expected_status: 403
+        test_scenarios:
+          - name: "Non-whitelisted participant subscribes"
+            whitelisted: false
+            expected_message: "Whitelist required"
+    
+    # Authentication/Signature Errors (ERR_5xx)
+    authentication:
+      ERR_509:
+        code: "ERR_509"
+        description: "Signature verification failed"
+        expected_status: 401
+        test_scenarios:
+          - name: "Invalid Ed25519 signature"
+            signature: "tampered_signature_base64"
+            expected_message: "Signature verification failed"
+          
+          - name: "Mismatched request body digest"
+            digest: "SHA-256=incorrect_digest"
+            expected_message: "Digest mismatch"
+      
+      ERR_513:
+        code: "ERR_513"
+        description: "Timestamp invalid or expired"
+        expected_status: 401
+        test_scenarios:
+          - name: "Expired timestamp (>5 minutes old)"
+            timestamp_offset: -400  # 6+ minutes in past
+            expected_message: "Timestamp expired"
+          
+          - name: "Future timestamp (clock skew)"
+            timestamp_offset: 400  # 6+ minutes in future
+            expected_message: "Timestamp invalid"
+          
+          - name: "Malformed timestamp"
+            timestamp: "2026-13-45T99:99:99Z"
+            expected_message: "Invalid timestamp format"
+  
+  # Rate Limiting Configuration
+  rate_limiting:
+    ERR_429:
+      code: "ERR_429"
+      description: "Rate limit exceeded"
+      expected_status: 429
+      test_scenarios:
+        - name: "Exceed 10 requests per minute"
+          requests_count: 15
+          time_window: 60  # seconds
+          expected_headers:
+            - "Retry-After"
+            - "X-RateLimit-Limit"
+            - "X-RateLimit-Remaining"
+            - "X-RateLimit-Reset"
+          validation:
+            - field: "Retry-After"
+              type: "integer"
+              range: [1, 300]
+            - field: "X-RateLimit-Remaining"
+              type: "integer"
+              expected: 0
+  
+  # SQL Injection Validation
+  sql_injection:
+    test_fields:
+      - field: "subscriber_id"
+        endpoint: "/v3.0/subscribe"
+        payloads:
+          - "test'; DROP TABLE participants; --"
+          - "test' OR '1'='1"
+          - "test' UNION SELECT * FROM users--"
+        expected_status: 400
+        expected_behavior: "Input rejected or sanitized"
+        should_not_return: ["sql", "syntax", "database", "query"]
+      
+      - field: "description"
+        endpoint: "/v3.0/subscribe"
+        payloads:
+          - "Company'; DELETE FROM participants WHERE '1'='1"
+          - "Company' OR 1=1--"
+        expected_status: 400
+        expected_behavior: "Input rejected or sanitized"
+  
+  # XSS Validation
+  xss_validation:
+    test_fields:
+      - field: "participant_name"
+        endpoint: "/v3.0/subscribe"
+        payloads:
+          - "<script>alert('XSS')</script>"
+          - "<img src=x onerror=alert('XSS')>"
+          - "<svg/onload=alert('XSS')>"
+        expected_status: 400
+        expected_behavior: "Input rejected or sanitized"
+        response_validation:
+          - "Response should not echo unsanitized script tags"
+          - "Stored data should be sanitized on retrieval"
+  
+  # Validation Rules
+  validation_rules:
+    error_response_structure:
+      required_fields:
+        - "error"
+      error_object_required:
+        - "code"      # ERR_xxx format
+        - "type"      # Error category
+        - "message"   # Human-readable message
+      optional_fields:
+        - "path"      # Field path for validation errors
+        - "field"     # Field name for validation errors
+        - "details"   # Additional context
+    
+    error_code_format:
+      pattern: "^ERR_[0-9]{3}$"
+      examples:
+        - "ERR_101"
+        - "ERR_102"
+        - "ERR_301"
+        - "ERR_509"
+      
+    error_message_quality:
+      requirements:
+        - "Non-empty message"
+        - "No sensitive data exposure (passwords, tokens, internal paths)"
+        - "Clear actionable guidance for client"
+        - "Consistent language (English)"

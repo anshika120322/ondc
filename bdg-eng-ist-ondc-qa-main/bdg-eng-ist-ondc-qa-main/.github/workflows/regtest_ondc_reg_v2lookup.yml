@@ -1,0 +1,72 @@
+name: ONDC Registry V2 Lookup Tests
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+  
+on:
+  workflow_dispatch:
+    inputs:
+      JSON_INPUTS:
+        description: 'JSON parameters for the test execution'
+        required: true
+        default: >-
+          {
+            "test": "ondc_reg_v2lookup",
+            "environment": "ondcRegistryV2Lookup",
+            "users": 1,
+            "iterations": 5,
+            "wait_min": 1,
+            "wait_max": 3,
+            "spawn_rate": 1,
+            "ramp_up": 0,
+            "release": ""
+          }
+
+jobs:
+  execute-v2-lookup-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Read from vault
+        uses: 'kyndryl-cto/bdg-eng-tops-cicd-workflows/.github/actions/vault-secrets@main'
+        with:
+          masks: '${{ tojson(secrets) }}'
+          pathSegment: 'bridge'      
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '>=3.12'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt --extra-index-url=https://${AFAAS_USER}:${AFAAS_TOKEN}@${{ vars.AFAAS_IST_PYPI_REGISTRY }}/simple
+
+      - name: Run ONDC Registry V2 Lookup Tests
+        run: |
+          python driver.py \
+            --test "${{ fromJson(inputs.JSON_INPUTS).test }}" \
+            --environment "${{ fromJson(inputs.JSON_INPUTS).environment }}" \
+            --users "${{ fromJson(inputs.JSON_INPUTS).users }}" \
+            --iterations "${{ fromJson(inputs.JSON_INPUTS).iterations }}" \
+            --wait-min "${{ fromJson(inputs.JSON_INPUTS).wait_min }}" \
+            --wait-max "${{ fromJson(inputs.JSON_INPUTS).wait_max }}" \
+            --spawn-rate "${{ fromJson(inputs.JSON_INPUTS).spawn_rate }}" \
+            --ramp-up "${{ fromJson(inputs.JSON_INPUTS).ramp_up }}" \
+            --html "results/registry/ondc_reg_v2lookup-$(date +'%Y%m%d_%H%M%S').html" \
+            --exit-code-on-error 0 \
+            --autostart \
+            --autoquit 1
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ondc-reg-v2lookup-results-${{ github.run_id }}
+          path: results/registry/
+          retention-days: 30

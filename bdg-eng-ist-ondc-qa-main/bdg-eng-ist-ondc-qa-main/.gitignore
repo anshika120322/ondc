@@ -1,0 +1,71 @@
+.idea
+*.log
+*.pyc
+*.html
+*.md
+*.txt
+.venv
+venv
+__pycache__
+.vscode
+!.vscode/launch.json
+.DS_Store
+
+# Exceptions - important files that should be tracked
+!READM*.md
+!requirements.txt
+!ONDC_Negative_Defensive_Test_Coverage_Report.md
+har
+screenshots
+mitmproxy-ca.*
+*.csv_exceptions.csv
+*.csv_failures.csv
+*.csv_stats_history.csv
+*.csv_stats.csv
+/csv_results
+/__perf_results__
+test_results.xml
+har-files
+/videos
+.env
+.zencoder
+.zenflow
+context.md
+results/api_reports
+
+# Results and archives
+results/
+output/
+*.zip
+
+# Backup folders
+backup_test_results_*/
+
+# Terminal output files
+err.txt
+err2.txt
+out.txt
+out2.txt
+
+ondc-gateway-3.0/
+design_docs/
+*.xlsx
+*.docx
+*.doc
+other docs/
+gateway-workflow-suite/output/*.html
+gateway-workflow-suite/output/*.csv
+gateway-workflow-suite/output/*.json
+
+# Test suite v2 output files (all formats)
+test-suite-v2 3/output/*.json
+test-suite-v2 3/output/*.html
+test-suite-v2*/output/*.json
+test-suite-v2*/output/*.html
+
+workflow-suite/output/*.json
+gateway-workflow-suite/_find_nacks.py
+gateway-workflow-suite/audit_verify.py
+gateway-workflow-suite/inject_bg_lookup.py
+gateway-workflow-suite/report_inspect.py
+gateway-workflow-suite/verify_pol.py

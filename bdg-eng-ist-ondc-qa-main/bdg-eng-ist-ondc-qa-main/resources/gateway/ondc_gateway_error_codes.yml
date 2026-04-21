@@ -1,0 +1,158 @@
+# ONDC Gateway Error Code Reference Catalogue
+# Source: ONDC Gateway developer-provided error code definitions
+# Used for NACK response validation in test runners and Locust test classes.
+#
+# Each entry has:
+#   type        - error.type value in the NACK response body
+#   http_status - expected HTTP status code for this class of error
+#   description - human-readable summary
+#   messages    - list of known error.message strings for this code
+
+error_codes:
+
+  # -------------------------------------------------------------------------
+  # 10001 — Authentication / Authorization failures (HTTP 401)
+  # -------------------------------------------------------------------------
+  "10001":
+    type: "Gateway"
+    http_status: 401
+    description: "Authentication / Authorization failure"
+    messages:
+      - "The auth header not found"
+      - "The auth header is not valid"
+      - "Invalid keys are found in the header"
+      - "There is mismatch in the algorithm"
+      - "Authentication failed"
+      - "Invalid headers are present in header parameters"
+      - "The request has expired"
+      - "Authentication failed"
+      - "Authentication failed"
+      - "The signature verification failed"
+      - "Request digest mismatch"
+      - "The proxy header not found"
+      - "Proxy Authentication failed"
+      - "Invalid proxy keyid is found in the header"
+      - "The proxy auth header is not valid"
+      - "There is mismatch in the algorithm of proxy header"
+      - "The proxy request has expired"
+      - "Invalid headers are present in proxy header parameters"
+
+  # -------------------------------------------------------------------------
+  # 10002 — JSON schema validation failed (HTTP 200 NACK)
+  # -------------------------------------------------------------------------
+  "10002":
+    type: "Gateway"
+    http_status: 200
+    description: "JSON schema validation failed"
+    messages:
+      - "Invalid request. Schema validation failed"
+
+  # -------------------------------------------------------------------------
+  # 10006 — Receiver NP ID not found in registry (HTTP 200 NACK)
+  # -------------------------------------------------------------------------
+  "10006":
+    type: "Gateway"
+    http_status: 200
+    description: "Invalid receiver NP ID"
+    messages:
+      - "Invalid receiver NP ID"
+
+  # -------------------------------------------------------------------------
+  # 10007 — Receiver URI doesn't match registered URI (HTTP 200 NACK)
+  # -------------------------------------------------------------------------
+  "10007":
+    type: "Gateway"
+    http_status: 200
+    description: "Invalid receiver URI"
+    messages:
+      - "Invalid receiver URI"
+
+  # -------------------------------------------------------------------------
+  # 40010 — Empty / missing request body (HTTP 400)
+  # -------------------------------------------------------------------------
+  "40010":
+    type: "PAYLOAD-ERROR"
+    http_status: 400
+    description: "Request body is missing"
+    messages:
+      - "request body is required"
+
+  # -------------------------------------------------------------------------
+  # 40011 — Failed to read request body (HTTP 400)
+  # -------------------------------------------------------------------------
+  "40011":
+    type: "PAYLOAD-ERROR"
+    http_status: 400
+    description: "Unable to read request body"
+    messages:
+      - "unable to read request body"
+
+  # -------------------------------------------------------------------------
+  # 40400 — No matching participants found for broadcast (HTTP 404)
+  # -------------------------------------------------------------------------
+  "40400":
+    type: "VALIDATION-ERROR"
+    http_status: 404
+    description: "No matching participants to route the search"
+    messages:
+      - "unable to find enough participants to route the search"
+
+  # -------------------------------------------------------------------------
+  # 41300 — Payload size exceeds limit (HTTP 413)
+  # -------------------------------------------------------------------------
+  "41300":
+    type: "PAYLOAD-ERROR"
+    http_status: 413
+    description: "Request payload exceeds configured size limit"
+    messages:
+      - "request payload exceeds configured limit"
+
+  # -------------------------------------------------------------------------
+  # 50000 — Internal server error (HTTP 500)
+  # -------------------------------------------------------------------------
+  "50000":
+    type: "CORE-ERROR"
+    http_status: 500
+    description: "Internal server error (nil dispatcher)"
+    messages:
+      - "internal server error"
+
+  # -------------------------------------------------------------------------
+  # 50001 — gRPC dispatch timeout (HTTP 500)
+  # -------------------------------------------------------------------------
+  "50001":
+    type: "CORE-ERROR"
+    http_status: 500
+    description: "Gateway request timed out (gRPC 5 s limit)"
+    messages:
+      - "gateway request timed out"
+
+  # -------------------------------------------------------------------------
+  # 50002 — SyncDispatch service unreachable / circuit breaker open (HTTP 500)
+  # -------------------------------------------------------------------------
+  "50002":
+    type: "CORE-ERROR"
+    http_status: 500
+    description: "Gateway temporarily unavailable (circuit breaker / gRPC unavailable)"
+    messages:
+      - "gateway is temporarily unable to process this request"
+
+  # -------------------------------------------------------------------------
+  # 50012 — Message queue publish failed during async broadcast (HTTP 500)
+  # -------------------------------------------------------------------------
+  "50012":
+    type: "CORE-ERROR"
+    http_status: 500
+    description: "Message queue publish failed (async broadcast)"
+    messages:
+      - "gateway is temporarily unable to process this request"
+
+  # -------------------------------------------------------------------------
+  # 50200 — Receiver endpoint unreachable (HTTP 502)
+  # -------------------------------------------------------------------------
+  "50200":
+    type: "CORE-ERROR"
+    http_status: 502
+    description: "Receiver endpoint unreachable (connection error / DNS failure)"
+    messages:
+      - "receiver endpoint unreachable"

@@ -1,0 +1,41 @@
+ondcAdminUsers: # Environment name, selected with --environment flag
+  host: "http://localhost:3000/api/v1" # Base API URL
+  swagger_ui: "http://localhost:3000/api" # Swagger UI URL (for reference)
+  
+  users: # Test accounts for different roles
+    super_admin:
+      email: "super@admin.com"
+      password: "SuperSecure@123"
+      role: "SUPER_ADMIN"
+    
+    admin:
+      email: "admin@example.com"
+      password: "AdminPass@123"
+      role: "ADMIN"
+    
+    operator:
+      email: "operator@example.com"
+      password: "OperatorPass@123"
+      role: "OPERATOR"
+  
+  # Test data for user management
+  test_data:
+    valid_password: "TestUser@123"
+    weak_password: "weak"
+    invalid_email: "invalid-email-format"
+    test_user_prefix: "testuser"
+    
+  # Pagination settings
+  pagination:
+    default_page_size: 10
+    max_page_size: 100
+    
+  # User validation rules (for reference)
+  validation:
+    password_min_length: 8
+    password_requires_uppercase: true
+    password_requires_lowercase: true
+    password_requires_number: true
+    password_requires_special: true
+    email_max_length: 255
+    name_max_length: 100

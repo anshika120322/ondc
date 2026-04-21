@@ -1,0 +1,241 @@
+# ONDC Registry Test Suite v2.0
+# Main orchestration configuration
+
+suite_info:
+  name: "ONDC Registry Comprehensive Test Suite"
+  version: "2.0.0"
+  description: "Complete end-to-end testing for ONDC Registry Admin and V3 APIs"
+  total_tests: 276
+  
+# Test categories
+categories:
+  - name: "admin"
+    description: "Admin End-to-End Tests"
+    config_file: "admin_tests.yaml"
+    runner: "universal"
+    test_count: 57
+    enabled: true
+    
+  - name: "v3"
+    description: "V3 End-to-End Tests"
+    config_file: "v3_tests.yaml"
+    runner: "universal"
+    test_count: 27
+    enabled: true
+    
+  - name: "combined"
+    description: "Combined Admin + V3 Tests"
+    config_file: "combined_tests.yaml"
+    runner: "universal"
+    test_count: 20
+    enabled: true
+    
+  - name: "advanced"
+    description: "Advanced Scenarios"
+    config_file: "advanced_tests.yaml"
+    runner: "universal"
+    test_count: 15
+    enabled: true
+    
+  - name: "integration"
+    description: "Integration & Regression Tests"
+    config_file: "integration_tests.yaml"
+    runner: "universal"
+    test_count: 15
+    enabled: true
+    
+  - name: "negative"
+    description: "Negative & Error Scenario Tests"
+    config_file: "negative_tests.yaml"
+    runner: "universal"
+    test_count: 30
+    enabled: true
+    
+  - name: "admin_entity"
+    description: "Admin Entity CRUD Tests"
+    config_file: "admin_entity_tests.yaml"
+    runner: "universal"
+    test_count: 63
+    enabled: true
+
+  - name: "workflow"
+    description: "Subscribe API Workflow Tests (from design docs)"
+    config_file: "workflow_tests.yaml"
+    runner: "universal"
+    test_count: 4
+    enabled: true
+
+  - name: "wf_np"
+    description: "NP Workflow Tests (WF-NP-00 to WF-NP-09)"
+    config_file: "wf_np_tests.yaml"
+    runner: "universal"
+    test_count: 10
+    enabled: true
+
+  - name: "wf_adm"
+    description: "Admin Workflow Tests (WF-ADM-01 to WF-ADM-15)"
+    config_file: "wf_adm_tests.yaml"
+    runner: "universal"
+    test_count: 15
+    enabled: true
+
+  - name: "wf_ops"
+    description: "Admin-Ops Workflow Tests (WF-OPS-01 to WF-OPS-08)"
+    config_file: "wf_ops_tests.yaml"
+    runner: "universal"
+    test_count: 8
+    enabled: true
+
+  - name: "wf_negative"
+    description: "Workflow Negative Tests - Error Reference Coverage (WF-ERR-01 to WF-ERR-12)"
+    config_file: "wf_negative_tests.yaml"
+    runner: "universal"
+    test_count: 12
+    enabled: true
+
+  - name: "admin_portal_service"
+    description: "Admin Portal Service Tests - RBAC, Audit, Pages, Groups, Registry Proxy"
+    config_file: "admin_portal_service_tests.yaml"
+    runner: "universal"
+    test_count: 35
+    enabled: true
+
+  - name: "admin_portal_auth_service"
+    description: "Admin Portal Auth Service Tests - Login, JWT, Profile, Password, User Management"
+    config_file: "admin_portal_auth_service_tests.yaml"
+    runner: "universal"
+    test_count: 31
+    enabled: true
+
+# Global configuration
+config:
+  # localhost for local testing
+  # base_url: "http://localhost:8080"
+  # gateway_url: "http://localhost:8081"
+  # dev environment
+  # base_url: "http://34.180.2.104"
+  # gateway_url: "http://34.180.2.105"
+  # staging environment
+  # base_url: "http://34.14.152.92"
+  # gateway_url: "http://34.14.152.93"
+  # uat environment
+  base_url: "https://registry-uat.kynondc.net"
+  # Gateway URL for POST /v2.0/lookup (served by ONDC Gateway, not registry).
+  # Falls back to base_url if not set.
+  gateway_url: "https://gateway-uat.kynondc.net"
+  # preprod environment
+  # base_url: "https://registry-preprod.ondc.org"
+  # gateway_url: "https://gateway-preprod.ondc.org"
+
+  # -----------------------------------------------------------------------
+  # Multi-URL comparison targets (used by: python run_tests.py compare)
+  # Each entry needs a unique label (shown in the report) and a url.
+  # Leave this list empty (or remove it) to rely on --url CLI flags instead.
+  # -----------------------------------------------------------------------
+  comparison_targets:
+    - label: "Local"
+      url: "http://localhost:8080"
+      gateway_url: "http://localhost:8081"
+    - label: "Dev"
+      url: "http://34.180.2.104"
+      gateway_url: "http://34.180.2.105"
+    - label: "Staging"
+      url: "https://registry-qa.kynondc.net"
+      gateway_url: "https://gateway-qa.kynondc.net"
+    - label: "UAT"
+      url: "https://registry-uat.kynondc.net"
+      gateway_url: "https://gateway-uat.kynondc.net"
+      auth_url: "https://admin-auth-uat.kynondc.net/api/auth/login"
+    - label: "preprod"
+      url: "https://registry-preprod.ondc.org"
+      gateway_url: "https://gateway-preprod.ondc.org"
+      auth_url: "https://admin-auth-preprod.ondc.org/api/auth/login"
+    # - label: "UAT 2"
+    #   url: "https://registry-uat.kynondc.net"
+
+
+
+  admin_username: "admin@ondc.org"
+  admin_password: "Admin@123"
+  # External auth service login URL. When set, login requests are sent here
+  # instead of {base_url}/admin/auth/login.
+  # auth_url: "https://authservice.kynondc.net/api/auth/login"
+  # UAT auth URL (for testing with UAT environment)
+  auth_url: "https://admin-auth-uat.kynondc.net/api/auth/login"
+  # Preprod auth URL (for testing with preprod environment) 
+  # auth_url: "https://admin-auth-preprod.ondc.org/api/auth/login"
+  
+  # Admin service URL for admin portal tests (NestJS service)
+  admin_service_url: "https://admin-service-uat.kynondc.net/api/v1"
+  # Local testing: http://localhost:3022/api/v1
+  
+  # Field names used in the login request payload.
+  # Internal default: username + password
+  # External auth service expects: email + password
+  auth_username_field: "email"
+  auth_password_field: "password"
+  # Key name of the token in the login response body.
+  # Internal default: "access_token". External auth service returns: "accessToken"
+  auth_token_field: "accessToken"
+  
+  # V3 API ED25519 Signature Authentication (UAT registered participant)
+  # These credentials are registered in UAT database and work with lookup API
+  v3_participant_id: "test-v3-lookup-working.participant.ondc"
+  v3_uk_id: "83b68b94-8fb9-44ad-bcd4-b0e89d741290"
+  v3_private_key_seed: "c190934de2c9aea71b47a31bacb8f002b0e4995c083cb457c0d58b9d6ba3670f"
+  v3_signing_public_key: "pyM58NGU8nnAXSPyUfm48Pt7gyg+0iTK7FdhRMSKkNs="
+  v3_encryption_public_key: "pyM58NGU8nnAXSPyUfm48Pt7gyg+0iTK7FdhRMSKkNs="
+  
+  default_timeout: 30
+
+  # Participant callback URL used for all test participants.
+  # Change this one value to redirect all test traffic to a different mock server.
+  participant_url: "https://seller-mock.kynondc.net"
+
+  # When true, the runner automatically injects dns_skip: true into every
+  # admin /subscribe POST and PATCH request, bypassing DNS TXT validation.
+  dns_skip: true
+  retry_on_failure: false
+  parallel_execution: false
+  continue_on_failure: true
+  
+# Test execution order (when running full suite)
+execution_order:
+  - "admin"        # Foundation tests first
+  - "v3"           # V3 operations
+  - "combined"     # Mixed workflows
+  - "workflow"     # Subscribe API workflow tests (from design docs)
+  - "integration"  # Integration tests
+  - "advanced"     # Complex scenarios (concurrency, performance)
+  - "wf_np"        # NP workflow tests (WF-NP-00 to WF-NP-09)
+  - "wf_adm"       # Admin workflow tests (WF-ADM-01 to WF-ADM-15)
+  - "wf_ops"       # Admin-Ops workflow tests (WF-OPS-01 to WF-OPS-07)
+  - "negative"     # Error scenarios
+  - "admin_entity" # Entity CRUD operations
+  - "admin_portal_service" # Admin portal service tests
+  - "admin_portal_auth_service" # Admin portal auth service tests
+
+# Output configuration
+output:
+  directory: "./output"
+  formats:
+    - "json"
+    - "html"
+    - "junit"
+  log_level: "INFO"
+  save_responses: true
+  save_failed_only: false
+
+# Performance thresholds
+performance:
+  max_response_time_ms: 2000
+  max_workflow_time_ms: 30000
+  max_batch_time_ms: 60000
+
+# Reporting
+reporting:
+  generate_summary: true
+  include_timestamps: true
+  include_request_details: true
+  include_response_bodies: true
+  screenshot_on_failure: false

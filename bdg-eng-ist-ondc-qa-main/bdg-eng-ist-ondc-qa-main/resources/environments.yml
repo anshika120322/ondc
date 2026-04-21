@@ -1,0 +1,21 @@
+environments: # Main key of the environments
+  myHelloWorldEnvironment: {} # Name of the environment, any value can be added here to be used in the tests
+  # Add any number of environments here
+  ondcEnv: {}
+  ondcReg: {}
+  ondcGW: {}
+  ondcGWSearch: {}
+  ondcAdminAuth: {}
+  ondcAdminUsers: {}
+  ondcAdminRbac: {}
+  ondcAdminAudit: {}
+  ondcAdminSecurity: {}
+  ondcAdminSecurityAdvanced: {}
+  ondcGatewaySearch: {}
+  ondcGatewayLookup: {}
+  ondcRegistry: {}
+  ondcRegistryV1Lookup: {}
+  ondcRegistryV1LookupProd: {}
+  ondcRegistryV2Lookup: {}
+  ondcRegistryV2LookupProd: {}
+  ondcRegistryV2LookupProd: {}

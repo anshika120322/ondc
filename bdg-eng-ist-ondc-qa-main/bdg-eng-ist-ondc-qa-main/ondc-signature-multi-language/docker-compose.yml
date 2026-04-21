@@ -1,0 +1,134 @@
+version: '3.8'
+
+services:
+  # Python Reference Implementation
+  python-signature:
+    build:
+      context: ./python
+      dockerfile: Dockerfile
+    container_name: ondc-python
+    volumes:
+      - ./python:/app
+      - ./shared:/shared
+      - ./reports:/reports
+    environment:
+      - TEST_DATA_PATH=/shared/test-credentials.json
+      - PAYLOADS_PATH=/shared/test-payloads.json
+    command: python test_signature.py
+    networks:
+      - ondc-network
+
+  # Java Implementation
+  java-signature:
+    build:
+      context: ./java
+      dockerfile: Dockerfile
+    container_name: ondc-java
+    volumes:
+      - ./java:/app
+      - ./shared:/shared
+      - ./reports:/reports
+    environment:
+      - TEST_DATA_PATH=/shared/test-credentials.json
+      - PAYLOADS_PATH=/shared/test-payloads.json
+    command: mvn test
+    networks:
+      - ondc-network
+
+  # Node.js Implementation
+  nodejs-signature:
+    build:
+      context: ./nodejs
+      dockerfile: Dockerfile
+    container_name: ondc-nodejs
+    volumes:
+      - ./nodejs:/app
+      - /app/node_modules
+      - ./shared:/shared
+      - ./reports:/reports
+    environment:
+      - TEST_DATA_PATH=/shared/test-credentials.json
+      - PAYLOADS_PATH=/shared/test-payloads.json
+    command: npm test
+    networks:
+      - ondc-network
+
+  # Go Implementation
+  golang-signature:
+    build:
+      context: ./golang
+      dockerfile: Dockerfile
+    container_name: ondc-golang
+    volumes:
+      - ./golang:/app
+      - ./shared:/shared
+      - ./reports:/reports
+    environment:
+      - TEST_DATA_PATH=/shared/test-credentials.json
+      - PAYLOADS_PATH=/shared/test-payloads.json
+    command: go test -v
+    networks:
+      - ondc-network
+
+  # PHP Implementation
+  php-signature:
+    build:
+      context: ./php
+      dockerfile: Dockerfile
+    container_name: ondc-php
+    volumes:
+      - ./php:/app
+      - ./shared:/shared
+      - ./reports:/reports
+    environment:
+      - TEST_DATA_PATH=/shared/test-credentials.json
+      - PAYLOADS_PATH=/shared/test-payloads.json
+    command: php test_signature.php
+    networks:
+      - ondc-network
+
+  # Ruby Implementation
+  ruby-signature:
+    build:
+      context: ./ruby
+      dockerfile: Dockerfile
+    container_name: ondc-ruby
+    volumes:
+      - ./ruby:/app
+      - ./shared:/shared
+      - ./reports:/reports
+    environment:
+      - TEST_DATA_PATH=/shared/test-credentials.json
+      - PAYLOADS_PATH=/shared/test-payloads.json
+    command: ruby test_signature.rb
+    networks:
+      - ondc-network
+
+  # Test Orchestrator (runs all tests and generates report)
+  test-orchestrator:
+    build:
+      context: ./test-orchestrator
+      dockerfile: Dockerfile
+    container_name: ondc-orchestrator
+    volumes:
+      - ./shared:/shared
+      - ./reports:/reports
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - TEST_DATA_PATH=/shared/test-credentials.json
+      - PAYLOADS_PATH=/shared/test-payloads.json
+      - REPORT_PATH=/reports/compatibility-report.html
+    depends_on:
+      - python-signature
+      - java-signature
+      - nodejs-signature
+      - golang-signature
+      - php-signature
+      - ruby-signature
+    command: python orchestrator.py
+    networks:
+      - ondc-network
+
+networks:
+  ondc-network:
+    driver: bridge

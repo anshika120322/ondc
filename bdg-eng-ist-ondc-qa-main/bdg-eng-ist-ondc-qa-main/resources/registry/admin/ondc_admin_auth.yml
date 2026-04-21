@@ -1,0 +1,87 @@
+
+ondcAdminAuth: # Environment name, selected with --environment flag (UAT)
+  host: "https://admin-auth-uat.kynondc.net/api" # UAT Auth Service with /api prefix
+  admin_service: "https://registry-uat.kynondc.net" # Registry Admin API (works with pre-configured token)
+  swagger_ui: "https://registry-uat.kynondc.net/api" # Swagger UI URL
+  
+  # Pre-configured Admin Token (Valid until April 10, 2026)
+  admin_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2MjFlZTZiYi0zMDc1LTQ2MTQtODMyNC1lMzJjZTUxYjZjMzkiLCJlbWFpbCI6InVhdC1hZG1pbkBvbmRjLnRlc3QiLCJyb2xlIjoiU1VQRVJfQURNSU4iLCJyb2xlSWQiOiJkYjJlNDYxOS0wNDQ2LTQ0YzItOTNlNi1mYWJkNGIxOTlmNDciLCJpYXQiOjE3NzMxOTc5OTgsImV4cCI6MTc3NTc4OTk5OH0.7I314fWUstN_xFdBGeI79CDpv3OOhHFXn723O2Tjl8E"
+  
+  users: # Test accounts for different roles (UAT)
+    # ONDC Admin / Super Admin - Has full access to all APIs
+    ondc_admin:
+      email: "uat-admin@ondc.test"
+      password: "admin123"
+      role: "SUPER_ADMIN"
+    
+    # Domain Admin - Using SUPER_ADMIN for now (separate domain admin not available)
+    # In production, this would be a separate user with limited permissions
+    domain_admin:
+      email: "uat-admin@ondc.test"  # Same as SUPER_ADMIN for UAT testing
+      password: "admin123"
+      role: "SUPER_ADMIN"  # Will test as if it's domain admin
+    
+    # Subscriber Admin - Using SUPER_ADMIN for now (separate subscriber admin not available)
+    # In production, this would be a separate user with limited permissions
+    subscriber_admin:
+      email: "uat-admin@ondc.test"  # Same as SUPER_ADMIN for UAT testing
+      password: "admin123"
+      role: "SUPER_ADMIN"  # Will test as if it's subscriber admin
+  
+  # Test data for negative test cases
+  test_data:
+    invalid_email: "nonexistent@example.com"
+    invalid_password: "WrongPassword@123"
+    weak_password: "weak"
+    new_password: "NewSecure@456"
+    
+  # Rate limiting settings (for reference)
+  rate_limit:
+    max_requests_per_minute: 60
+    
+  # Session timeout settings (for reference)
+  session:
+    access_token_expiry_minutes: 30
+    refresh_token_expiry_days: 7
+    inactivity_timeout_minutes: 30
+    account_lockout_attempts: 5
+    lockout_duration_minutes: 15
+
+ondcAdminAuthLocal: # Local Environment (for development)
+  host: "http://localhost:3000/api/v1" # Base API URL
+  swagger_ui: "http://localhost:3000/api" # Swagger UI URL (for reference)
+  
+  users: # Test accounts for different roles
+    super_admin:
+      email: "super@admin.com"
+      password: "SuperSecure@123"
+      role: "SUPER_ADMIN"
+    
+    admin:
+      email: "admin@example.com"
+      password: "AdminPass@123"
+      role: "ADMIN"
+    
+    operator:
+      email: "operator@example.com"
+      password: "OperatorPass@123"
+      role: "OPERATOR"
+  
+  # Test data for negative test cases
+  test_data:
+    invalid_email: "nonexistent@example.com"
+    invalid_password: "WrongPassword@123"
+    weak_password: "weak"
+    new_password: "NewSecure@456"
+    
+  # Rate limiting settings (for reference)
+  rate_limit:
+    max_requests_per_minute: 10
+    
+  # Session timeout settings (for reference)
+  session:
+    access_token_expiry_minutes: 15
+    refresh_token_expiry_days: 7
+    inactivity_timeout_minutes: 15
+    account_lockout_attempts: 5
+    lockout_duration_minutes: 15

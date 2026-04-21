@@ -1,0 +1,162 @@
+# ONDC Registry Lookup API - Negative Test Configuration
+# Used for TC-001 onwards: Negative scenarios
+# V3 Lookup Endpoint: /v3.0/lookup (matching functional tests)
+
+ondcRegistry:
+
+  # Base URL for Registry API (UAT Lookup Server)
+  host: "https://registry-uat.kynondc.net"
+
+  # Admin API Authentication (for admin lookup endpoint)
+  admin_username: "<admin-user>"
+  admin_password: "admin"
+
+  # V2/V3 API ED25519 Signature Authentication
+  # Using registered participant with valid credentials
+  participant_id: "futuresoftmsnprod.clouddeploy.in"
+  uk_id: "5d080661-182e-4302-be9f-9e8f3ed1ebe1"
+
+  # ED25519 Private Key Seed (32 bytes hex)
+  private_key_seed: "f1adec7bfabf2da168ad388a98816e0534a26a3f2068ecfa19ae184fa35e46df"
+
+  # ED25519 Public Keys (base64 encoded RAW 32-byte keys)
+  signing_public_key: "VXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+  encryption_public_key: "VXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+
+  # Default valid payload
+  default_lookup_payload:
+    country: "IND"
+    type: "BPP"
+  
+  # Lookup Variations
+  lookup_types:
+    - "BPP"
+    - "BAP"
+    - "BG"
+    - "REGISTRY"
+  
+  countries:
+    - "IND"
+  
+  # Domain variations
+  domains:
+    - "ONDC:RET10"
+    - "ONDC:RET11"
+    - "ONDC:LOG10"
+  
+  # City variations
+  cities:
+    - "std:080"
+    - "std:011"
+  
+  # Network participant types
+  np_types:
+    - "buyer"
+    - "seller"
+    - "logistics"
+
+  # Invalid auth scenarios for authentication testing
+  invalid_auth:
+
+    expired_signature: 'Signature keyId="participant-0.participant.ondc|af0000bd-062f-444b-85aa-9e63f79fd4bc|ed25519", algorithm="ed25519", created="1770956556", expires="1770956656", headers="(created) (expires) digest", signature="EXPIRED_SIGNATURE"'
+
+    invalid_signature: 'Signature keyId="participant-4.participant.ondc|8bcd4d70-4f68-4eae-ad80-f471a6515b87|ed25519", algorithm="ed25519", created="1770975579", expires="1770975679", headers="(created) (expires) digest", signature="INVALID_SIGNATURE"'
+
+    subscriber_not_found: 'Signature keyId="invalid.participant.ondc|invalid|ed25519", algorithm="ed25519", created="1770956822", expires="1770956922", headers="(created) (expires) digest", signature="INVALID"'
+
+    valid_signature: 'Signature keyId="participant-1.participant.ondc|valid|ed25519", algorithm="ed25519", created="1770975751", expires="1770975851", headers="(created) (expires) digest", signature="VALID_SIGNATURE"'
+
+  # Invalid algorithm scenarios - SERVER BUG: These should fail but currently pass!
+  # Expected behavior: Server should reject any algorithm other than valid values (ed25519, rsa-sha256)
+  invalid_algorithms:
+    # Test with random string values
+    algorithm_mango:
+      description: "Invalid algorithm='mango' should be rejected"
+      expected_status: 401
+      expected_message: "Invalid algorithm"
+      test_algorithm: "mango"
+    
+    algorithm_banana:
+      description: "Invalid algorithm='banana' should be rejected"
+      expected_status: 401
+      expected_message: "Invalid algorithm"
+      test_algorithm: "banana"
+    
+    algorithm_banaa:
+      description: "Invalid algorithm='banaa' should be rejected (typo of banana)"
+      expected_status: 401
+      expected_message: "Invalid algorithm"
+      test_algorithm: "banaa"
+    
+    algorithm_random_123:
+      description: "Invalid algorithm='random123' should be rejected"
+      expected_status: 401
+      expected_message: "Invalid algorithm"
+      test_algorithm: "random123"
+    
+    algorithm_empty:
+      description: "Empty algorithm value should be rejected"
+      expected_status: 401
+      expected_message: "Invalid algorithm"
+      test_algorithm: ""
+    
+    algorithm_sha1:
+      description: "Weak algorithm='sha1' should be rejected"
+      expected_status: 401
+      expected_message: "Invalid algorithm"
+      test_algorithm: "sha1"
+    
+    algorithm_md5:
+      description: "Weak algorithm='md5' should be rejected"
+      expected_status: 401
+      expected_message: "Invalid algorithm"
+      test_algorithm: "md5"
+
+  # Valid algorithms that should be accepted
+  valid_algorithms:
+    - "ed25519"
+    - "rsa-sha256"
+
+  # Invalid headers field scenarios
+  invalid_headers_field:
+    headers_missing_digest:
+      description: "Missing 'digest' in headers field should fail"
+      expected_status: 401
+      test_headers_value: "(created) (expires)"
+    
+    headers_wrong_order:
+      description: "Wrong order of headers should be validated"
+      expected_status: 401
+      test_headers_value: "digest (created) (expires)"
+    
+    headers_extra_fields:
+      description: "Extra unnecessary fields in headers"
+      expected_status: 401
+      test_headers_value: "(created) (expires) digest (invalid)"
+    
+    headers_empty:
+      description: "Empty headers field should fail"
+      expected_status: 401
+      test_headers_value: ""
+
+  # Invalid payload scenarios for validation testing
+  invalid_payloads:
+    missing_country:
+      type: "BPP"
+    
+    missing_type:
+      country: "IND"
+    
+    invalid_country:
+      country: "INVALID"
+      type: "BPP"
+    
+    invalid_type:
+      country: "IND"
+      type: "INVALID_TYPE"
+    
+    empty_payload: {}
+
+  request_timeout: 30
+
+  enable_detailed_logging: true

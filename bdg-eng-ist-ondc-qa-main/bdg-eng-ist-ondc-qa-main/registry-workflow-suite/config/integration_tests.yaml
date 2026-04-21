@@ -1,0 +1,761 @@
+# Integration Tests - System-Level Testing
+# Tests authentication, database, cross-component, and system behaviors
+# Focus: Integration points, not individual features
+
+test_suite:
+  name: "Integration Tests"
+  category: "integration"
+  total_tests: 15
+  description: "System-level integration testing covering authentication, database transactions, cross-feature interactions, and performance scenarios"
+
+config:
+  default_timeout: 60
+  retry_on_failure: false
+
+# ==================================================================
+# SECTION 1: AUTHENTICATION & AUTHORIZATION INTEGRATION (4 tests)
+# ==================================================================
+
+tests:
+  - id: "INT01"
+    name: "Admin JWT authentication flow"
+    description: "Test complete Admin authentication with JWT token generation and validation"
+    steps:
+      - name: "Admin login with credentials"
+        method: "POST"
+        endpoint: "{{auth_url}}"
+        auth_type: "none"
+        data:
+          email: "admin@ondc.org"
+          password: "Admin@123"
+        expected_status: 200
+        save_token: true
+      
+      - name: "use JWT TOKEN to LIST all participants"
+        method: "GET"
+        endpoint: "/admin/participants"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "data.0.participant_id"
+            exists: true
+
+  - id: "INT02"
+    name: "V3 ONDC signature authentication flow"
+    description: "Test complete V3 authentication with Ed25519 signature validation"
+    steps:
+      - name: "V3 request with ONDC signature"
+        method: "POST"
+        endpoint: "/v3.0/subscribe"
+        auth_type: "v3"
+        data:
+          request_id: "{{request_id}}"
+          uk_id: "{{uk_id}}"
+          participant_id: "{{subscriber_id}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+            
+        validate_signature: true
+        expected_status: [200, 400]
+
+  - id: "INT03"
+    name: "Cross-API authentication isolation"
+    description: "Verify admin JWT cannot access V3 endpoints and vice versa"
+    steps:
+      - name: "Admin login"
+        method: "POST"
+        endpoint: "/admin/login"
+        auth_type: "none"
+        data:
+          username: "{{admin_username}}"
+          password: "{{admin_password}}"
+        expected_status: 200
+        save_token: true
+      
+      - name: "Try admin JWT on V3 endpoint (should fail)"
+        method: "POST"
+        endpoint: "/v3.0/subscribe"
+        auth_type: "admin"
+        data:
+          request_id: "{{request_id}}"
+          participant_id: "{{subscriber_id}}"
+        expected_status: [401, 403]
+
+  - id: "INT04"
+    name: "Token expiration and refresh flow"
+    description: "Test JWT token expiration handling"
+    steps:
+      - name: "Admin login"
+        method: "POST"
+        endpoint: "/admin/login"
+        auth_type: "none"
+        data:
+          username: "{{admin_username}}"
+          password: "{{admin_password}}"
+        expected_status: 200
+        save_token: true
+      
+      - name: "Make authenticated request"
+        method: "GET"
+        endpoint: "/admin/participants"
+        auth_type: "admin"
+        expected_status: 200
+
+# ==================================================================
+# SECTION 2: DATABASE & TRANSACTION INTEGRATION (4 tests)
+# ==================================================================
+
+  - id: "INT05"
+    name: "Participant creation with transaction rollback on error"
+    description: "Test database transaction integrity on partial failure"
+    steps:
+      - name: "Attempt participant creation with invalid data"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "test_rollback_{{timestamp}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "invalid_cred"
+              type: "INVALID_TYPE"
+              cred_data: {}
+        expected_status: [400, 422]
+      
+      - name: "Verify participant was not created"
+        method: "GET"
+        endpoint: "/admin/participants"
+        auth_type: "admin"
+        validate:
+          - field: "participants"
+            not_contains: "test_rollback"
+
+  - id: "INT06"
+    name: "Concurrent participant updates"
+    description: "Test database locking and concurrent update handling"
+    concurrent: true
+    steps:
+      - name: "Create participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "concurrent_test_{{timestamp}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_int06"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "INT06 Concurrent Test"
+          contacts:
+            - contact_id: "contact_auth_int06"
+              type: "AUTHORISED_SIGNATORY"
+              name: "INT06 Auth"
+              email: "int06@example.com"
+              phone: "+919876543000"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_int06"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_int06"
+            type: "CALLBACK"
+            url: "https://int06.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "concurrent_test_{{timestamp}}"
+              location_id: "loc_int06"
+              uri_id: "uri_int06"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+      
+      - name: "Concurrent update from Admin"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        concurrent: true
+        data:
+          participant_id: "concurrent_test_{{timestamp}}"
+          action: "INACTIVE"
+        expected_status: [200, 409]
+      
+      - name: "Concurrent update from V3"
+        method: "PATCH"
+        endpoint: "/v3.0/subscribe"
+        auth_type: "v3"
+        concurrent: true
+        data:
+          request_id: "{{request_id}}"
+          participant_id: "concurrent_test_{{timestamp}}"
+          uk_id: "{{uk_id}}"
+          contacts:
+            - contact_id: "contact_auth_int06"
+              type: "AUTHORISED_SIGNATORY"
+              name: "INT06 Auth Updated"
+              email: "int06-updated@example.com"
+              phone: "+919123456000"
+        expected_status: [200, 409]
+
+  - id: "INT07"
+    name: "Entity cascade operations"
+    description: "Test cascade delete/update of related entities"
+    steps:
+      - name: "Create participant with multiple entities"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "cascade_test_{{timestamp}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_int07"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "INT07 Cascade Test"
+          contacts:
+            - contact_id: "contact_auth_int07"
+              type: "AUTHORISED_SIGNATORY"
+              name: "INT07 Auth"
+              email: "int07@example.com"
+              phone: "+919876543001"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_int07"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_int07"
+            type: "CALLBACK"
+            url: "https://int07.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "cascade_test_{{timestamp}}"
+              location_id: "loc_int07"
+              uri_id: "uri_int07"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+      
+      - name: "Delete participant"
+        method: "DELETE"
+        endpoint: "/admin/participants/cascade_test_{{timestamp}}"
+        auth_type: "admin"
+        expected_status: 200
+      
+      - name: "Verify all entities deleted"
+        method: "GET"
+        endpoint: "/admin/participants/cascade_test_{{timestamp}}"
+        auth_type: "admin"
+        expected_status: 404
+
+  - id: "INT08"
+    name: "Multi-config transaction integrity"
+    description: "Test transaction rollback on multi-config creation failure"
+    steps:
+      - name: "Create participant with multiple configs, one invalid"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "multi_config_{{timestamp}}"
+          action: "SUBSCRIBED"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "multi_config_{{timestamp}}"
+            - domain: "INVALID_DOMAIN"
+              np_type: "BPP"
+              subscriber_id: "multi_config_{{timestamp}}"
+        expected_status: [400, 422]
+      
+      - name: "Verify no configs were created"
+        method: "GET"
+        endpoint: "/admin/participants"
+        auth_type: "admin"
+        validate:
+          - field: "participants"
+            not_contains: "multi_config"
+
+# ==================================================================
+# SECTION 3: CROSS-FEATURE INTEGRATION (4 tests)
+# ==================================================================
+
+  - id: "INT09"
+    name: "DNS validation integration with subscription"
+    description: "Test DNS validation during V3 subscription process"
+    steps:
+      - name: "Admin whitelists participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "{{subscriber_id}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+        expected_status: 200
+      
+      - name: "V3 subscribe with DNS validation"
+        method: "POST"
+        endpoint: "/v3.0/subscribe"
+        auth_type: "v3"
+        query_params:
+          dns_skip: "false"
+        data:
+          request_id: "{{request_id}}"
+          uk_id: "{{uk_id}}"
+          participant_id: "{{subscriber_id}}"
+          credentials:
+            - cred_id: "cred_gst_int09"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "INT09 DNS Test"
+          contacts:
+            - contact_id: "contact_auth_int09"
+              type: "AUTHORISED_SIGNATORY"
+              name: "INT09 Auth"
+              email: "int09@example.com"
+              phone: "+919876543002"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_int09"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_int09"
+            type: "CALLBACK"
+            url: "{{participant_url}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "{{subscriber_id}}"
+              location_id: "loc_int09"
+              uri_id: "uri_int09"
+              key_id: "{{uk_id}}"
+        expected_status: [200, 400]
+
+  - id: "INT10"
+    name: "Cache invalidation across participant updates"
+    description: "Test cache consistency when participant data changes"
+    steps:
+      - name: "Create participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "cache_test_{{timestamp}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_int10"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "INT10 Cache Test"
+          contacts:
+            - contact_id: "contact_auth_int10"
+              type: "AUTHORISED_SIGNATORY"
+              name: "INT10 Auth"
+              email: "int10@example.com"
+              phone: "+919876543003"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_int10"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_int10"
+            type: "CALLBACK"
+            url: "https://cache-test.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "cache_test_{{timestamp}}"
+              location_id: "loc_int10"
+              uri_id: "uri_int10"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+      
+      - name: "Read participant (should cache)"
+        method: "GET"
+        endpoint: "/admin/participants/cache_test_{{timestamp}}"
+        auth_type: "admin"
+        expected_status: 200
+      
+      - name: "Update participant"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "cache_test_{{timestamp}}"
+          contacts:
+            - contact_id: "contact_auth_int10"
+              type: "AUTHORISED_SIGNATORY"
+              name: "INT10 Auth Updated"
+              email: "int10-updated@example.com"
+              phone: "+919123456003"
+        expected_status: 200
+      
+      - name: "Read participant again (should see update)"
+        method: "GET"
+        endpoint: "/admin/participants/cache_test_{{timestamp}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "contacts[0].name"
+            value: "INT10 Auth Updated"
+
+  - id: "INT11"
+    name: "Status transition validation integration"
+    description: "Test cross-component status validation rules"
+    steps:
+      - name: "Create WHITELISTED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "status_test_{{timestamp}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "status_test_{{timestamp}}"
+        expected_status: 200
+      
+      - name: "Try direct jump to SUSPENDED (should fail)"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "status_test_{{timestamp}}"
+          action: "SUSPENDED"
+        expected_status: [400, 422]
+      
+      - name: "Transition to SUBSCRIBED first"
+        method: "POST"
+        endpoint: "/v3.0/subscribe"
+        auth_type: "v3"
+        data:
+          request_id: "{{request_id}}"
+          uk_id: "{{uk_id}}"
+          participant_id: "status_test_{{timestamp}}"
+          credentials:
+            - cred_id: "cred_gst_int11"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "INT11 Status Test"
+          contacts:
+            - contact_id: "contact_auth_int11"
+              type: "AUTHORISED_SIGNATORY"
+              name: "INT11 Auth"
+              email: "int11@example.com"
+              phone: "+919876543004"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_int11"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_int11"
+            type: "CALLBACK"
+            url: "https://status-test.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "status_test_{{timestamp}}"
+              location_id: "loc_int11"
+              uri_id: "uri_int11"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+      
+      - name: "Now suspend (should work)"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "status_test_{{timestamp}}"
+          action: "SUSPENDED"
+        expected_status: 200
+      
+      - name: "Verify participant is SUSPENDED after status transition"
+        method: "GET"
+        endpoint: "/admin/configs/participant/status_test_{{timestamp}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "0.status"
+            value: "SUSPENDED"
+
+  - id: "INT12"
+    name: "Audit log integration across operations"
+    description: "Test audit trail creation for all participant operations"
+    steps:
+      - name: "Create participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "audit_test_{{timestamp}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_int12"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "INT12 Audit Test"
+          contacts:
+            - contact_id: "contact_auth_int12"
+              type: "AUTHORISED_SIGNATORY"
+              name: "INT12 Auth"
+              email: "int12@example.com"
+              phone: "+919876543005"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_int12"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_int12"
+            type: "CALLBACK"
+            url: "https://audit-test.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "audit_test_{{timestamp}}"
+              location_id: "loc_int12"
+              uri_id: "uri_int12"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+      
+      - name: "Update participant"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "audit_test_{{timestamp}}"
+          action: "INACTIVE"
+        expected_status: 200
+      
+      - name: "Check audit logs exist"
+        method: "GET"
+        endpoint: "/admin/audit/participant/audit_test_{{timestamp}}"
+        auth_type: "admin"
+        expected_status: 200
+        validate:
+          - field: "logs"
+            min_count: 2
+
+# ==================================================================
+# SECTION 4: PERFORMANCE & LOAD INTEGRATION (3 tests)
+# ==================================================================
+
+  - id: "INT13"
+    name: "Bulk participant creation performance"
+    description: "Test system performance with batch participant creation"
+    batch_size: 10
+    steps:
+      - name: "Create 10 participants in batch"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        batch: 10
+        data:
+          participant_id: "bulk_{{batch_index}}_{{timestamp}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_bulk_{{batch_index}}"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "Bulk Test {{batch_index}}"
+          contacts:
+            - contact_id: "contact_auth_bulk_{{batch_index}}"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Bulk Auth {{batch_index}}"
+              email: "bulk{{batch_index}}@example.com"
+              phone: "+919876540{{batch_index}}"
+          key:
+            uk_id: "uk_bulk_{{batch_index}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_bulk_{{batch_index}}"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_bulk_{{batch_index}}"
+            type: "CALLBACK"
+            url: "https://bulk{{batch_index}}.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "bulk_{{batch_index}}_{{timestamp}}"
+              location_id: "loc_bulk_{{batch_index}}"
+              uri_id: "uri_bulk_{{batch_index}}"
+              key_id: "uk_bulk_{{batch_index}}"
+        expected_status: 200
+        max_response_time_ms: 5000
+
+  - id: "INT14"
+    name: "Participant search performance with filters"
+    description: "Test search/filter performance with large dataset"
+    steps:
+      - name: "Search participants by domain"
+        method: "GET"
+        endpoint: "/admin/participants"
+        auth_type: "admin"
+        query_params:
+          domain: "ONDC:RET1A"
+          status: "SUBSCRIBED"
+          limit: 100
+        expected_status: 200
+        max_response_time_ms: 3000
+      
+      - name: "Search participants by np_type"
+        method: "GET"
+        endpoint: "/admin/participants"
+        auth_type: "admin"
+        query_params:
+          np_type: "BPP"
+          limit: 100
+        expected_status: 200
+        max_response_time_ms: 3000
+
+  - id: "INT15"
+    name: "Concurrent V3 subscription requests"
+    description: "Test system stability under concurrent V3 requests"
+    concurrent: true
+    concurrent_count: 5
+    steps:
+      - name: "Setup: Admin whitelists 5 participants"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        batch: 5
+        data:
+          participant_id: "concurrent_v3_{{batch_index}}_{{timestamp}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "concurrent_v3_{{batch_index}}_{{timestamp}}"
+        expected_status: 200
+      
+      - name: "Concurrent V3 subscriptions"
+        method: "POST"
+        endpoint: "/v3.0/subscribe"
+        auth_type: "v3"
+        concurrent: true
+        concurrent_count: 5
+        data:
+          request_id: "{{request_id}}_{{concurrent_index}}"
+          uk_id: "uk_conc_{{concurrent_index}}"
+          participant_id: "concurrent_v3_{{concurrent_index}}_{{timestamp}}"
+          credentials:
+            - cred_id: "cred_gst_conc_{{concurrent_index}}"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "Concurrent {{concurrent_index}}"
+          contacts:
+            - contact_id: "contact_auth_conc_{{concurrent_index}}"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Conc Auth {{concurrent_index}}"
+              email: "conc{{concurrent_index}}@example.com"
+              phone: "+919876540{{concurrent_index}}"
+          key:
+            uk_id: "uk_conc_{{concurrent_index}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_conc_{{concurrent_index}}"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_conc_{{concurrent_index}}"
+            type: "CALLBACK"
+            url: "https://conc{{concurrent_index}}.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "concurrent_v3_{{concurrent_index}}_{{timestamp}}"
+              location_id: "loc_conc_{{concurrent_index}}"
+              uri_id: "uri_conc_{{concurrent_index}}"
+              key_id: "uk_conc_{{concurrent_index}}"
+        expected_status: 200
+        max_response_time_ms: 5000

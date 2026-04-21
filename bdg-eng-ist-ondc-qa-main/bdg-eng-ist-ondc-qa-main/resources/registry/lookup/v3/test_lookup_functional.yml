@@ -1,0 +1,85 @@
+# ONDC Registry Lookup API - Functional Test Configuration
+# Used for TC-01 onwards: Positive Lookup scenarios
+#
+# V3 Lookup Status: ✅ WORKING
+# - Participant registered as SUBSCRIBED in shared database
+# - UAT lookup server with V3 ED25519 authentication
+# - V1 lookup also available
+#
+# Infrastructure:
+#   35.200.145.160:8080 → UAT Lookup Server (V1 /lookup, V3 /v3.0/lookup)
+#   Shared Database → Participants visible across services
+
+ondcRegistry:
+  # Base URL for Registry API (UAT Lookup Server)
+  host: "https://registry-uat.kynondc.net"
+  
+  # Admin API Authentication (for admin lookup endpoint)
+  admin_username: "admin@ondc.org"  # UAT admin email (matching registry-workflow-suite working credentials)
+  admin_password: "Admin@123"  # UAT admin password (matching registry-workflow-suite working credentials)
+  admin_auth_url: "https://admin-auth-uat.kynondc.net/api/auth/login"
+  
+  # V3 API ED25519 Signature Authentication
+  # Using freshly generated test participant with matching keys
+  participant_id: "test-v3-lookup-working.participant.ondc"
+  uk_id: "83b68b94-8fb9-44ad-bcd4-b0e89d741290"
+  
+  # ED25519 Private Key Seed (32 bytes hex) - FRESHLY GENERATED, MATCHING
+  private_key_seed: "c190934de2c9aea71b47a31bacb8f002b0e4995c083cb457c0d58b9d6ba3670f"
+  
+  # ED25519 Public Keys (base64 encoded RAW 32-byte keys) - MATCHES PRIVATE KEY
+  signing_public_key: "pyM58NGU8nnAXSPyUfm48Pt7gyg+0iTK7FdhRMSKkNs="
+  encryption_public_key: "pyM58NGU8nnAXSPyUfm48Pt7gyg+0iTK7FdhRMSKkNs="
+  
+  # Invalid Authentication Headers for Negative Tests
+  invalid_auth:
+    invalid_signature: "Signature keyId=\"test-v3-lookup-working.participant.ondc|83b68b94-8fb9-44ad-bcd4-b0e89d741290|ed25519\",algorithm=\"ed25519\",created=\"1708964400\",expires=\"1708964700\",headers=\"(created) (expires) digest\",signature=\"INVALID_SIGNATURE_BASE64==\""
+    expired_signature: "Signature keyId=\"test-v3-lookup-working.participant.ondc|83b68b94-8fb9-44ad-bcd4-b0e89d741290|ed25519\",algorithm=\"ed25519\",created=\"1640000000\",expires=\"1640000300\",headers=\"(created) (expires) digest\",signature=\"EXPIRED_SIGNATURE_BASE64==\""
+    subscriber_not_found: "Signature keyId=\"nonexistent.participant.ondc|fake-uk-id|ed25519\",algorithm=\"ed25519\",created=\"1708964400\",expires=\"1708964700\",headers=\"(created) (expires) digest\",signature=\"FAKE_SIGNATURE_BASE64==\""
+  
+  # Lookup API Configuration
+  default_lookup_payload:
+    country: "IND"
+    type: "BPP"
+  
+  # Lookup Variations
+  lookup_types:
+    - "BPP"
+    - "BAP"
+    - "BG"
+    - "REGISTRY"
+  
+  countries:
+    - "IND"
+  
+  # Domain variations for testing
+  domains:
+    - "ONDC:RET10"
+    - "ONDC:RET11"
+    - "ONDC:RET12"
+    - "ONDC:LOG10"
+  
+  # City variations for testing
+  cities:
+    - "std:080"
+    - "std:011"
+    - "std:022"
+    - "std:040"
+  
+  # Network participant types
+  np_types:
+    - "buyer"
+    - "seller"
+    - "logistics"
+  
+  # Test participant IDs (for specific lookups) - using actual registered participants
+  test_participants:
+    - "futuresoftmsnprod.clouddeploy.in"
+    - "prod-bridge.sellersetu.in/ondc/happypay"
+    - "prod-sellerapp.shiprocket.com"
+  
+  # Request Configuration
+  request_timeout: 30
+  
+  # Logging Configuration
+  enable_detailed_logging: true

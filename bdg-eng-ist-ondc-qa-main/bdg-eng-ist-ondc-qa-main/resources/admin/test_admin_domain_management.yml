@@ -1,0 +1,191 @@
+# ============================================================================
+# ONDC Admin Service - Domain Validation Tests via /admin/subscribe
+# ============================================================================
+# Purpose: Test domain validation and management within participant registration
+# Coverage: Valid domains, invalid formats, non-existent domains, multi-domain, updates
+# Test Cases: DM-001 to DM-006
+# Note: Tests domain handling via /admin/subscribe (actual working endpoint)
+# ============================================================================
+
+ondcAdminAuth:
+  # Authentication service (for login)
+  auth_host: https://admin-auth-uat.kynondc.net
+  auth_base_url: https://admin-auth-uat.kynondc.net/api
+  login_endpoint: /auth/login
+  
+  # Registry service (for /admin/subscribe operations)
+  host: https://registry-uat.kynondc.net
+  base_url: https://registry-uat.kynondc.net
+  subscribe_endpoint: /admin/subscribe
+  
+  # Admin credentials for testing
+  admin_credentials:
+    email: uat-admin@ondc.test
+    password: AdminSecure@123
+  
+  # Pre-configured admin token (valid until April 10, 2026)
+  # Use this if login fails - token from ADMIN_CREDENTIALS_FOR_TESTING.txt
+  admin_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2MjFlZTZiYi0zMDc1LTQ2MTQtODMyNC1lMzJjZTUxYjZjMzkiLCJlbWFpbCI6InVhdC1hZG1pbkBvbmRjLnRlc3QiLCJyb2xlIjoiU1VQRVJfQURNSU4iLCJyb2xlSWQiOiJkYjJlNDYxOS0wNDQ2LTQ0YzItOTNlNi1mYWJkNGIxOTlmNDciLCJpYXQiOjE3NzMxOTc5OTgsImV4cCI6MTc3NTc4OTk5OH0.7I314fWUstN_xFdBGeI79CDpv3OOhHFXn723O2Tjl8E"
+  
+  # Test data for domain validation via /admin/subscribe
+  test_participants:
+    valid_domain:
+      domain: "ONDC:RET10"  # Known valid retail domain
+      np_type: "BPP"
+      action: "WHITELISTED"
+    
+    invalid_format:
+      domain: "INVALID_DOMAIN"  # Does not match ONDC:XXXnn pattern
+      np_type: "BPP"
+      action: "WHITELISTED"
+    
+    nonexistent_domain:
+      domain: "ONDC:XXX99"  # Valid format but non-existent domain
+      np_type: "BPP"
+      action: "WHITELISTED"
+    
+    multi_domain:
+      domains:
+        - "ONDC:RET10"
+        - "ONDC:RET11"
+        - "ONDC:LOG10"
+      np_type: "BPP"
+      action: "WHITELISTED"
+  
+  # Expected error codes
+  error_codes:
+    ERR_400: "Bad request - invalid domain format"
+    ERR_401: "Unauthorized - missing or invalid token"
+    ERR_404: "Domain not found"
+
+# Test suite configuration
+test_suite:
+  name: "Domain Validation Tests via /admin/subscribe"
+  description: "Test domain validation in participant registration"
+  total_tests: 6
+  category: "admin"
+  
+test_cases:
+  - id: DM-001
+    name: "Create participant with valid domain"
+    description: "POST /admin/subscribe - Register participant with valid retail domain ONDC:RET10"
+    method: POST
+    endpoint: /admin/subscribe
+    auth_required: true
+    expected_status: 200
+    test_type: positive
+    notes:
+      - "Validates that ONDC:RET10 is a valid domain"
+      - "Participant should be created in WHITELISTED status"
+      - "Domain should be accepted in configs array"
+  
+  - id: DM-002
+    name: "Reject invalid domain format"
+    description: "POST /admin/subscribe - Reject domain not matching ONDC:XXXnn pattern"
+    method: POST
+    endpoint: /admin/subscribe
+    auth_required: true
+    expected_status: [400, 422]
+    test_type: negative
+    expected_error:
+      code: ["ERR_400", "ERR_102"]
+      message_contains: "domain"
+    notes:
+      - "Domain format 'INVALID_DOMAIN' does not match ONDC:XXXnn pattern"
+      - "Should reject with validation error before database insert"
+      - "Error message should indicate invalid domain format"
+  
+  - id: DM-003
+    name: "Reject non-existent domain code"
+    description: "POST /admin/subscribe - Reject valid format but non-existent domain ONDC:XXX99"
+    method: POST
+    endpoint: /admin/subscribe
+    auth_required: true
+    expected_status: [400, 404]
+    test_type: negative
+    expected_error:
+      code: ["ERR_404", "ERR_400"]
+      message_contains: "domain"
+    notes:
+      - "ONDC:XXX99 has valid pattern but domain doesn't exist"
+      - "Should validate domain exists in system"
+      - "Should return appropriate error code (404 or 400)"
+  
+  - id: DM-004
+    name: "Create participant with multiple valid domains"
+    description: "POST /admin/subscribe - Register participant across 3 domains (RET10, RET11, LOG10)"
+    method: POST
+    endpoint: /admin/subscribe
+    auth_required: true
+    expected_status: 200
+    test_type: positive
+    validation:
+      - "All 3 domains should be accepted"
+      - "configs array should contain exactly 3 entries"
+      - "Each domain should have proper structure"
+    notes:
+      - "Tests multi-domain participant registration"
+      - "Validates that participant can operate across multiple domains"
+      - "All domains should be valid and active"
+  
+  - id: DM-005
+    name: "Add domains to existing participant"
+    description: "PATCH /admin/subscribe - Update participant to add ONDC:LOG11 to existing domains"
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_required: true
+    expected_status: 200
+    test_type: positive
+    setup_required: true
+    notes:
+      - "First creates participant with ONDC:RET10"
+      - "Then PATCH to add ONDC:LOG11 to configs"
+      - "Validates dynamic domain addition"
+  
+  - id: DM-006
+    name: "Remove domains from participant"
+    description: "PATCH /admin/subscribe - Update participant to remove one domain from multi-domain config"
+    method: PATCH
+    endpoint: /admin/subscribe
+    auth_required: true
+    expected_status: 200
+    test_type: positive
+    setup_required: true
+    notes:
+      - "First creates participant with 3 domains"
+      - "Then PATCH with reduced configs array (2 domains)"
+      - "Validates domain removal functionality"
+
+# Validation rules
+validation_rules:
+  domain_code_format:
+    pattern: "^ONDC:[A-Z]{3}[0-9]{2}$"
+    examples:
+      - "ONDC:RET10"
+      - "ONDC:LOG10"
+      - "ONDC:AGR10"
+    invalid_examples:
+      - "INVALID"
+      - "ONDC:retail"
+      - "ONDC:RET1"
+  
+  response_structure:
+    success_response:
+      required_fields:
+        - "success"
+        - "data"
+      data_fields:
+        - "domain_code"
+        - "description"
+        - "active"
+        - "created_at"
+        - "updated_at"
+    
+    error_response:
+      required_fields:
+        - "success"
+        - "error"
+      error_fields:
+        - "code"
+        - "type"
+        - "message"

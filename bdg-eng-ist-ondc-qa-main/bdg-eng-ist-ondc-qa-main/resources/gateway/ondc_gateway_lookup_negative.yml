@@ -1,0 +1,22 @@
+
+ondcGatewayLookup: # Environment name for all Gateway Lookup tests
+  host: "http://35.244.48.178:8080" # Lookup API URL
+  lookup_host: "http://35.244.48.178:8080"
+  core_version: "1.2.0"
+  
+  # NOTE: Lookup API does not require authentication credentials
+  
+  # Test domains (minimal for negative tests)
+  domains:
+    - "ONDC:RET10"  # Grocery
+    - "ONDC:RET11"  # F&B
+  
+  # Test cities (minimal for negative tests)
+  cities:
+    - "std:080"  # Bangalore
+    - "std:022"  # Mumbai
+  
+  # Test configuration
+  test_config:
+    request_timeout_seconds: 10
+    max_retries: 3

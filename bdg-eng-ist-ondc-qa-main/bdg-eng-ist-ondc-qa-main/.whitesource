@@ -1,0 +1,23 @@
+{
+  "scanSettings": {
+    "configMode": "AUTO",
+    "enableLicenseViolations": false,
+    "enableReachability": false
+  },
+  "checkRunSettings": {
+    "vulnerableCheckRunConclusionLevel": "success",
+    "licenseCheckRunConclusionLevel": "success",
+    "displayMode": "diff",
+    "strictMode": "false",
+    "useMendCheckNames": true
+  },
+  "issueSettings": {
+    "minSeverityLevel": "CRITICAL",
+    "onlyNew": true,
+    "failOnNewVulnerabilities": false
+  },
+  "remediateSettings": {
+    "enableRenovate": false,
+    "extends": []
+  }
+}

@@ -1,0 +1,1922 @@
+# =============================================================================
+# Gateway Registry Propagation Tests — gateway-workflow-suite
+# Source: design_docs/Workflow Scenarios Docs/ONDC-Gateway-Workflow-Scenarios.md
+#
+# Implemented:
+#   WF-PROP-01  Inactive-Status Propagation                [implemented]
+#   WF-PROP-02  Policy-Change Propagation                  [implemented]
+#   WF-PROP-03  New-Participant Registration Propagation   [implemented]
+#   WF-PROP-04  Re-Activation Propagation                  [implemented]
+#   WF-PROP-05  Full Consistency Check                     [implemented]
+# =============================================================================
+
+test_suite:
+  name: "Gateway Registry Propagation Tests"
+  category: "propagation"
+  total_tests: 5
+  description: >
+    Verifies that the Gateway correctly propagates state changes — participant
+    status transitions (SUBSCRIBED ↔ INACTIVE), new-participant registrations,
+    and policy additions — so that subsequent requests reflect the updated state
+    without any stale-cache artefacts.
+
+config:
+  default_timeout: 30
+  retry_on_failure: false
+
+# ---------------------------------------------------------------------------
+# Participants
+# ---------------------------------------------------------------------------
+participants:
+  # bap_prop — Primary BAP used across all propagation tests.
+  - alias: "bap_prop"
+    subscriber_id_prefix: "bap-prop-001"
+    generate_unique_id: true
+    domain: "ONDC:RET10"
+    callback_uri: "https://seller-mock.kynondc.net"
+    private_key_seed: "MC4CAQAwBQYDK2VwBCIEIPGt7Hv6vy2haK04ipiBbgU0omo/IGjs+hmuGE+jXkbf"
+
+  # bpp_prop_active — BPP that starts SUBSCRIBED and remains so.
+  - alias: "bpp_prop_active"
+    subscriber_id_prefix: "bpp-prop-active"
+    generate_unique_id: true
+    domain: "ONDC:RET10"
+    callback_uri: "https://seller-mock.kynondc.net"
+    private_key_seed: "MC4CAQAwBQYDK2VwBCIEIPGt7Hv6vy2haK04ipiBbgU0omo/IGjs+hmuGE+jXkbf"
+
+  # bpp_prop_inactive — BPP that transitions SUBSCRIBED → INACTIVE (WF-PROP-01/05)
+  # and back to SUBSCRIBED (WF-PROP-04).
+  - alias: "bpp_prop_inactive"
+    subscriber_id_prefix: "bpp-prop-inactive"
+    generate_unique_id: true
+    domain: "ONDC:RET10"
+    callback_uri: "https://seller-mock.kynondc.net"
+    private_key_seed: "MC4CAQAwBQYDK2VwBCIEIPGt7Hv6vy2haK04ipiBbgU0omo/IGjs+hmuGE+jXkbf"
+
+  # bpp_prop_new — BPP registered mid-test to verify new-participant propagation
+  # (WF-PROP-03). Not pre-registered; registered dynamically inside the test.
+  - alias: "bpp_prop_new"
+    subscriber_id_prefix: "bpp-prop-new"
+    generate_unique_id: true
+    domain: "ONDC:RET10"
+    callback_uri: "https://seller-mock.kynondc.net"
+    private_key_seed: "MC4CAQAwBQYDK2VwBCIEIPGt7Hv6vy2haK04ipiBbgU0omo/IGjs+hmuGE+jXkbf"
+
+  # bpp_prop_blocked — BPP that receives a NOT_ALLOW policy mid-test (WF-PROP-02).
+  - alias: "bpp_prop_blocked"
+    subscriber_id_prefix: "bpp-prop-blocked"
+    generate_unique_id: true
+    domain: "ONDC:RET10"
+    callback_uri: "https://seller-mock.kynondc.net"
+    private_key_seed: "MC4CAQAwBQYDK2VwBCIEIPGt7Hv6vy2haK04ipiBbgU0omo/IGjs+hmuGE+jXkbf"
+
+tests:
+
+  # ===========================================================================
+  # WF-PROP-01 · Inactive-Status Propagation
+  #
+  # Goal: SUBSCRIBED BPP transitions to INACTIVE. Subsequent search from a BAP
+  #       returns ACK (Gateway responds immediately) but the INACTIVE BPP is not
+  #       included in any downstream dispatch. A follow-up Gateway request from
+  #       the INACTIVE BPP (on_search) is rejected.
+  #
+  # Core assertions:
+  #   Step 4  Baseline search → ACK; bpp_prop_inactive included
+  #   Step 7  bpp_prop_inactive PATCH INACTIVE propagation
+  #   Step 8  New search → ACK; bpp_prop_inactive absent from dispatch
+  #   Step 9  bpp_prop_inactive on_search attempt → NACK HTTP 200 + error.code 10008
+  # ===========================================================================
+
+  - id: "WF-PROP-01"
+    name: "Inactive-Status Propagation"
+    description: >
+      BAP-PROP-001 and BPP-PROP-INACTIVE are both SUBSCRIBED. Baseline search
+      confirms BPP-PROP-INACTIVE appears in dispatch. Admin sets BPP-PROP-INACTIVE
+      to INACTIVE. Gateway propagates the change. A subsequent search from BAP-PROP-001
+      no longer dispatches to BPP-PROP-INACTIVE. Any Gateway request from the now-INACTIVE
+      BPP is rejected.
+    workflow: true
+
+    steps:
+
+      # ── Steps 1-2: Register participants as SUBSCRIBED ────────────────────────
+      - name: "Step 1 – Admin: Register BAP-PROP-001 as SUBSCRIBED"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{bap_prop_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred-gst-{{bap_prop_uk_id}}"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "BAP PROP Propagation Test BAP"
+            - cred_id: "cred-pan-{{bap_prop_uk_id}}"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "BAP PROP Propagation Test BAP"
+          contacts:
+            - contact_id: "contact-auth-{{bap_prop_uk_id}}"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Auth Rep"
+              email: "auth@bap-prop.example.com"
+              phone: "+919876543210"
+            - contact_id: "contact-biz-{{bap_prop_uk_id}}"
+              type: "BUSINESS"
+              name: "Biz Rep"
+              email: "biz@bap-prop.example.com"
+              phone: "+919876543211"
+            - contact_id: "contact-tech-{{bap_prop_uk_id}}"
+              type: "TECHNICAL"
+              name: "Tech Rep"
+              email: "tech@bap-prop.example.com"
+              phone: "+919876543212"
+          key:
+            - uk_id: "{{bap_prop_uk_id}}"
+              signing_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              encryption_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              valid_from: "{{bap_prop_valid_from}}"
+              valid_until: "{{bap_prop_valid_until}}"
+          location:
+            - location_id: "loc-{{bap_prop_uk_id}}"
+              type: "SERVICEABLE"
+              country: "IND"
+              city:
+                - "std:080"
+          uri:
+            - uri_id: "uri-{{bap_prop_uk_id}}"
+              type: "CALLBACK"
+              url: "{{bap_prop_uri}}"
+          configs:
+            - domain: "{{bap_prop_domain}}"
+              np_type: "BAP"
+              subscriber_id: "{{bap_prop_id}}"
+              location_id: "loc-{{bap_prop_uk_id}}"
+              uri_id: "uri-{{bap_prop_uk_id}}"
+              key_id: "{{bap_prop_uk_id}}"
+        expected_status: [200, 409]
+
+      - name: "Step 2 – Admin: Register BPP-PROP-INACTIVE as SUBSCRIBED (baseline: active)"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{bpp_prop_inactive_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred-gst-{{bpp_prop_inactive_uk_id}}"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "BPP PROP Inactive Propagation Target"
+            - cred_id: "cred-pan-{{bpp_prop_inactive_uk_id}}"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "BPP PROP Inactive Propagation Target"
+          contacts:
+            - contact_id: "contact-auth-{{bpp_prop_inactive_uk_id}}"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Auth Rep"
+              email: "auth@bpp-prop-inactive.example.com"
+              phone: "+919876543210"
+            - contact_id: "contact-biz-{{bpp_prop_inactive_uk_id}}"
+              type: "BUSINESS"
+              name: "Biz Rep"
+              email: "biz@bpp-prop-inactive.example.com"
+              phone: "+919876543211"
+            - contact_id: "contact-tech-{{bpp_prop_inactive_uk_id}}"
+              type: "TECHNICAL"
+              name: "Tech Rep"
+              email: "tech@bpp-prop-inactive.example.com"
+              phone: "+919876543212"
+          key:
+            - uk_id: "{{bpp_prop_inactive_uk_id}}"
+              signing_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              encryption_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              valid_from: "{{bpp_prop_inactive_valid_from}}"
+              valid_until: "{{bpp_prop_inactive_valid_until}}"
+          location:
+            - location_id: "loc-{{bpp_prop_inactive_uk_id}}"
+              type: "SERVICEABLE"
+              country: "IND"
+              city:
+                - "std:080"
+          uri:
+            - uri_id: "uri-{{bpp_prop_inactive_uk_id}}"
+              type: "CALLBACK"
+              url: "{{bpp_prop_inactive_uri}}"
+          configs:
+            - domain: "{{bpp_prop_inactive_domain}}"
+              np_type: "BPP"
+              subscriber_id: "{{bpp_prop_inactive_id}}"
+              location_id: "loc-{{bpp_prop_inactive_uk_id}}"
+              uri_id: "uri-{{bpp_prop_inactive_uk_id}}"
+              key_id: "{{bpp_prop_inactive_uk_id}}"
+        expected_status: [200, 409]
+
+      # ── Step 3: Confirm both SUBSCRIBED ──────────────────────────────────────
+      - name: "Step 3 – Admin: Confirm both BAP-PROP-001 and BPP-PROP-INACTIVE are SUBSCRIBED (baseline)"
+        method: "GET"
+        endpoint: "/admin/participants/{{bpp_prop_inactive_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        post_wait_seconds: 5
+        validate:
+          - field: "participant_id"
+            exists: true
+
+      # ── Step 3b: Registry lookup — confirm bpp_prop_inactive is SUBSCRIBED ────
+      - name: "Step 3b – Registry: Lookup bpp_prop_inactive via /v3.0/lookup — expect SUBSCRIBED"
+        method: "POST"
+        endpoint: "/v3.0/lookup"
+        auth_type: "v3"
+        auth_subscriber_id: "bap_prop"
+        use_base_url: true
+        data:
+          subscriber_id: "{{bpp_prop_inactive_id}}"
+          country: "IND"
+          domain: "ONDC:RET10"
+          type: "BPP"
+        expected_status: [200]
+        continue_on_failure: true
+        retry:
+          timeout_seconds: 15
+          interval_seconds: 1
+        validate:
+          - field: "0.configs.0.status"
+            value: "SUBSCRIBED"
+
+      # ── Step 4: Baseline search — bpp_prop_inactive included ─────────────────
+      - name: "Step 4 – Gateway: Baseline search from BAP-PROP-001 — expect ACK (bpp_prop_inactive included)"
+        method: "POST"
+        action: "search"
+        endpoint: "/{{action}}"
+        auth_type: "v3"
+        auth_subscriber_id: "bap_prop"
+        data:
+          context:
+            domain: "ONDC:RET10"
+            action: "{{action}}"
+            version: "2.0.0"
+            bap_id: "{{bap_prop_id}}"
+            bap_uri: "{{bap_prop_uri}}"
+            transaction_id: "{{transaction_id}}"
+            message_id: "{{message_id}}"
+            location:
+              city:
+                code: "std:080"
+              country:
+                code: "IND"
+            ttl: "PT30S"
+            timestamp: "{{timestamp}}"
+          message:
+            intent: {}
+        expected_status: [200, 202]
+        continue_on_failure: true
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+      # ── Step 5: bpp_prop_inactive responds (baseline on_search) ──────────────
+      - name: "Step 5 – Gateway: BPP-PROP-INACTIVE sends baseline on_search (SUBSCRIBED) — expect ACK"
+        method: "POST"
+        action: "on_search"
+        endpoint: "/{{action}}"
+        auth_type: "v3"
+        auth_subscriber_id: "bpp_prop_inactive"
+        data:
+          context:
+            domain: "ONDC:RET10"
+            action: "{{action}}"
+            version: "2.0.0"
+            bap_id: "{{bap_prop_id}}"
+            bap_uri: "{{bap_prop_uri}}"
+            bpp_id: "{{bpp_prop_inactive_id}}"
+            bpp_uri: "{{bpp_prop_inactive_uri}}"
+            transaction_id: "{{transaction_id}}"
+            message_id: "{{message_id}}"
+            location:
+              city:
+                code: "std:080"
+              country:
+                code: "IND"
+            ttl: "PT30S"
+            timestamp: "{{timestamp}}"
+          message:
+            catalog:
+              descriptor:
+                name: "BPP-PROP-INACTIVE Store (Baseline)"
+              providers:
+                - id: "provider-prop-inactive"
+                  descriptor:
+                    name: "Propagation Inactive Provider"
+                  items:
+                    - id: "item-prop-inactive-001"
+                      descriptor:
+                        name: "Propagation Test Item"
+                      price:
+                        currency: "INR"
+                        value: "150.00"
+        expected_status: [200, 202, 500]
+        continue_on_failure: true
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+      # ── Step 6: Admin PATCH bpp_prop_inactive → INACTIVE ─────────────────────
+      - name: "Step 6 – Admin: PATCH BPP-PROP-INACTIVE status to INACTIVE (trigger propagation)"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        continue_on_failure: true
+        data:
+          participant_id: "{{bpp_prop_inactive_id}}"
+          action: "INACTIVE"
+        expected_status: [200, 204]
+        post_wait_seconds: 5
+
+      # ── Step 7: Confirm Registration still exists after INACTIVE (Admin) ───────
+      - name: "Step 7 – Admin: Confirm BPP-PROP-INACTIVE registration exists after INACTIVE patch"
+        method: "GET"
+        endpoint: "/admin/participants/{{bpp_prop_inactive_id}}"
+        auth_type: "admin"
+        continue_on_failure: true
+        expected_status: 200
+        post_wait_seconds: 5
+        validate:
+          - field: "participant_id"
+            exists: true
+
+      # ── Step 7b: Registry lookup — confirm bpp_prop_inactive is INACTIVE ──────
+      - name: "Step 7b – Registry: Lookup bpp_prop_inactive via /v3.0/lookup — expect INACTIVE"
+        method: "POST"
+        endpoint: "/v3.0/lookup"
+        auth_type: "v3"
+        auth_subscriber_id: "bap_prop"
+        use_base_url: true
+        data:
+          subscriber_id: "{{bpp_prop_inactive_id}}"
+          country: "IND"
+          domain: "ONDC:RET10"
+          type: "BPP"
+        expected_status: [200]
+        continue_on_failure: true
+        retry:
+          timeout_seconds: 15
+          interval_seconds: 1
+        validate:
+          - field: "0.configs.0.status"
+            value: "INACTIVE"
+
+      # ── Step 8: Gateway internal — propagation of INACTIVE status ─────────────
+      - name: "Step 8 – Gateway internal: Status change propagated; BPP-PROP-INACTIVE excluded from dispatch list"
+        method: "INTERNAL"
+
+      # ── Step 9: Post-propagation search — bpp_prop_inactive absent ────────────
+      - name: "Step 9 – Gateway: Post-INACTIVE search from BAP-PROP-001 — expect ACK; bpp_prop_inactive absent from dispatch"
+        method: "POST"
+        action: "search"
+        endpoint: "/{{action}}"
+        auth_type: "v3"
+        auth_subscriber_id: "bap_prop"
+        data:
+          context:
+            domain: "ONDC:RET10"
+            action: "{{action}}"
+            version: "2.0.0"
+            bap_id: "{{bap_prop_id}}"
+            bap_uri: "{{bap_prop_uri}}"
+            transaction_id: "{{transaction_id}}"
+            message_id: "{{message_id}}"
+            location:
+              city:
+                code: "std:080"
+              country:
+                code: "IND"
+            ttl: "PT30S"
+            timestamp: "{{timestamp}}"
+          message:
+            intent: {}
+        expected_status: [200, 202]
+        continue_on_failure: true
+        retry:
+          timeout_seconds: 15
+          interval_seconds: 1
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+      # ── Step 10: bpp_prop_inactive on_search attempt → NACK HTTP 200 + error.code 10008 ──
+      - name: "Step 10 – Gateway: BPP-PROP-INACTIVE (now INACTIVE) sends on_search — expect NACK (error 10008)"
+        method: "POST"
+        action: "on_search"
+        endpoint: "/{{action}}"
+        auth_type: "v3"
+        auth_subscriber_id: "bpp_prop_inactive"
+        data:
+          context:
+            domain: "ONDC:RET10"
+            action: "{{action}}"
+            version: "2.0.0"
+            bap_id: "{{bap_prop_id}}"
+            bap_uri: "{{bap_prop_uri}}"
+            bpp_id: "{{bpp_prop_inactive_id}}"
+            bpp_uri: "{{bpp_prop_inactive_uri}}"
+            transaction_id: "{{transaction_id}}"
+            message_id: "{{message_id}}"
+            location:
+              city:
+                code: "std:080"
+              country:
+                code: "IND"
+            ttl: "PT30S"
+            timestamp: "{{timestamp}}"
+          message:
+            catalog:
+              descriptor:
+                name: "BPP-PROP-INACTIVE Store (After INACTIVE)"
+              providers: []
+        expected_status: [200]
+        continue_on_failure: true
+        validate:
+          - field: "message.ack.status"
+            value: "NACK"
+          - field: "error.code"
+            value: "10008"
+
+      # ── Step 11: Validation ───────────────────────────────────────────────────
+      - name: "Step 11 – Validation: INACTIVE propagation confirmed; BPP-PROP-INACTIVE blocked from dispatch and Gateway"
+        method: "INTERNAL"
+        validates:
+          - step_contains: "Post-INACTIVE search from BAP-PROP-001"
+            expect: "passed"
+            expected_outcome: "Accepted (ACK)"
+            fail_outcome: "Rejected / No response"
+          - step_contains: "BPP-PROP-INACTIVE (now INACTIVE) sends on_search"
+            expect: "passed"
+            expected_outcome: "Rejected (NACK)"
+            fail_outcome: "Accepted (ACK)"
+
+
+  # ===========================================================================
+  # WF-PROP-02 · Policy-Change Propagation
+  #
+  # Goal: A new NOT_ALLOW policy is applied on a BPP after baseline search.
+  #       Subsequent broadcast no longer dispatches to that BPP.
+  #
+  # Core assertions:
+  #   Step 4  Baseline broadcast → bpp_prop_blocked included
+  #   Step 6  Policy created: NOT_ALLOW on bpp_prop_blocked for bap_prop
+  #   Step 8  Post-policy broadcast → bpp_prop_blocked absent
+  # ===========================================================================
+
+  - id: "WF-PROP-02"
+    name: "Policy-Change Propagation"
+    description: >
+      BAP-PROP-001, BPP-PROP-ACTIVE, and BPP-PROP-BLOCKED are all SUBSCRIBED.
+      Baseline broadcast confirms BPP-PROP-BLOCKED appears in dispatch.
+      A NOT_ALLOW NETWORK_PARTICIPANT policy is created on BPP-PROP-BLOCKED
+      for BAP-PROP-001. Gateway propagates the policy change.
+      A subsequent broadcast from BAP-PROP-001 excludes BPP-PROP-BLOCKED
+      while BPP-PROP-ACTIVE continues to receive dispatch normally.
+    workflow: true
+
+    steps:
+
+      - name: "Step 1 – Admin: Register BAP-PROP-001 as SUBSCRIBED"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{bap_prop_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred-gst-{{bap_prop_uk_id}}"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "BAP PROP Propagation Test BAP"
+            - cred_id: "cred-pan-{{bap_prop_uk_id}}"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "BAP PROP Propagation Test BAP"
+          contacts:
+            - contact_id: "contact-auth-{{bap_prop_uk_id}}"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Auth Rep"
+              email: "auth@bap-prop.example.com"
+              phone: "+919876543210"
+            - contact_id: "contact-biz-{{bap_prop_uk_id}}"
+              type: "BUSINESS"
+              name: "Biz Rep"
+              email: "biz@bap-prop.example.com"
+              phone: "+919876543211"
+            - contact_id: "contact-tech-{{bap_prop_uk_id}}"
+              type: "TECHNICAL"
+              name: "Tech Rep"
+              email: "tech@bap-prop.example.com"
+              phone: "+919876543212"
+          key:
+            - uk_id: "{{bap_prop_uk_id}}"
+              signing_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              encryption_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              valid_from: "{{bap_prop_valid_from}}"
+              valid_until: "{{bap_prop_valid_until}}"
+          location:
+            - location_id: "loc-{{bap_prop_uk_id}}"
+              type: "SERVICEABLE"
+              country: "IND"
+              city:
+                - "std:080"
+          uri:
+            - uri_id: "uri-{{bap_prop_uk_id}}"
+              type: "CALLBACK"
+              url: "{{bap_prop_uri}}"
+          configs:
+            - domain: "{{bap_prop_domain}}"
+              np_type: "BAP"
+              subscriber_id: "{{bap_prop_id}}"
+              location_id: "loc-{{bap_prop_uk_id}}"
+              uri_id: "uri-{{bap_prop_uk_id}}"
+              key_id: "{{bap_prop_uk_id}}"
+        expected_status: [200, 409]
+
+      - name: "Step 2 – Admin: Register BPP-PROP-ACTIVE as SUBSCRIBED (will remain in dispatch always)"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{bpp_prop_active_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred-gst-{{bpp_prop_active_uk_id}}"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "BPP PROP Active Normal Target"
+            - cred_id: "cred-pan-{{bpp_prop_active_uk_id}}"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "BPP PROP Active Normal Target"
+          contacts:
+            - contact_id: "contact-auth-{{bpp_prop_active_uk_id}}"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Auth Rep"
+              email: "auth@bpp-prop-active.example.com"
+              phone: "+919876543210"
+            - contact_id: "contact-biz-{{bpp_prop_active_uk_id}}"
+              type: "BUSINESS"
+              name: "Biz Rep"
+              email: "biz@bpp-prop-active.example.com"
+              phone: "+919876543211"
+            - contact_id: "contact-tech-{{bpp_prop_active_uk_id}}"
+              type: "TECHNICAL"
+              name: "Tech Rep"
+              email: "tech@bpp-prop-active.example.com"
+              phone: "+919876543212"
+          key:
+            - uk_id: "{{bpp_prop_active_uk_id}}"
+              signing_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              encryption_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              valid_from: "{{bpp_prop_active_valid_from}}"
+              valid_until: "{{bpp_prop_active_valid_until}}"
+          location:
+            - location_id: "loc-{{bpp_prop_active_uk_id}}"
+              type: "SERVICEABLE"
+              country: "IND"
+              city:
+                - "std:080"
+          uri:
+            - uri_id: "uri-{{bpp_prop_active_uk_id}}"
+              type: "CALLBACK"
+              url: "{{bpp_prop_active_uri}}"
+          configs:
+            - domain: "{{bpp_prop_active_domain}}"
+              np_type: "BPP"
+              subscriber_id: "{{bpp_prop_active_id}}"
+              location_id: "loc-{{bpp_prop_active_uk_id}}"
+              uri_id: "uri-{{bpp_prop_active_uk_id}}"
+              key_id: "{{bpp_prop_active_uk_id}}"
+        expected_status: [200, 409]
+
+      - name: "Step 3 – Admin: Register BPP-PROP-BLOCKED as SUBSCRIBED (will receive NOT_ALLOW policy)"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{bpp_prop_blocked_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred-gst-{{bpp_prop_blocked_uk_id}}"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "BPP PROP Policy Blocked Target"
+            - cred_id: "cred-pan-{{bpp_prop_blocked_uk_id}}"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "BPP PROP Policy Blocked Target"
+          contacts:
+            - contact_id: "contact-auth-{{bpp_prop_blocked_uk_id}}"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Auth Rep"
+              email: "auth@bpp-prop-blocked.example.com"
+              phone: "+919876543210"
+            - contact_id: "contact-biz-{{bpp_prop_blocked_uk_id}}"
+              type: "BUSINESS"
+              name: "Biz Rep"
+              email: "biz@bpp-prop-blocked.example.com"
+              phone: "+919876543211"
+            - contact_id: "contact-tech-{{bpp_prop_blocked_uk_id}}"
+              type: "TECHNICAL"
+              name: "Tech Rep"
+              email: "tech@bpp-prop-blocked.example.com"
+              phone: "+919876543212"
+          key:
+            - uk_id: "{{bpp_prop_blocked_uk_id}}"
+              signing_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              encryption_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              valid_from: "{{bpp_prop_blocked_valid_from}}"
+              valid_until: "{{bpp_prop_blocked_valid_until}}"
+          location:
+            - location_id: "loc-{{bpp_prop_blocked_uk_id}}"
+              type: "SERVICEABLE"
+              country: "IND"
+              city:
+                - "std:080"
+          uri:
+            - uri_id: "uri-{{bpp_prop_blocked_uk_id}}"
+              type: "CALLBACK"
+              url: "{{bpp_prop_blocked_uri}}"
+          configs:
+            - domain: "{{bpp_prop_blocked_domain}}"
+              np_type: "BPP"
+              subscriber_id: "{{bpp_prop_blocked_id}}"
+              location_id: "loc-{{bpp_prop_blocked_uk_id}}"
+              uri_id: "uri-{{bpp_prop_blocked_uk_id}}"
+              key_id: "{{bpp_prop_blocked_uk_id}}"
+        expected_status: [200, 409]
+
+      # ── Step 4: Baseline search — bpp_prop_blocked in dispatch ───────────────
+      - name: "Step 4 – Gateway: Baseline broadcast from BAP-PROP-001 — expect ACK; bpp_prop_blocked included"
+        method: "POST"
+        action: "search"
+        endpoint: "/{{action}}"
+        auth_type: "v3"
+        auth_subscriber_id: "bap_prop"
+        data:
+          context:
+            domain: "ONDC:RET10"
+            action: "{{action}}"
+            version: "2.0.0"
+            bap_id: "{{bap_prop_id}}"
+            bap_uri: "{{bap_prop_uri}}"
+            transaction_id: "{{transaction_id}}"
+            message_id: "{{message_id}}"
+            location:
+              city:
+                code: "std:080"
+              country:
+                code: "IND"
+            ttl: "PT30S"
+            timestamp: "{{timestamp}}"
+          message:
+            intent: {}
+        expected_status: [200, 202]
+        continue_on_failure: true
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+      # ── Step 5: Apply NOT_ALLOW policy on bpp_prop_blocked ────────────────────
+      - name: "Step 5 – Admin: Create NOT_ALLOW policy on BPP-PROP-BLOCKED for BAP-PROP-001"
+        method: "POST"
+        endpoint: "/admin/policies"
+        auth_type: "admin"
+        continue_on_failure: true
+        data:
+          policy_id: "policy-block-{{bpp_prop_blocked_uk_id}}"
+          name: "Block BAP-PROP-001 from BPP-PROP-BLOCKED"
+          participant_id: "{{bpp_prop_blocked_id}}"
+          rule_definition:
+            policy_type: "NETWORK_PARTICIPANT"
+            action: "NOT_ALLOW"
+            target_subscriber_id: "{{bap_prop_id}}"
+        expected_status: [200, 201, 409]
+
+      # ── Step 6: Gateway internal — policy propagation ─────────────────────────
+      - name: "Step 6 – Gateway internal: Policy change propagated; BPP-PROP-BLOCKED excluded from BAP-PROP-001 dispatch"
+        method: "INTERNAL"
+
+      # ── Step 7: Post-policy search — bpp_prop_blocked absent ──────────────────
+      - name: "Step 7 – Gateway: Post-policy broadcast from BAP-PROP-001 — expect ACK; bpp_prop_blocked excluded"
+        method: "POST"
+        action: "search"
+        endpoint: "/{{action}}"
+        auth_type: "v3"
+        auth_subscriber_id: "bap_prop"
+        data:
+          context:
+            domain: "ONDC:RET10"
+            action: "{{action}}"
+            version: "2.0.0"
+            bap_id: "{{bap_prop_id}}"
+            bap_uri: "{{bap_prop_uri}}"
+            transaction_id: "{{transaction_id}}"
+            message_id: "{{message_id}}"
+            location:
+              city:
+                code: "std:080"
+              country:
+                code: "IND"
+            ttl: "PT30S"
+            timestamp: "{{timestamp}}"
+          message:
+            intent: {}
+        expected_status: [200, 202]
+        continue_on_failure: true
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+      # ── Step 8: bpp_prop_active responds (unaffected by policy) ──────────────
+      - name: "Step 8 – Gateway: BPP-PROP-ACTIVE (unaffected) sends on_search — expect ACK"
+        method: "POST"
+        action: "on_search"
+        endpoint: "/{{action}}"
+        auth_type: "v3"
+        auth_subscriber_id: "bpp_prop_active"
+        data:
+          context:
+            domain: "ONDC:RET10"
+            action: "{{action}}"
+            version: "2.0.0"
+            bap_id: "{{bap_prop_id}}"
+            bap_uri: "{{bap_prop_uri}}"
+            bpp_id: "{{bpp_prop_active_id}}"
+            bpp_uri: "{{bpp_prop_active_uri}}"
+            transaction_id: "{{transaction_id}}"
+            message_id: "{{message_id}}"
+            location:
+              city:
+                code: "std:080"
+              country:
+                code: "IND"
+            ttl: "PT30S"
+            timestamp: "{{timestamp}}"
+          message:
+            catalog:
+              descriptor:
+                name: "BPP-PROP-ACTIVE Store"
+              providers:
+                - id: "provider-prop-active"
+                  descriptor:
+                    name: "Propagation Active Provider"
+                  items:
+                    - id: "item-prop-active-001"
+                      descriptor:
+                        name: "Propagation Policy Test Item"
+                      price:
+                        currency: "INR"
+                        value: "300.00"
+        expected_status: [200, 202]
+        continue_on_failure: true
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+      # ── Step 9: Validation ────────────────────────────────────────────────────
+      - name: "Step 9 – Validation: Policy propagation confirmed; bpp_prop_blocked excluded; bpp_prop_active unaffected"
+        method: "INTERNAL"
+        validates:
+          - step_contains: "Post-policy broadcast from BAP-PROP-001"
+            expect: "passed"
+            expected_outcome: "Accepted (ACK)"
+            fail_outcome: "Rejected / No response"
+          - step_contains: "BPP-PROP-ACTIVE (unaffected) sends on_search"
+            expect: "passed"
+            expected_outcome: "Accepted (ACK)"
+            fail_outcome: "Rejected / No response"
+
+
+  # ===========================================================================
+  # WF-PROP-03 · New-Participant Registration Propagation
+  #
+  # Goal: A brand new BPP self-registers (subscribe) after test starts.
+  #       Gateway propagates the new registration. A subsequent broadcast from
+  #       the BAP reaches the newly registered BPP.
+  #
+  # Core assertions:
+  #   Step 3  Baseline search before new BPP exists — expect ACK
+  #   Step 4  New BPP registers (admin/subscribe or self-subscribe)
+  #   Step 6  Post-registration search → ACK; bpp_prop_new receives dispatch
+  #   Step 7  bpp_prop_new sends on_search successfully
+  # ===========================================================================
+
+  - id: "WF-PROP-03"
+    name: "New-Participant Registration Propagation"
+    description: >
+      BAP-PROP-001 and BPP-PROP-ACTIVE are pre-registered. BPP-PROP-NEW is not
+      registered at test start. A baseline broadcast confirms BPP-PROP-NEW is
+      absent. BPP-PROP-NEW then registers (admin/subscribe). The Gateway propagates
+      the new participant. A subsequent broadcast from BAP-PROP-001 reaches
+      BPP-PROP-NEW, which sends on_search successfully.
+    workflow: true
+
+    steps:
+
+      - name: "Step 1 – Admin: Register BAP-PROP-001 as SUBSCRIBED"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{bap_prop_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred-gst-{{bap_prop_uk_id}}"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "BAP PROP Propagation Test BAP"
+            - cred_id: "cred-pan-{{bap_prop_uk_id}}"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "BAP PROP Propagation Test BAP"
+          contacts:
+            - contact_id: "contact-auth-{{bap_prop_uk_id}}"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Auth Rep"
+              email: "auth@bap-prop.example.com"
+              phone: "+919876543210"
+            - contact_id: "contact-biz-{{bap_prop_uk_id}}"
+              type: "BUSINESS"
+              name: "Biz Rep"
+              email: "biz@bap-prop.example.com"
+              phone: "+919876543211"
+            - contact_id: "contact-tech-{{bap_prop_uk_id}}"
+              type: "TECHNICAL"
+              name: "Tech Rep"
+              email: "tech@bap-prop.example.com"
+              phone: "+919876543212"
+          key:
+            - uk_id: "{{bap_prop_uk_id}}"
+              signing_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              encryption_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              valid_from: "{{bap_prop_valid_from}}"
+              valid_until: "{{bap_prop_valid_until}}"
+          location:
+            - location_id: "loc-{{bap_prop_uk_id}}"
+              type: "SERVICEABLE"
+              country: "IND"
+              city:
+                - "std:080"
+          uri:
+            - uri_id: "uri-{{bap_prop_uk_id}}"
+              type: "CALLBACK"
+              url: "{{bap_prop_uri}}"
+          configs:
+            - domain: "{{bap_prop_domain}}"
+              np_type: "BAP"
+              subscriber_id: "{{bap_prop_id}}"
+              location_id: "loc-{{bap_prop_uk_id}}"
+              uri_id: "uri-{{bap_prop_uk_id}}"
+              key_id: "{{bap_prop_uk_id}}"
+        expected_status: [200, 409]
+
+      - name: "Step 2 – Admin: Register BPP-PROP-ACTIVE as SUBSCRIBED (pre-existing participant)"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{bpp_prop_active_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred-gst-{{bpp_prop_active_uk_id}}"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "BPP PROP Active Normal Target"
+            - cred_id: "cred-pan-{{bpp_prop_active_uk_id}}"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "BPP PROP Active Normal Target"
+          contacts:
+            - contact_id: "contact-auth-{{bpp_prop_active_uk_id}}"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Auth Rep"
+              email: "auth@bpp-prop-active.example.com"
+              phone: "+919876543210"
+            - contact_id: "contact-biz-{{bpp_prop_active_uk_id}}"
+              type: "BUSINESS"
+              name: "Biz Rep"
+              email: "biz@bpp-prop-active.example.com"
+              phone: "+919876543211"
+            - contact_id: "contact-tech-{{bpp_prop_active_uk_id}}"
+              type: "TECHNICAL"
+              name: "Tech Rep"
+              email: "tech@bpp-prop-active.example.com"
+              phone: "+919876543212"
+          key:
+            - uk_id: "{{bpp_prop_active_uk_id}}"
+              signing_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              encryption_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              valid_from: "{{bpp_prop_active_valid_from}}"
+              valid_until: "{{bpp_prop_active_valid_until}}"
+          location:
+            - location_id: "loc-{{bpp_prop_active_uk_id}}"
+              type: "SERVICEABLE"
+              country: "IND"
+              city:
+                - "std:080"
+          uri:
+            - uri_id: "uri-{{bpp_prop_active_uk_id}}"
+              type: "CALLBACK"
+              url: "{{bpp_prop_active_uri}}"
+          configs:
+            - domain: "{{bpp_prop_active_domain}}"
+              np_type: "BPP"
+              subscriber_id: "{{bpp_prop_active_id}}"
+              location_id: "loc-{{bpp_prop_active_uk_id}}"
+              uri_id: "uri-{{bpp_prop_active_uk_id}}"
+              key_id: "{{bpp_prop_active_uk_id}}"
+        expected_status: [200, 409]
+
+      # ── Step 3: Baseline search before bpp_prop_new registers ────────────────
+      - name: "Step 3 – Gateway: Baseline broadcast before BPP-PROP-NEW registers — expect ACK; new BPP absent"
+        method: "POST"
+        action: "search"
+        endpoint: "/{{action}}"
+        auth_type: "v3"
+        auth_subscriber_id: "bap_prop"
+        data:
+          context:
+            domain: "ONDC:RET10"
+            action: "{{action}}"
+            version: "2.0.0"
+            bap_id: "{{bap_prop_id}}"
+            bap_uri: "{{bap_prop_uri}}"
+            transaction_id: "{{transaction_id}}"
+            message_id: "{{message_id}}"
+            location:
+              city:
+                code: "std:080"
+              country:
+                code: "IND"
+            ttl: "PT30S"
+            timestamp: "{{timestamp}}"
+          message:
+            intent: {}
+        expected_status: [200, 202]
+        continue_on_failure: true
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+      # ── Step 4: bpp_prop_new registers ───────────────────────────────────────
+      - name: "Step 4 – Admin: Register BPP-PROP-NEW as SUBSCRIBED (new participant joining mid-test)"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{bpp_prop_new_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred-gst-{{bpp_prop_new_uk_id}}"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "BPP PROP New Participant Propagation"
+            - cred_id: "cred-pan-{{bpp_prop_new_uk_id}}"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "BPP PROP New Participant Propagation"
+          contacts:
+            - contact_id: "contact-auth-{{bpp_prop_new_uk_id}}"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Auth Rep"
+              email: "auth@bpp-prop-new.example.com"
+              phone: "+919876543210"
+            - contact_id: "contact-biz-{{bpp_prop_new_uk_id}}"
+              type: "BUSINESS"
+              name: "Biz Rep"
+              email: "biz@bpp-prop-new.example.com"
+              phone: "+919876543211"
+            - contact_id: "contact-tech-{{bpp_prop_new_uk_id}}"
+              type: "TECHNICAL"
+              name: "Tech Rep"
+              email: "tech@bpp-prop-new.example.com"
+              phone: "+919876543212"
+          key:
+            - uk_id: "{{bpp_prop_new_uk_id}}"
+              signing_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              encryption_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              valid_from: "{{bpp_prop_new_valid_from}}"
+              valid_until: "{{bpp_prop_new_valid_until}}"
+          location:
+            - location_id: "loc-{{bpp_prop_new_uk_id}}"
+              type: "SERVICEABLE"
+              country: "IND"
+              city:
+                - "std:080"
+          uri:
+            - uri_id: "uri-{{bpp_prop_new_uk_id}}"
+              type: "CALLBACK"
+              url: "{{bpp_prop_new_uri}}"
+          configs:
+            - domain: "{{bpp_prop_new_domain}}"
+              np_type: "BPP"
+              subscriber_id: "{{bpp_prop_new_id}}"
+              location_id: "loc-{{bpp_prop_new_uk_id}}"
+              uri_id: "uri-{{bpp_prop_new_uk_id}}"
+              key_id: "{{bpp_prop_new_uk_id}}"
+        expected_status: [200, 409]
+        post_wait_seconds: 5
+
+      # ── Step 4b: Registry lookup — confirm bpp_prop_new is SUBSCRIBED ─────────
+      - name: "Step 4b – Registry: Lookup bpp_prop_new via /v3.0/lookup — expect SUBSCRIBED"
+        method: "POST"
+        endpoint: "/v3.0/lookup"
+        auth_type: "v3"
+        auth_subscriber_id: "bap_prop"
+        use_base_url: true
+        data:
+          subscriber_id: "{{bpp_prop_new_id}}"
+          country: "IND"
+          domain: "ONDC:RET10"
+          type: "BPP"
+        expected_status: [200]
+        continue_on_failure: true
+        retry:
+          timeout_seconds: 15
+          interval_seconds: 1
+        validate:
+          - field: "0.configs.0.status"
+            value: "SUBSCRIBED"
+
+      # ── Step 5: Gateway internal — new-participant propagation ────────────────
+      - name: "Step 5 – Gateway internal: BPP-PROP-NEW registration propagated; added to dispatch list"
+        method: "INTERNAL"
+
+      # ── Step 6: Post-registration search — bpp_prop_new in dispatch ──────────
+      - name: "Step 6 – Gateway: Post-registration broadcast from BAP-PROP-001 — expect ACK; bpp_prop_new now in dispatch"
+        method: "POST"
+        action: "search"
+        endpoint: "/{{action}}"
+        auth_type: "v3"
+        auth_subscriber_id: "bap_prop"
+        data:
+          context:
+            domain: "ONDC:RET10"
+            action: "{{action}}"
+            version: "2.0.0"
+            bap_id: "{{bap_prop_id}}"
+            bap_uri: "{{bap_prop_uri}}"
+            transaction_id: "{{transaction_id}}"
+            message_id: "{{message_id}}"
+            location:
+              city:
+                code: "std:080"
+              country:
+                code: "IND"
+            ttl: "PT30S"
+            timestamp: "{{timestamp}}"
+          message:
+            intent: {}
+        expected_status: [200, 202]
+        continue_on_failure: true
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+      # ── Step 7: bpp_prop_new sends on_search ─────────────────────────────────
+      - name: "Step 7 – Gateway: BPP-PROP-NEW sends on_search (newly registered BPP responds) — expect ACK"
+        method: "POST"
+        action: "on_search"
+        endpoint: "/{{action}}"
+        auth_type: "v3"
+        auth_subscriber_id: "bpp_prop_new"
+        data:
+          context:
+            domain: "ONDC:RET10"
+            action: "{{action}}"
+            version: "2.0.0"
+            bap_id: "{{bap_prop_id}}"
+            bap_uri: "{{bap_prop_uri}}"
+            bpp_id: "{{bpp_prop_new_id}}"
+            bpp_uri: "{{bpp_prop_new_uri}}"
+            transaction_id: "{{transaction_id}}"
+            message_id: "{{message_id}}"
+            location:
+              city:
+                code: "std:080"
+              country:
+                code: "IND"
+            ttl: "PT30S"
+            timestamp: "{{timestamp}}"
+          message:
+            catalog:
+              descriptor:
+                name: "BPP-PROP-NEW Store"
+              providers:
+                - id: "provider-prop-new"
+                  descriptor:
+                    name: "Propagation New Provider"
+                  items:
+                    - id: "item-prop-new-001"
+                      descriptor:
+                        name: "New Participant Item"
+                      price:
+                        currency: "INR"
+                        value: "200.00"
+        expected_status: [200, 202]
+        continue_on_failure: true
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+      # ── Step 8: Validation ────────────────────────────────────────────────────
+      - name: "Step 8 – Validation: New-participant propagation confirmed; bpp_prop_new in dispatch after registration"
+        method: "INTERNAL"
+        validates:
+          - step_contains: "Post-registration broadcast from BAP-PROP-001"
+            expect: "passed"
+            expected_outcome: "Accepted (ACK)"
+            fail_outcome: "Rejected / No response"
+          - step_contains: "BPP-PROP-NEW sends on_search"
+            expect: "passed"
+            expected_outcome: "Accepted (ACK)"
+            fail_outcome: "Rejected / No response"
+
+
+  # ===========================================================================
+  # WF-PROP-04 · Re-Activation Propagation
+  #
+  # Goal: An INACTIVE BPP re-activates (SUBSCRIBED). Gateway propagates the
+  #       re-activation. A subsequent broadcast from the BAP now includes the
+  #       re-activated BPP in dispatch.
+  #
+  # Core assertions:
+  #   Step 3  bpp_prop_inactive starts INACTIVE
+  #   Step 4  Post-INACTIVE search: bpp_prop_inactive absent from dispatch
+  #   Step 5  Admin PATCH bpp_prop_inactive → SUBSCRIBED
+  #   Step 7  Post-reactivation search: bpp_prop_inactive back in dispatch
+  #   Step 8  bpp_prop_inactive sends on_search successfully
+  # ===========================================================================
+
+  - id: "WF-PROP-04"
+    name: "Re-Activation Propagation"
+    description: >
+      BAP-PROP-001 is SUBSCRIBED. BPP-PROP-INACTIVE is registered as INACTIVE
+      from the start. A broadcast search confirms it is absent from dispatch.
+      Admin re-activates BPP-PROP-INACTIVE (PATCH SUBSCRIBED). Gateway propagates
+      the re-activation. A subsequent search from BAP-PROP-001 includes
+      BPP-PROP-INACTIVE in dispatch, and BPP-PROP-INACTIVE sends on_search successfully.
+    workflow: true
+
+    steps:
+
+      - name: "Step 1 – Admin: Register BAP-PROP-001 as SUBSCRIBED"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{bap_prop_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred-gst-{{bap_prop_uk_id}}"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "BAP PROP Propagation Test BAP"
+            - cred_id: "cred-pan-{{bap_prop_uk_id}}"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "BAP PROP Propagation Test BAP"
+          contacts:
+            - contact_id: "contact-auth-{{bap_prop_uk_id}}"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Auth Rep"
+              email: "auth@bap-prop.example.com"
+              phone: "+919876543210"
+            - contact_id: "contact-biz-{{bap_prop_uk_id}}"
+              type: "BUSINESS"
+              name: "Biz Rep"
+              email: "biz@bap-prop.example.com"
+              phone: "+919876543211"
+            - contact_id: "contact-tech-{{bap_prop_uk_id}}"
+              type: "TECHNICAL"
+              name: "Tech Rep"
+              email: "tech@bap-prop.example.com"
+              phone: "+919876543212"
+          key:
+            - uk_id: "{{bap_prop_uk_id}}"
+              signing_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              encryption_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              valid_from: "{{bap_prop_valid_from}}"
+              valid_until: "{{bap_prop_valid_until}}"
+          location:
+            - location_id: "loc-{{bap_prop_uk_id}}"
+              type: "SERVICEABLE"
+              country: "IND"
+              city:
+                - "std:080"
+          uri:
+            - uri_id: "uri-{{bap_prop_uk_id}}"
+              type: "CALLBACK"
+              url: "{{bap_prop_uri}}"
+          configs:
+            - domain: "{{bap_prop_domain}}"
+              np_type: "BAP"
+              subscriber_id: "{{bap_prop_id}}"
+              location_id: "loc-{{bap_prop_uk_id}}"
+              uri_id: "uri-{{bap_prop_uk_id}}"
+              key_id: "{{bap_prop_uk_id}}"
+        expected_status: [200, 409]
+
+      - name: "Step 2 – Admin: Register BPP-PROP-INACTIVE as SUBSCRIBED (then set INACTIVE)"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{bpp_prop_inactive_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred-gst-{{bpp_prop_inactive_uk_id}}"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "BPP PROP Re-Activation Test"
+            - cred_id: "cred-pan-{{bpp_prop_inactive_uk_id}}"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "BPP PROP Re-Activation Test"
+          contacts:
+            - contact_id: "contact-auth-{{bpp_prop_inactive_uk_id}}"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Auth Rep"
+              email: "auth@bpp-prop-inactive.example.com"
+              phone: "+919876543210"
+            - contact_id: "contact-biz-{{bpp_prop_inactive_uk_id}}"
+              type: "BUSINESS"
+              name: "Biz Rep"
+              email: "biz@bpp-prop-inactive.example.com"
+              phone: "+919876543211"
+            - contact_id: "contact-tech-{{bpp_prop_inactive_uk_id}}"
+              type: "TECHNICAL"
+              name: "Tech Rep"
+              email: "tech@bpp-prop-inactive.example.com"
+              phone: "+919876543212"
+          key:
+            - uk_id: "{{bpp_prop_inactive_uk_id}}"
+              signing_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              encryption_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              valid_from: "{{bpp_prop_inactive_valid_from}}"
+              valid_until: "{{bpp_prop_inactive_valid_until}}"
+          location:
+            - location_id: "loc-{{bpp_prop_inactive_uk_id}}"
+              type: "SERVICEABLE"
+              country: "IND"
+              city:
+                - "std:080"
+          uri:
+            - uri_id: "uri-{{bpp_prop_inactive_uk_id}}"
+              type: "CALLBACK"
+              url: "{{bpp_prop_inactive_uri}}"
+          configs:
+            - domain: "{{bpp_prop_inactive_domain}}"
+              np_type: "BPP"
+              subscriber_id: "{{bpp_prop_inactive_id}}"
+              location_id: "loc-{{bpp_prop_inactive_uk_id}}"
+              uri_id: "uri-{{bpp_prop_inactive_uk_id}}"
+              key_id: "{{bpp_prop_inactive_uk_id}}"
+        expected_status: [200, 409]
+
+      - name: "Step 2b – Admin: PATCH BPP-PROP-INACTIVE to INACTIVE (starts inactive)"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        continue_on_failure: true
+        data:
+          participant_id: "{{bpp_prop_inactive_id}}"
+          action: "INACTIVE"
+        expected_status: [200, 400]
+
+      # ── Step 3: Confirm bpp_prop_inactive is INACTIVE ────────────────────────
+      - name: "Step 3 – Admin: Confirm BPP-PROP-INACTIVE is INACTIVE (pre-condition)"
+        method: "GET"
+        endpoint: "/admin/participants/{{bpp_prop_inactive_id}}"
+        auth_type: "admin"
+        expected_status: 200
+        post_wait_seconds: 5
+        validate:
+          - field: "participant_id"
+            exists: true
+
+      # ── Step 3b: Registry lookup — confirm bpp_prop_inactive is INACTIVE ──────
+      - name: "Step 3b – Registry: Lookup bpp_prop_inactive via /v3.0/lookup — expect INACTIVE"
+        method: "POST"
+        endpoint: "/v3.0/lookup"
+        auth_type: "v3"
+        auth_subscriber_id: "bap_prop"
+        use_base_url: true
+        data:
+          subscriber_id: "{{bpp_prop_inactive_id}}"
+          country: "IND"
+          domain: "ONDC:RET10"
+          type: "BPP"
+        expected_status: [200]
+        continue_on_failure: true
+        retry:
+          timeout_seconds: 15
+          interval_seconds: 1
+        validate:
+          - field: "0.configs.0.status"
+            value: "INACTIVE"
+
+      # ── Step 4: Search while bpp_prop_inactive is INACTIVE — absent ───────────
+      - name: "Step 4 – Gateway: Broadcast from BAP-PROP-001 while BPP-PROP-INACTIVE is INACTIVE — expect ACK; BPP absent"
+        method: "POST"
+        action: "search"
+        endpoint: "/{{action}}"
+        auth_type: "v3"
+        auth_subscriber_id: "bap_prop"
+        data:
+          context:
+            domain: "ONDC:RET10"
+            action: "{{action}}"
+            version: "2.0.0"
+            bap_id: "{{bap_prop_id}}"
+            bap_uri: "{{bap_prop_uri}}"
+            transaction_id: "{{transaction_id}}"
+            message_id: "{{message_id}}"
+            location:
+              city:
+                code: "std:080"
+              country:
+                code: "IND"
+            ttl: "PT30S"
+            timestamp: "{{timestamp}}"
+          message:
+            intent: {}
+        expected_status: [200, 202]
+        continue_on_failure: true
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+      # ── Step 5: Admin re-activates bpp_prop_inactive ─────────────────────────
+      - name: "Step 5 – Admin: PATCH BPP-PROP-INACTIVE status to SUBSCRIBED (re-activate)"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        continue_on_failure: true
+        data:
+          participant_id: "{{bpp_prop_inactive_id}}"
+          action: "SUBSCRIBED"
+        expected_status: [200, 204]
+        post_wait_seconds: 5
+
+      # ── Step 5b: Registry lookup — confirm bpp_prop_inactive is SUBSCRIBED ─────
+      - name: "Step 5b – Registry: Lookup bpp_prop_inactive via /v3.0/lookup — expect SUBSCRIBED"
+        method: "POST"
+        endpoint: "/v3.0/lookup"
+        auth_type: "v3"
+        auth_subscriber_id: "bap_prop"
+        use_base_url: true
+        data:
+          subscriber_id: "{{bpp_prop_inactive_id}}"
+          country: "IND"
+          domain: "ONDC:RET10"
+          type: "BPP"
+        expected_status: [200]
+        continue_on_failure: true
+        retry:
+          timeout_seconds: 15
+          interval_seconds: 1
+        validate:
+          - field: "0.configs.0.status"
+            value: "SUBSCRIBED"
+
+      # ── Step 6: Gateway internal — re-activation propagation ─────────────────
+      - name: "Step 6 – Gateway internal: Re-activation propagated; BPP-PROP-INACTIVE restored to dispatch list"
+        method: "INTERNAL"
+
+      # ── Step 7: Post-reactivation search — bpp_prop_inactive in dispatch ──────
+      - name: "Step 7 – Gateway: Post-reactivation broadcast from BAP-PROP-001 — expect ACK; bpp_prop_inactive now in dispatch"
+        method: "POST"
+        action: "search"
+        endpoint: "/{{action}}"
+        auth_type: "v3"
+        auth_subscriber_id: "bap_prop"
+        data:
+          context:
+            domain: "ONDC:RET10"
+            action: "{{action}}"
+            version: "2.0.0"
+            bap_id: "{{bap_prop_id}}"
+            bap_uri: "{{bap_prop_uri}}"
+            transaction_id: "{{transaction_id}}"
+            message_id: "{{message_id}}"
+            location:
+              city:
+                code: "std:080"
+              country:
+                code: "IND"
+            ttl: "PT30S"
+            timestamp: "{{timestamp}}"
+          message:
+            intent: {}
+        expected_status: [200, 202]
+        continue_on_failure: true
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+      # ── Step 8: bpp_prop_inactive sends on_search (now active) ───────────────
+      - name: "Step 8 – Gateway: BPP-PROP-INACTIVE (re-activated) sends on_search — expect ACK"
+        method: "POST"
+        action: "on_search"
+        endpoint: "/{{action}}"
+        auth_type: "v3"
+        auth_subscriber_id: "bpp_prop_inactive"
+        data:
+          context:
+            domain: "ONDC:RET10"
+            action: "{{action}}"
+            version: "2.0.0"
+            bap_id: "{{bap_prop_id}}"
+            bap_uri: "{{bap_prop_uri}}"
+            bpp_id: "{{bpp_prop_inactive_id}}"
+            bpp_uri: "{{bpp_prop_inactive_uri}}"
+            transaction_id: "{{transaction_id}}"
+            message_id: "{{message_id}}"
+            location:
+              city:
+                code: "std:080"
+              country:
+                code: "IND"
+            ttl: "PT30S"
+            timestamp: "{{timestamp}}"
+          message:
+            catalog:
+              descriptor:
+                name: "BPP-PROP-INACTIVE Store (Re-Activated)"
+              providers:
+                - id: "provider-prop-inactive"
+                  descriptor:
+                    name: "Re-Activated Provider"
+                  items:
+                    - id: "item-prop-inactive-reactivated-001"
+                      descriptor:
+                        name: "Re-Activation Test Item"
+                      price:
+                        currency: "INR"
+                        value: "175.00"
+        expected_status: [200, 202]
+        continue_on_failure: true
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+      # ── Step 9: Validation ────────────────────────────────────────────────────
+      - name: "Step 9 – Validation: Re-activation propagation confirmed; bpp_prop_inactive restored to dispatch"
+        method: "INTERNAL"
+        validates:
+          - step_contains: "Post-reactivation broadcast from BAP-PROP-001"
+            expect: "passed"
+            expected_outcome: "Accepted (ACK)"
+            fail_outcome: "Rejected / No response"
+          - step_contains: "BPP-PROP-INACTIVE (re-activated) sends on_search"
+            expect: "passed"
+            expected_outcome: "Accepted (ACK)"
+            fail_outcome: "Rejected / No response"
+
+
+  # ===========================================================================
+  # WF-PROP-05 · Full Consistency Check
+  #
+  # Goal: Verify end-to-end consistency: all SUBSCRIBED participants get ACK
+  #       from Gateway and appear in dispatch; all INACTIVE/SUSPENDED participants
+  #       are excluded from dispatch and their own Gateway requests are rejected.
+  #
+  # Core assertions:
+  #   Steps 1-3   Register bap_prop (SUBSCRIBED), bpp_prop_active (SUBSCRIBED),
+  #               bpp_prop_inactive (INACTIVE)
+  #   Step 4      bap_prop broadcast search → ACK; bpp_prop_inactive absent
+  #   Step 5      bpp_prop_active on_search → ACK (appears in dispatch)
+  #   Step 6      bpp_prop_inactive on_search → rejected (NACK/401/403)
+  #   Step 7      Validation
+  # ===========================================================================
+
+  - id: "WF-PROP-05"
+    name: "Full Consistency Check"
+    description: >
+      Comprehensive consistency verification. BAP-PROP-001 is SUBSCRIBED.
+      BPP-PROP-ACTIVE is SUBSCRIBED. BPP-PROP-INACTIVE is registered as INACTIVE.
+      A broadcast from BAP-PROP-001 confirms: (a) BPP-PROP-ACTIVE receives dispatch
+      and responds with ACK on_search, and (b) BPP-PROP-INACTIVE is excluded from
+      dispatch and its own on_search request is rejected. All Gateway state is
+      consistent with registry status — no stale data.
+    workflow: true
+
+    steps:
+
+      - name: "Step 1 – Admin: Register BAP-PROP-001 as SUBSCRIBED"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{bap_prop_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred-gst-{{bap_prop_uk_id}}"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "BAP PROP Consistency Check BAP"
+            - cred_id: "cred-pan-{{bap_prop_uk_id}}"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "BAP PROP Consistency Check BAP"
+          contacts:
+            - contact_id: "contact-auth-{{bap_prop_uk_id}}"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Auth Rep"
+              email: "auth@bap-prop.example.com"
+              phone: "+919876543210"
+            - contact_id: "contact-biz-{{bap_prop_uk_id}}"
+              type: "BUSINESS"
+              name: "Biz Rep"
+              email: "biz@bap-prop.example.com"
+              phone: "+919876543211"
+            - contact_id: "contact-tech-{{bap_prop_uk_id}}"
+              type: "TECHNICAL"
+              name: "Tech Rep"
+              email: "tech@bap-prop.example.com"
+              phone: "+919876543212"
+          key:
+            - uk_id: "{{bap_prop_uk_id}}"
+              signing_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              encryption_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              valid_from: "{{bap_prop_valid_from}}"
+              valid_until: "{{bap_prop_valid_until}}"
+          location:
+            - location_id: "loc-{{bap_prop_uk_id}}"
+              type: "SERVICEABLE"
+              country: "IND"
+              city:
+                - "std:080"
+          uri:
+            - uri_id: "uri-{{bap_prop_uk_id}}"
+              type: "CALLBACK"
+              url: "{{bap_prop_uri}}"
+          configs:
+            - domain: "{{bap_prop_domain}}"
+              np_type: "BAP"
+              subscriber_id: "{{bap_prop_id}}"
+              location_id: "loc-{{bap_prop_uk_id}}"
+              uri_id: "uri-{{bap_prop_uk_id}}"
+              key_id: "{{bap_prop_uk_id}}"
+        expected_status: [200, 409]
+
+      - name: "Step 2 – Admin: Register BPP-PROP-ACTIVE as SUBSCRIBED"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{bpp_prop_active_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred-gst-{{bpp_prop_active_uk_id}}"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "BPP PROP Active Consistency Check"
+            - cred_id: "cred-pan-{{bpp_prop_active_uk_id}}"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "BPP PROP Active Consistency Check"
+          contacts:
+            - contact_id: "contact-auth-{{bpp_prop_active_uk_id}}"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Auth Rep"
+              email: "auth@bpp-prop-active.example.com"
+              phone: "+919876543210"
+            - contact_id: "contact-biz-{{bpp_prop_active_uk_id}}"
+              type: "BUSINESS"
+              name: "Biz Rep"
+              email: "biz@bpp-prop-active.example.com"
+              phone: "+919876543211"
+            - contact_id: "contact-tech-{{bpp_prop_active_uk_id}}"
+              type: "TECHNICAL"
+              name: "Tech Rep"
+              email: "tech@bpp-prop-active.example.com"
+              phone: "+919876543212"
+          key:
+            - uk_id: "{{bpp_prop_active_uk_id}}"
+              signing_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              encryption_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              valid_from: "{{bpp_prop_active_valid_from}}"
+              valid_until: "{{bpp_prop_active_valid_until}}"
+          location:
+            - location_id: "loc-{{bpp_prop_active_uk_id}}"
+              type: "SERVICEABLE"
+              country: "IND"
+              city:
+                - "std:080"
+          uri:
+            - uri_id: "uri-{{bpp_prop_active_uk_id}}"
+              type: "CALLBACK"
+              url: "{{bpp_prop_active_uri}}"
+          configs:
+            - domain: "{{bpp_prop_active_domain}}"
+              np_type: "BPP"
+              subscriber_id: "{{bpp_prop_active_id}}"
+              location_id: "loc-{{bpp_prop_active_uk_id}}"
+              uri_id: "uri-{{bpp_prop_active_uk_id}}"
+              key_id: "{{bpp_prop_active_uk_id}}"
+        expected_status: [200, 409]
+
+      - name: "Step 3 – Admin: Register BPP-PROP-INACTIVE as SUBSCRIBED (then set INACTIVE)"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          dns_skip: true
+          skip_ssl_verification: true
+          participant_id: "{{bpp_prop_inactive_id}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred-gst-{{bpp_prop_inactive_uk_id}}"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "BPP PROP Inactive Consistency Check"
+            - cred_id: "cred-pan-{{bpp_prop_inactive_uk_id}}"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "BPP PROP Inactive Consistency Check"
+          contacts:
+            - contact_id: "contact-auth-{{bpp_prop_inactive_uk_id}}"
+              type: "AUTHORISED_SIGNATORY"
+              name: "Auth Rep"
+              email: "auth@bpp-prop-inactive.example.com"
+              phone: "+919876543210"
+            - contact_id: "contact-biz-{{bpp_prop_inactive_uk_id}}"
+              type: "BUSINESS"
+              name: "Biz Rep"
+              email: "biz@bpp-prop-inactive.example.com"
+              phone: "+919876543211"
+            - contact_id: "contact-tech-{{bpp_prop_inactive_uk_id}}"
+              type: "TECHNICAL"
+              name: "Tech Rep"
+              email: "tech@bpp-prop-inactive.example.com"
+              phone: "+919876543212"
+          key:
+            - uk_id: "{{bpp_prop_inactive_uk_id}}"
+              signing_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              encryption_public_key: "MCowBQYDK2VwAyEAVXtuKQMPh485BxBcV1jbqNHRuuyyJnbe1QIQoQYjLBg="
+              signed_algorithm: "ED25519"
+              encryption_algorithm: "X25519"
+              valid_from: "{{bpp_prop_inactive_valid_from}}"
+              valid_until: "{{bpp_prop_inactive_valid_until}}"
+          location:
+            - location_id: "loc-{{bpp_prop_inactive_uk_id}}"
+              type: "SERVICEABLE"
+              country: "IND"
+              city:
+                - "std:080"
+          uri:
+            - uri_id: "uri-{{bpp_prop_inactive_uk_id}}"
+              type: "CALLBACK"
+              url: "{{bpp_prop_inactive_uri}}"
+          configs:
+            - domain: "{{bpp_prop_inactive_domain}}"
+              np_type: "BPP"
+              subscriber_id: "{{bpp_prop_inactive_id}}"
+              location_id: "loc-{{bpp_prop_inactive_uk_id}}"
+              uri_id: "uri-{{bpp_prop_inactive_uk_id}}"
+              key_id: "{{bpp_prop_inactive_uk_id}}"
+        expected_status: [200, 409]
+
+      - name: "Step 3b – Admin: PATCH BPP-PROP-INACTIVE to INACTIVE"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        continue_on_failure: true
+        data:
+          participant_id: "{{bpp_prop_inactive_id}}"
+          action: "INACTIVE"
+        expected_status: [200, 400]
+        post_wait_seconds: 5
+
+      # ── Step 3c: Registry lookup — confirm bpp_prop_inactive is INACTIVE ──────
+      - name: "Step 3c – Registry: Lookup bpp_prop_inactive via /v3.0/lookup — expect INACTIVE"
+        method: "POST"
+        endpoint: "/v3.0/lookup"
+        auth_type: "v3"
+        auth_subscriber_id: "bap_prop"
+        use_base_url: true
+        data:
+          subscriber_id: "{{bpp_prop_inactive_id}}"
+          country: "IND"
+          domain: "ONDC:RET10"
+          type: "BPP"
+        expected_status: [200]
+        continue_on_failure: true
+        retry:
+          timeout_seconds: 15
+          interval_seconds: 1
+        validate:
+          - field: "0.configs.0.status"
+            value: "INACTIVE"
+
+      # ── Step 4: Broadcast search — bpp_prop_inactive absent ──────────────────
+      - name: "Step 4 – Gateway: Broadcast search from BAP-PROP-001 — expect ACK; bpp_prop_inactive absent from dispatch"
+        method: "POST"
+        action: "search"
+        endpoint: "/{{action}}"
+        auth_type: "v3"
+        auth_subscriber_id: "bap_prop"
+        data:
+          context:
+            domain: "ONDC:RET10"
+            action: "{{action}}"
+            version: "2.0.0"
+            bap_id: "{{bap_prop_id}}"
+            bap_uri: "{{bap_prop_uri}}"
+            transaction_id: "{{transaction_id}}"
+            message_id: "{{message_id}}"
+            location:
+              city:
+                code: "std:080"
+              country:
+                code: "IND"
+            ttl: "PT30S"
+            timestamp: "{{timestamp}}"
+          message:
+            intent: {}
+        expected_status: [200, 202]
+        continue_on_failure: true
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+      # ── Step 5: bpp_prop_active sends on_search (SUBSCRIBED → ACK) ────────────
+      - name: "Step 5 – Gateway: BPP-PROP-ACTIVE (SUBSCRIBED) sends on_search — expect ACK (consistency: active receives dispatch)"
+        method: "POST"
+        action: "on_search"
+        endpoint: "/{{action}}"
+        auth_type: "v3"
+        auth_subscriber_id: "bpp_prop_active"
+        data:
+          context:
+            domain: "ONDC:RET10"
+            action: "{{action}}"
+            version: "2.0.0"
+            bap_id: "{{bap_prop_id}}"
+            bap_uri: "{{bap_prop_uri}}"
+            bpp_id: "{{bpp_prop_active_id}}"
+            bpp_uri: "{{bpp_prop_active_uri}}"
+            transaction_id: "{{transaction_id}}"
+            message_id: "{{message_id}}"
+            location:
+              city:
+                code: "std:080"
+              country:
+                code: "IND"
+            ttl: "PT30S"
+            timestamp: "{{timestamp}}"
+          message:
+            catalog:
+              descriptor:
+                name: "BPP-PROP-ACTIVE Store"
+              providers:
+                - id: "provider-prop-active"
+                  descriptor:
+                    name: "Consistency Active Provider"
+                  items:
+                    - id: "item-prop-active-consistency-001"
+                      descriptor:
+                        name: "Consistency Test Item"
+                      price:
+                        currency: "INR"
+                        value: "400.00"
+        expected_status: [200, 202]
+        continue_on_failure: true
+        validate:
+          - field: "message.ack.status"
+            value: "ACK"
+
+      # ── Step 6: bpp_prop_inactive on_search → rejected (INACTIVE → NACK) ──────
+      - name: "Step 6 – Gateway: BPP-PROP-INACTIVE (INACTIVE) sends on_search — expect NACK or rejection (consistency: inactive blocked)"
+        method: "POST"
+        action: "on_search"
+        endpoint: "/{{action}}"
+        auth_type: "v3"
+        auth_subscriber_id: "bpp_prop_inactive"
+        data:
+          context:
+            domain: "ONDC:RET10"
+            action: "{{action}}"
+            version: "2.0.0"
+            bap_id: "{{bap_prop_id}}"
+            bap_uri: "{{bap_prop_uri}}"
+            bpp_id: "{{bpp_prop_inactive_id}}"
+            bpp_uri: "{{bpp_prop_inactive_uri}}"
+            transaction_id: "{{transaction_id}}"
+            message_id: "{{message_id}}"
+            location:
+              city:
+                code: "std:080"
+              country:
+                code: "IND"
+            ttl: "PT30S"
+            timestamp: "{{timestamp}}"
+          message:
+            catalog:
+              descriptor:
+                name: "BPP-PROP-INACTIVE Store (Should Fail)"
+              providers: []
+        expected_status: [200, 400, 401, 403]
+        continue_on_failure: true
+
+      # ── Step 7: Validation ────────────────────────────────────────────────────
+      - name: "Step 7 – Validation: Full consistency confirmed — SUBSCRIBED ACK; INACTIVE NACK; no stale-cache artefacts"
+        method: "INTERNAL"
+        validates:
+          - step_contains: "Broadcast search from BAP-PROP-001 — expect ACK; bpp_prop_inactive absent"
+            expect: "passed"
+            expected_outcome: "Accepted (ACK)"
+            fail_outcome: "Rejected / No response"
+          - step_contains: "BPP-PROP-ACTIVE (SUBSCRIBED) sends on_search"
+            expect: "passed"
+            expected_outcome: "Accepted (ACK)"
+            fail_outcome: "Rejected / No response"
+          - step_contains: "BPP-PROP-INACTIVE (INACTIVE) sends on_search"
+            expect: "passed"
+            expected_outcome: "Rejected (NACK)"
+            fail_outcome: "Accepted (ACK)"

@@ -1,0 +1,1546 @@
+# Negative Tests - Error Scenario Testing
+# Tests error handling, validation, and edge cases
+# Focus: All negative scenarios grouped by source (Admin, V3, Combined)
+
+test_suite:
+  name: "Negative Error Tests"
+  category: "negative"
+  total_tests: 36
+  description: "Comprehensive error scenario testing for Admin API, V3 API, combined workflows, and policy validation"
+
+config:
+  default_timeout: 30
+  retry_on_failure: false
+
+# ==================================================================
+# SECTION 1: ADMIN API NEGATIVE SCENARIOS (10 tests)
+# ==================================================================
+
+tests:
+  - id: "N01"
+    name: "Admin POST invalid action"
+    description: "Try creating participant with INACTIVE or SUSPENDED action"
+    steps:
+      - name: "Attempt POST with INACTIVE action"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "invalid_action_{{timestamp}}"
+          action: "INACTIVE"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "invalid_action_{{timestamp}}"
+        expected_status: [400, 422]
+        validate:
+          - field: "error"
+            contains: ["action", "WHITELISTED", "SUBSCRIBED"]
+
+  - id: "N02"
+    name: "Admin POST duplicate participant_id"
+    description: "Try creating participant with existing ID"
+    steps:
+      - name: "Create first participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "duplicate_test_{{timestamp}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "duplicate_test_{{timestamp}}"
+        expected_status: 200
+      
+      - name: "Attempt duplicate creation"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "duplicate_test_{{timestamp}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET15"
+              np_type: "BAP"
+              subscriber_id: "duplicate_test_{{timestamp}}"
+        expected_status: [409, 422]
+        validate:
+          - field: "error"
+            contains: ["exists", "duplicate"]
+
+  - id: "N03"
+    name: "Admin POST missing required fields"
+    description: "Try creating participant without required fields"
+    steps:
+      - name: "Missing participant_id"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+        expected_status: [400, 422]
+      
+      - name: "Missing action"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "missing_action_{{timestamp}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+        expected_status: [400, 422]
+      
+      - name: "Missing configs"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "missing_configs_{{timestamp}}"
+          action: "WHITELISTED"
+        expected_status: [400, 422]
+
+  - id: "N04"
+    name: "Admin POST invalid domain/np_type"
+    description: "Try creating with invalid domain or np_type values"
+    steps:
+      - name: "Invalid domain"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "invalid_domain_{{timestamp}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "INVALID:DOMAIN"
+              np_type: "BPP"
+              subscriber_id: "invalid_domain_{{timestamp}}"
+        expected_status: [400, 422]
+      
+      - name: "Invalid np_type"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "invalid_nptype_{{timestamp}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "INVALID_TYPE"
+              subscriber_id: "invalid_nptype_{{timestamp}}"
+        expected_status: [400, 422]
+
+  - id: "N05"
+    name: "Admin POST invalid credential format"
+    description: "Try creating with malformed credentials"
+    steps:
+      - name: "Invalid GST format"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "invalid_gst_{{timestamp}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_n05"
+              type: "GST"
+              cred_data:
+                gstin: "INVALID_GST"
+                legal_name: "N05 Test"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "invalid_gst_{{timestamp}}"
+        expected_status: [400, 422]
+      
+      - name: "Missing credential fields"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "missing_cred_fields_{{timestamp}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_incomplete"
+              type: "GST"
+              cred_data: {}
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "missing_cred_fields_{{timestamp}}"
+        expected_status: [400, 422]
+
+  - id: "N06"
+    name: "Admin POST invalid contact format"
+    description: "Try creating with malformed contacts"
+    steps:
+      - name: "Invalid email format"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "invalid_email_{{timestamp}}"
+          action: "SUBSCRIBED"
+          contacts:
+            - contact_id: "contact_n06"
+              type: "AUTHORISED_SIGNATORY"
+              name: "N06 Contact"
+              email: "invalid-email-format"
+              phone: "+919876543000"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "invalid_email_{{timestamp}}"
+        expected_status: [400, 422]
+      
+      - name: "Invalid phone format"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "invalid_phone_{{timestamp}}"
+          action: "SUBSCRIBED"
+          contacts:
+            - contact_id: "contact_n06_phone"
+              type: "AUTHORISED_SIGNATORY"
+              name: "N06 Contact"
+              email: "n06@example.com"
+              phone: "invalid_phone"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "invalid_phone_{{timestamp}}"
+        expected_status: [400, 422]
+
+  - id: "N07"
+    name: "Admin PATCH non-existent participant"
+    description: "Try updating participant that doesn't exist"
+    steps:
+      - name: "PATCH non-existent participant"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "non_existent_participant_{{timestamp}}"
+          action: "INACTIVE"
+        expected_status: 404
+        validate:
+          - field: "error"
+            contains: ["not found", "does not exist"]
+
+  - id: "N08"
+    name: "Admin PATCH invalid status transition"
+    description: "Try invalid status transitions"
+    steps:
+      - name: "Create WHITELISTED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "invalid_transition_{{timestamp}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "invalid_transition_{{timestamp}}"
+        expected_status: 200
+      
+      - name: "Try transition to UNSUBSCRIBED (invalid from WHITELISTED)"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "invalid_transition_{{timestamp}}"
+          action: "UNSUBSCRIBED"
+        expected_status: [400, 422]
+        validate:
+          - field: "error"
+            contains: ["transition", "invalid"]
+
+  - id: "N09"
+    name: "Admin POST invalid key format"
+    description: "Try creating with malformed cryptographic keys"
+    steps:
+      - name: "Invalid signing algorithm"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "invalid_key_algo_{{timestamp}}"
+          action: "SUBSCRIBED"
+          key:
+            uk_id: "uk_n09"
+            signing_public_key: "invalid_key_format"
+            encryption_public_key: "invalid_key_format"
+            signed_algorithm: "INVALID_ALGO"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "invalid_key_algo_{{timestamp}}"
+        expected_status: [400, 422]
+      
+      - name: "Expired key validity"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "expired_key_{{timestamp}}"
+          action: "SUBSCRIBED"
+          key:
+            uk_id: "uk_n09_expired"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2020-01-01T00:00:00Z"
+            valid_until: "2020-12-31T23:59:59Z"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "expired_key_{{timestamp}}"
+        expected_status: [400, 422]
+
+  - id: "N10"
+    name: "Admin POST invalid location/URI format"
+    description: "Try creating with malformed location or URI"
+    steps:
+      - name: "Invalid location city format"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "invalid_location_{{timestamp}}"
+          action: "SUBSCRIBED"
+          location:
+            location_id: "loc_n10"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["invalid_city_format"]
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "invalid_location_{{timestamp}}"
+        expected_status: [400, 422]
+      
+      - name: "Invalid URI format"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "invalid_uri_{{timestamp}}"
+          action: "SUBSCRIBED"
+          uri:
+            uri_id: "uri_n10"
+            type: "CALLBACK"
+            url: "not_a_valid_url"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "invalid_uri_{{timestamp}}"
+        expected_status: [400, 422]
+
+# ==================================================================
+# SECTION 2: V3 API NEGATIVE SCENARIOS (10 tests)
+# ==================================================================
+
+  - id: "N11"
+    name: "V3 POST without pre-whitelisting"
+    description: "Try V3 subscription without admin whitelisting"
+    steps:
+      - name: "Attempt V3 subscribe without whitelist"
+        method: "POST"
+        endpoint: "/api/v3/subscribe"
+        auth_type: "v3"
+        data:
+          request_id: "{{request_id}}"
+          uk_id: "{{uk_id}}"
+          participant_id: "not_whitelisted_{{timestamp}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "not_whitelisted_{{timestamp}}"
+        expected_status: [403, 404]
+        validate:
+          - field: "error"
+            contains: ["whitelist", "not found", "not allowed"]
+
+  - id: "N12"
+    name: "V3 POST invalid ONDC signature"
+    description: "Try V3 request with invalid signature"
+    steps:
+      - name: "Admin whitelists participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "invalid_signature_{{timestamp}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "invalid_signature_{{timestamp}}"
+        expected_status: 200
+      
+      - name: "V3 request with invalid signature"
+        method: "POST"
+        endpoint: "/api/v3/subscribe"
+        auth_type: "v3"
+        invalid_signature: true
+        data:
+          request_id: "{{request_id}}"
+          uk_id: "{{uk_id}}"
+          participant_id: "invalid_signature_{{timestamp}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "invalid_signature_{{timestamp}}"
+        expected_status: [401, 403]
+        validate:
+          - field: "error"
+            contains: ["signature", "authentication"]
+
+  - id: "N13"
+    name: "V3 POST missing required entities"
+    description: "Try V3 subscription without required entities"
+    steps:
+      - name: "Admin whitelists"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "missing_entities_{{timestamp}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "missing_entities_{{timestamp}}"
+        expected_status: 200
+      
+      - name: "V3 subscribe without credentials"
+        method: "POST"
+        endpoint: "/api/v3/subscribe"
+        auth_type: "v3"
+        data:
+          request_id: "{{request_id}}"
+          uk_id: "{{uk_id}}"
+          participant_id: "missing_entities_{{timestamp}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "missing_entities_{{timestamp}}"
+        expected_status: [400, 422]
+        validate:
+          - field: "error"
+            contains: ["credential", "required"]
+
+  - id: "N14"
+    name: "V3 POST DNS validation failure"
+    description: "Try V3 subscription with failing DNS validation"
+    steps:
+      - name: "Admin whitelists"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "dns_fail_{{timestamp}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "dns_fail_{{timestamp}}"
+        expected_status: 200
+      
+      - name: "V3 subscribe with DNS validation enabled and invalid domain"
+        method: "POST"
+        endpoint: "/api/v3/subscribe"
+        auth_type: "v3"
+        query_params:
+          dns_skip: "false"
+        data:
+          request_id: "{{request_id}}"
+          uk_id: "{{uk_id}}"
+          participant_id: "dns_fail_{{timestamp}}"
+          credentials:
+            - cred_id: "cred_gst_n14"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "N14 DNS Test"
+          contacts:
+            - contact_id: "contact_auth_n14"
+              type: "AUTHORISED_SIGNATORY"
+              name: "N14 Auth"
+              email: "n14@example.com"
+              phone: "+919876543014"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_n14"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_n14"
+            type: "CALLBACK"
+            url: "https://nonexistent-domain-for-testing.invalid/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "dns_fail_{{timestamp}}"
+              location_id: "loc_n14"
+              uri_id: "uri_n14"
+              key_id: "{{uk_id}}"
+        expected_status: [400, 422]
+        validate:
+          - field: "error"
+            contains: ["DNS", "domain", "validation"]
+
+  - id: "N15"
+    name: "V3 PATCH on SUSPENDED participant"
+    description: "Try V3 update when participant is suspended"
+    steps:
+      - name: "Create SUBSCRIBED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "v3_suspended_{{timestamp}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_n15"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "N15 Suspended Test"
+          contacts:
+            - contact_id: "contact_auth_n15"
+              type: "AUTHORISED_SIGNATORY"
+              name: "N15 Auth"
+              email: "n15@example.com"
+              phone: "+919876543015"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_n15"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_n15"
+            type: "CALLBACK"
+            url: "https://n15.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "v3_suspended_{{timestamp}}"
+              location_id: "loc_n15"
+              uri_id: "uri_n15"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+      
+      - name: "Admin suspends"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "v3_suspended_{{timestamp}}"
+          action: "SUSPENDED"
+        expected_status: 200
+      
+      - name: "V3 PATCH attempt (should fail)"
+        method: "PATCH"
+        endpoint: "/api/v3/subscribe"
+        auth_type: "v3"
+        data:
+          request_id: "{{request_id}}"
+          participant_id: "v3_suspended_{{timestamp}}"
+          uk_id: "{{uk_id}}"
+          contacts:
+            - contact_id: "contact_auth_n15"
+              type: "AUTHORISED_SIGNATORY"
+              name: "N15 Auth Updated"
+              email: "n15-updated@example.com"
+              phone: "+919123456015"
+        expected_status: [403, 422]
+        validate:
+          - field: "error"
+            contains: ["suspended", "not allowed"]
+
+  - id: "N16"
+    name: "V3 POST invalid config (domain not whitelisted)"
+    description: "Try V3 subscription for domain not whitelisted by admin"
+    steps:
+      - name: "Admin whitelists one domain"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "domain_mismatch_{{timestamp}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "domain_mismatch_{{timestamp}}"
+        expected_status: 200
+      
+      - name: "V3 tries to subscribe different domain"
+        method: "POST"
+        endpoint: "/api/v3/subscribe"
+        auth_type: "v3"
+        data:
+          request_id: "{{request_id}}"
+          uk_id: "{{uk_id}}"
+          participant_id: "domain_mismatch_{{timestamp}}"
+          credentials:
+            - cred_id: "cred_gst_n16"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "N16 Domain Test"
+          contacts:
+            - contact_id: "contact_auth_n16"
+              type: "AUTHORISED_SIGNATORY"
+              name: "N16 Auth"
+              email: "n16@example.com"
+              phone: "+919876543016"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_n16"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_n16"
+            type: "CALLBACK"
+            url: "https://n16.example.com/callback"
+          configs:
+            - domain: "ONDC:RET15"
+              np_type: "BAP"
+              subscriber_id: "domain_mismatch_{{timestamp}}"
+              location_id: "loc_n16"
+              uri_id: "uri_n16"
+              key_id: "{{uk_id}}"
+        expected_status: [403, 422]
+        validate:
+          - field: "error"
+            contains: ["domain", "not whitelisted", "not allowed"]
+
+  - id: "N17"
+    name: "V3 PATCH invalid field values"
+    description: "Try V3 update with invalid field formats"
+    steps:
+      - name: "Create SUBSCRIBED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "v3_invalid_patch_{{timestamp}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_n17"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "N17 Patch Test"
+          contacts:
+            - contact_id: "contact_auth_n17"
+              type: "AUTHORISED_SIGNATORY"
+              name: "N17 Auth"
+              email: "n17@example.com"
+              phone: "+919876543017"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_n17"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_n17"
+            type: "CALLBACK"
+            url: "https://n17.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "v3_invalid_patch_{{timestamp}}"
+              location_id: "loc_n17"
+              uri_id: "uri_n17"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+      
+      - name: "V3 PATCH with invalid email"
+        method: "PATCH"
+        endpoint: "/api/v3/subscribe"
+        auth_type: "v3"
+        data:
+          request_id: "{{request_id}}"
+          participant_id: "v3_invalid_patch_{{timestamp}}"
+          uk_id: "{{uk_id}}"
+          contacts:
+            - contact_id: "contact_auth_n17"
+              type: "AUTHORISED_SIGNATORY"
+              name: "N17 Auth"
+              email: "invalid-email"
+              phone: "+919876543017"
+        expected_status: [400, 422]
+
+  - id: "N18"
+    name: "V3 POST missing request_id"
+    description: "Try V3 request without mandatory request_id"
+    steps:
+      - name: "V3 request without request_id"
+        method: "POST"
+        endpoint: "/api/v3/subscribe"
+        auth_type: "v3"
+        data:
+          uk_id: "{{uk_id}}"
+          participant_id: "missing_reqid_{{timestamp}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "missing_reqid_{{timestamp}}"
+        expected_status: [400, 422]
+        validate:
+          - field: "error"
+            contains: ["request_id", "required"]
+
+  - id: "N19"
+    name: "V3 POST mismatched uk_id"
+    description: "Try V3 request where uk_id doesn't match signature"
+    steps:
+      - name: "Admin whitelists"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "mismatched_ukid_{{timestamp}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "mismatched_ukid_{{timestamp}}"
+        expected_status: 200
+      
+      - name: "V3 request with mismatched uk_id"
+        method: "POST"
+        endpoint: "/api/v3/subscribe"
+        auth_type: "v3"
+        data:
+          request_id: "{{request_id}}"
+          uk_id: "different_uk_id_from_signature"
+          participant_id: "mismatched_ukid_{{timestamp}}"
+          credentials:
+            - cred_id: "cred_gst_n19"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "N19 UK ID Test"
+          contacts:
+            - contact_id: "contact_auth_n19"
+              type: "AUTHORISED_SIGNATORY"
+              name: "N19 Auth"
+              email: "n19@example.com"
+              phone: "+919876543019"
+          key:
+            uk_id: "different_uk_id_from_signature"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_n19"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_n19"
+            type: "CALLBACK"
+            url: "https://n19.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "mismatched_ukid_{{timestamp}}"
+              location_id: "loc_n19"
+              uri_id: "uri_n19"
+              key_id: "different_uk_id_from_signature"
+        expected_status: [400, 401, 403]
+        validate:
+          - field: "error"
+            contains: ["uk_id", "mismatch", "signature"]
+
+  - id: "N20"
+    name: "V3 POST on UNSUBSCRIBED participant"
+    description: "Try V3 reactivation of UNSUBSCRIBED participant (should fail)"
+    steps:
+      - name: "Create and unsubscribe"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "unsubscribed_test_{{timestamp}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_n20"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "N20 Unsub Test"
+          contacts:
+            - contact_id: "contact_auth_n20"
+              type: "AUTHORISED_SIGNATORY"
+              name: "N20 Auth"
+              email: "n20@example.com"
+              phone: "+919876543020"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_n20"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_n20"
+            type: "CALLBACK"
+            url: "https://n20.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "unsubscribed_test_{{timestamp}}"
+              location_id: "loc_n20"
+              uri_id: "uri_n20"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+      
+      - name: "Admin unsubscribes"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "unsubscribed_test_{{timestamp}}"
+          action: "UNSUBSCRIBED"
+        expected_status: 200
+      
+      - name: "V3 tries to reactivate (should fail)"
+        method: "POST"
+        endpoint: "/api/v3/subscribe"
+        auth_type: "v3"
+        data:
+          request_id: "{{request_id}}"
+          uk_id: "{{uk_id}}"
+          participant_id: "unsubscribed_test_{{timestamp}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "unsubscribed_test_{{timestamp}}"
+              location_id: "loc_n20"
+              uri_id: "uri_n20"
+              key_id: "{{uk_id}}"
+        expected_status: [403, 422]
+        validate:
+          - field: "error"
+            contains: ["unsubscribed", "not allowed"]
+
+# ==================================================================
+# SECTION 3: COMBINED WORKFLOW NEGATIVE SCENARIOS (10 tests)
+# ==================================================================
+
+  - id: "N21"
+    name: "Admin entities conflict with V3 entities"
+    description: "Test entity ID conflicts between Admin and V3"
+    steps:
+      - name: "Admin creates with credentials"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "entity_conflict_{{timestamp}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "conflicting_cred_id"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "N21 Conflict Test"
+          contacts:
+            - contact_id: "contact_auth_n21"
+              type: "AUTHORISED_SIGNATORY"
+              name: "N21 Auth"
+              email: "n21@example.com"
+              phone: "+919876543021"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_n21"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_n21"
+            type: "CALLBACK"
+            url: "https://n21.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "entity_conflict_{{timestamp}}"
+              location_id: "loc_n21"
+              uri_id: "uri_n21"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+      
+      - name: "V3 tries to add credential with same ID"
+        method: "PATCH"
+        endpoint: "/api/v3/subscribe"
+        auth_type: "v3"
+        data:
+          request_id: "{{request_id}}"
+          participant_id: "entity_conflict_{{timestamp}}"
+          uk_id: "{{uk_id}}"
+          credentials:
+            - cred_id: "conflicting_cred_id"
+              type: "PAN"
+              cred_data:
+                pan: "ABCDE1234F"
+                name: "N21 Conflict"
+        expected_status: [409, 422]
+        validate:
+          - field: "error"
+            contains: ["conflict", "exists", "duplicate"]
+
+  - id: "N22"
+    name: "Rapid status transitions"
+    description: "Test rapid status changes causing conflicts"
+    steps:
+      - name: "Create SUBSCRIBED participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "rapid_transition_{{timestamp}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_n22"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "N22 Rapid Test"
+          contacts:
+            - contact_id: "contact_auth_n22"
+              type: "AUTHORISED_SIGNATORY"
+              name: "N22 Auth"
+              email: "n22@example.com"
+              phone: "+919876543022"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_n22"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_n22"
+            type: "CALLBACK"
+            url: "https://n22.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "rapid_transition_{{timestamp}}"
+              location_id: "loc_n22"
+              uri_id: "uri_n22"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+      
+      - name: "Suspend"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "rapid_transition_{{timestamp}}"
+          action: "SUSPENDED"
+        expected_status: 200
+      
+      - name: "Immediately try V3 restore (should fail)"
+        method: "POST"
+        endpoint: "/api/v3/subscribe"
+        auth_type: "v3"
+        data:
+          request_id: "{{request_id}}"
+          uk_id: "{{uk_id}}"
+          participant_id: "rapid_transition_{{timestamp}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "rapid_transition_{{timestamp}}"
+              location_id: "loc_n22"
+              uri_id: "uri_n22"
+              key_id: "{{uk_id}}"
+        expected_status: [403, 422]
+        validate:
+          - field: "error"
+            contains: ["suspended", "not allowed"]
+
+  - id: "N23"
+    name: "Multi-domain partial failures"
+    description: "Test transaction rollback on multi-domain operation failure"
+    steps:
+      - name: "Admin whitelists multiple domains"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "multi_domain_fail_{{timestamp}}"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "multi_domain_fail_{{timestamp}}"
+            - domain: "ONDC:RET15"
+              np_type: "BAP"
+              subscriber_id: "multi_domain_fail_{{timestamp}}"
+        expected_status: 200
+      
+      - name: "V3 subscribes with one invalid config"
+        method: "POST"
+        endpoint: "/api/v3/subscribe"
+        auth_type: "v3"
+        data:
+          request_id: "{{request_id}}"
+          uk_id: "{{uk_id}}"
+          participant_id: "multi_domain_fail_{{timestamp}}"
+          credentials:
+            - cred_id: "cred_gst_n23"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "N23 Multi Domain Fail"
+          contacts:
+            - contact_id: "contact_auth_n23"
+              type: "AUTHORISED_SIGNATORY"
+              name: "N23 Auth"
+              email: "n23@example.com"
+              phone: "+919876543023"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_n23"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_n23"
+            type: "CALLBACK"
+            url: "https://n23.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "multi_domain_fail_{{timestamp}}"
+              location_id: "loc_n23"
+              uri_id: "uri_n23"
+              key_id: "{{uk_id}}"
+            - domain: "ONDC:LOG"
+              np_type: "LOGISTICS"
+              subscriber_id: "multi_domain_fail_{{timestamp}}"
+              location_id: "loc_n23"
+              uri_id: "uri_n23"
+              key_id: "{{uk_id}}"
+        expected_status: [400, 403, 422]
+        validate:
+          - field: "error"
+            contains: ["domain", "not whitelisted"]
+
+  - id: "N24"
+    name: "Orphaned entity references"
+    description: "Test handling of entity references to non-existent entities"
+    steps:
+      - name: "Admin creates config referencing non-existent entities"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "orphaned_refs_{{timestamp}}"
+          action: "SUBSCRIBED"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "orphaned_refs_{{timestamp}}"
+              location_id: "non_existent_location_id"
+              uri_id: "non_existent_uri_id"
+              key_id: "non_existent_key_id"
+        expected_status: [400, 422]
+        validate:
+          - field: "error"
+            contains: ["location", "uri", "key", "not found"]
+
+  - id: "N25"
+    name: "Circular dependency in configs"
+    description: "Test handling of circular or invalid config dependencies"
+    steps:
+      - name: "Admin attempts config with self-reference"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "circular_dep_{{timestamp}}"
+          action: "SUBSCRIBED"
+          location:
+            location_id: "loc_circular"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+            parent_location_id: "loc_circular"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "circular_dep_{{timestamp}}"
+        expected_status: [400, 422]
+
+  - id: "N26"
+    name: "Oversized payload"
+    description: "Test rejection of excessively large request payloads"
+    steps:
+      - name: "Admin POST with oversized contact list"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "oversized_payload_{{timestamp}}"
+          action: "SUBSCRIBED"
+          contacts:
+            - contact_id: "contact_{{index}}"
+              type: "BUSINESS"
+              name: "Contact {{index}}"
+              email: "contact{{index}}@example.com"
+              phone: "+919876543{{index}}"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "oversized_payload_{{timestamp}}"
+        contact_count: 1000
+        expected_status: [413, 422]
+        validate:
+          - field: "error"
+            contains: ["payload", "too large", "limit"]
+
+  - id: "N27"
+    name: "SQL injection attempts"
+    description: "Test SQL injection protection in various fields"
+    steps:
+      - name: "Admin POST with SQL injection in participant_id"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "'; DROP TABLE participants; --"
+          action: "WHITELISTED"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "'; DROP TABLE participants; --"
+        expected_status: [400, 422]
+      
+      - name: "Admin POST with SQL injection in contact email"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "sql_injection_test_{{timestamp}}"
+          action: "SUBSCRIBED"
+          contacts:
+            - contact_id: "contact_sql"
+              type: "BUSINESS"
+              name: "SQL Test"
+              email: "' OR '1'='1"
+              phone: "+919876543027"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "sql_injection_test_{{timestamp}}"
+        expected_status: [400, 422]
+
+  - id: "N28"
+    name: "XSS injection attempts"
+    description: "Test XSS injection protection in text fields"
+    steps:
+      - name: "Admin POST with script tag in name"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "xss_test_{{timestamp}}"
+          action: "SUBSCRIBED"
+          contacts:
+            - contact_id: "contact_xss"
+              type: "BUSINESS"
+              name: "<script>alert('XSS')</script>"
+              email: "xss@example.com"
+              phone: "+919876543028"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "xss_test_{{timestamp}}"
+        expected_status: [400, 422]
+
+  - id: "N29"
+    name: "Race condition on same participant"
+    description: "Test concurrent operations on same participant"
+    concurrent: true
+    steps:
+      - name: "Create participant"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "race_condition_{{timestamp}}"
+          action: "SUBSCRIBED"
+          credentials:
+            - cred_id: "cred_gst_n29"
+              type: "GST"
+              cred_data:
+                gstin: "29ABCDE1234F1Z5"
+                legal_name: "N29 Race Test"
+          contacts:
+            - contact_id: "contact_auth_n29"
+              type: "AUTHORISED_SIGNATORY"
+              name: "N29 Auth"
+              email: "n29@example.com"
+              phone: "+919876543029"
+          key:
+            uk_id: "{{uk_id}}"
+            signing_public_key: "{{signing_public_key}}"
+            encryption_public_key: "{{encryption_public_key}}"
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "{{valid_from}}"
+            valid_until: "{{valid_until}}"
+          location:
+            location_id: "loc_n29"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_n29"
+            type: "CALLBACK"
+            url: "https://n29.example.com/callback"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "race_condition_{{timestamp}}"
+              location_id: "loc_n29"
+              uri_id: "uri_n29"
+              key_id: "{{uk_id}}"
+        expected_status: 200
+      
+      - name: "Admin concurrent update"
+        method: "PATCH"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        concurrent: true
+        data:
+          participant_id: "race_condition_{{timestamp}}"
+          action: "INACTIVE"
+        expected_status: [200, 409]
+      
+      - name: "V3 concurrent update"
+        method: "PATCH"
+        endpoint: "/api/v3/subscribe"
+        auth_type: "v3"
+        concurrent: true
+        data:
+          request_id: "{{request_id}}"
+          participant_id: "race_condition_{{timestamp}}"
+          uk_id: "{{uk_id}}"
+          contacts:
+            - contact_id: "contact_auth_n29"
+              type: "AUTHORISED_SIGNATORY"
+              name: "N29 Auth Updated"
+              email: "n29-updated@example.com"
+              phone: "+919123456029"
+        expected_status: [200, 409]
+
+  - id: "N30"
+    name: "Null/undefined values in optional fields"
+    description: "Test handling of null values in optional fields"
+    steps:
+      - name: "Admin POST with null optional fields"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "null_fields_{{timestamp}}"
+          action: "SUBSCRIBED"
+          credentials: null
+          contacts: null
+          location: null
+          uri: null
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "null_fields_{{timestamp}}"
+        expected_status: [200, 400, 422]
+
+# ==================================================================
+# SECTION 4: POLICY VALIDATION NEGATIVE TESTS (6 tests)
+# ==================================================================
+
+  - id: "N31"
+    name: "Policy object without policy_id (required field missing)"
+    description: "Try creating participant with policy object missing required policy_id field"
+    steps:
+      - name: "Admin POST with policy missing policy_id"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "policy_missing_id_{{timestamp}}"
+          action: "WHITELISTED"
+          policy:
+            name: "Test Policy Without ID"
+            type: "NETWORK"
+            rule_definition:
+              rules:
+                - id: "550e8400-e29b-41d4-a716-446655440001"
+                  description: "Test rule"
+                  priority: 100
+                  status: "ENABLED"
+                  match_condition:
+                    domain: "ONDC:RET10"
+                  action_to_take:
+                    action_type: "ALLOW"
+            metadata:
+              test: true
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "policy_missing_id_{{timestamp}}"
+        expected_status: [400, 422]
+        validate:
+          - field: "error"
+            contains: ["policy_id", "required"]
+
+  - id: "N32"
+    name: "Policy object with empty policy_id"
+    description: "Try creating participant with policy object having empty policy_id string"
+    steps:
+      - name: "Admin POST with empty policy_id"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "policy_empty_id_{{timestamp}}"
+          action: "WHITELISTED"
+          policy:
+            policy_id: ""
+            name: "Test Policy Empty ID"
+            type: "NETWORK"
+            rule_definition:
+              rules: "test"
+            metadata: {}
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "policy_empty_id_{{timestamp}}"
+        expected_status: [400, 422]
+        validate:
+          - field: "error"
+            contains: ["policy_id", "required", "empty"]
+
+  - id: "N33"
+    name: "PolicyID only - non-existent policy"
+    description: "Try referencing a policy_id that doesn't exist in the database"
+    steps:
+      - name: "Admin POST with non-existent policy_id"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "policy_not_found_{{timestamp}}"
+          action: "WHITELISTED"
+          policy_id: "550e8400-ffff-ffff-ffff-446655440000"
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "policy_not_found_{{timestamp}}"
+        expected_status: [404, 422]
+        validate:
+          - field: "error"
+            contains: ["policy", "not found", "does not exist"]
+
+  - id: "N34"
+    name: "Policy object with missing required fields"
+    description: "Try creating participant with policy object missing name or rule_definition"
+    steps:
+      - name: "Admin POST with policy missing name"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "policy_missing_name_{{timestamp}}"
+          action: "WHITELISTED"
+          policy:
+            policy_id: "policy_no_name_{{timestamp}}"
+            name: ""
+            type: "NETWORK"
+            rule_definition:
+              test: "value"
+            metadata: {}
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "policy_missing_name_{{timestamp}}"
+        expected_status: [400, 422]
+        validate:
+          - field: "error"
+            contains: ["name", "required"]
+      
+      - name: "Admin POST with policy missing rule_definition"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "policy_missing_rules_{{timestamp}}"
+          action: "WHITELISTED"
+          policy:
+            policy_id: "policy_no_rules_{{timestamp}}"
+            name: "Policy Without Rules"
+            type: "NETWORK"
+            rule_definition:
+              rules: []
+            metadata: {}
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "policy_missing_rules_{{timestamp}}"
+        expected_status: [400, 422]
+        validate:
+          - field: "error"
+            contains: ["rule_definition", "required", "empty", "rules"]
+
+  - id: "N35"
+    name: "Policy object with invalid action (INACTIVE)"
+    description: "Try creating participant with policy in INACTIVE status (policy only allowed for active states)"
+    steps:
+      - name: "Admin POST with policy and INACTIVE action"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "policy_inactive_action_{{timestamp}}"
+          action: "INACTIVE"
+          policy:
+            policy_id: "policy_inactive_test_{{timestamp}}"
+            name: "Test Policy Inactive"
+            type: "NETWORK"
+            rule_definition:
+              rules:
+                - id: "550e8400-e29b-41d4-a716-446655440001"
+                  description: "Test routing"
+                  priority: 100
+                  status: "ENABLED"
+                  match_condition:
+                    domain: "ONDC:RET10"
+                  action_to_take:
+                    action_type: "ROUTING"
+                    target_url: "https://test.example.com"
+            metadata:
+              test: true
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "policy_inactive_action_{{timestamp}}"
+        expected_status: [400, 422]
+        validate:
+          - field: "error"
+            contains: ["action", "policy", "WHITELISTED", "SUBSCRIBED", "INACTIVE"]
+
+  - id: "N36"
+    name: "Policy object with invalid type"
+    description: "Try creating participant with policy having invalid type value"
+    steps:
+      - name: "Admin POST with invalid policy type"
+        method: "POST"
+        endpoint: "/admin/subscribe"
+        auth_type: "admin"
+        data:
+          participant_id: "policy_invalid_type_{{timestamp}}"
+          action: "WHITELISTED"
+          policy:
+            policy_id: "policy_bad_type_{{timestamp}}"
+            name: "Test Policy Invalid Type"
+            type: "INVALID_TYPE"
+            rule_definition:
+              rules:
+                - id: "550e8400-e29b-41d4-a716-446655440001"
+                  description: "Test rule"
+                  priority: 100
+                  status: "ENABLED"
+                  match_condition:
+                    domain: "ONDC:RET10"
+                  action_to_take:
+                    action_type: "ALLOW"
+            metadata: {}
+          configs:
+            - domain: "ONDC:RET1A"
+              np_type: "BPP"
+              subscriber_id: "policy_invalid_type_{{timestamp}}"
+        expected_status: [400, 422]
+        validate:
+          - field: "error"
+            contains: ["type", "NETWORK", "NETWORK_PARTICIPANT"]

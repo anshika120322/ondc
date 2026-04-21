@@ -1,0 +1,74 @@
+{
+  "test_cases": [
+    {
+      "name": "empty_body",
+      "body": null,
+      "description": "Test with empty/null request body"
+    },
+    {
+      "name": "simple_json",
+      "body": {
+        "message": {
+          "ack": {
+            "status": "ACK"
+          }
+        }
+      },
+      "description": "Simple nested JSON structure"
+    },
+    {
+      "name": "complex_json",
+      "body": {
+        "subscriber_id": "test.ondc.org",
+        "unique_key_id": "test-key-123",
+        "key_pair": {
+          "signing_public_key": "MCowBQYDK2VwAyEA...",
+          "encryption_public_key": "MCowBQYDK2VuAyEA...",
+          "valid_from": "2024-01-01T00:00:00Z",
+          "valid_until": "2025-12-31T23:59:59Z"
+        },
+        "country": "IND",
+        "city": "std:080",
+        "domain": "ONDC:RET10",
+        "subscriber_url": "https://test.ondc.org/callback"
+      },
+      "description": "Complex real-world subscribe payload"
+    },
+    {
+      "name": "special_characters",
+      "body": {
+        "test": "String with special chars: @#$%^&*(){}[]|\\:;\"'<>,.?/~`",
+        "unicode": "Unicode test: 你好世界 مرحبا العالم नमस्ते"
+      },
+      "description": "Test special characters and Unicode handling"
+    },
+    {
+      "name": "large_payload",
+      "body": {
+        "subscriber_id": "large-test.ondc.org",
+        "data": {
+          "field1": "value1",
+          "field2": "value2",
+          "field3": "value3",
+          "nested": {
+            "deep1": {
+              "deep2": {
+                "deep3": {
+                  "value": "deeply nested value"
+                }
+              }
+            }
+          },
+          "array": [
+            {"id": 1, "name": "item1"},
+            {"id": 2, "name": "item2"},
+            {"id": 3, "name": "item3"},
+            {"id": 4, "name": "item4"},
+            {"id": 5, "name": "item5"}
+          ]
+        }
+      },
+      "description": "Large payload with multiple nested levels and arrays"
+    }
+  ]
+}

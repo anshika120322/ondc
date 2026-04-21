@@ -1,0 +1,33 @@
+# ONDC Registry API Version Comparison Tests Configuration
+# Validates differences between V1, V2, and V3 APIs
+
+ondcRegistry:
+  # Base URL for Registry API (UAT Lookup Server)
+  host: "http://35.200.145.160:8080"
+  
+  # Admin API Authentication
+  admin_username: "<admin-user>"
+  admin_password: "admin"
+  
+  # V2/V3 API ED25519 Signature Authentication
+  participant_id: "futuresoftmsnprod.clouddeploy.in"
+  uk_id: "5d080661-182e-4302-be9f-9e8f3ed1ebe1"
+  private_key_seed: "f1adec7bfabf2da168ad388a98816e0534a26a3f2068ecfa19ae184fa35e46df"
+
+test:
+  # Default filters for testing all versions
+  default_domains:
+    - "ONDC:RET10"
+    - "ONDC:RET11"
+    - "ONDC:RET12"
+  
+  default_cities:
+    - "std:080"
+    - "std:011"
+  
+  lookup_types:
+    - "BPP"
+    - "BAP"
+  
+  countries:
+    - "IND"

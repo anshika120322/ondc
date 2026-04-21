@@ -1,0 +1,829 @@
+################################################################################
+# ONDC Policy + Search Combinations Test Suite
+################################################################################
+# File: test_policy_search_combinations.yml
+# Test File: tests/registry/policy/test_policy_search_combinations.py
+# Purpose: Test Network + Participant policy combinations with /search endpoint
+#
+# Based on: Network-Policy 1.json & Participant-Policy.json
+#
+# Test Scenarios:
+#   1. Network Policy BROADCAST for search (gateway level)
+#   2. Participant Policy ALLOW/NOT_ALLOW whitelist/blacklist
+#   3. Combined Network + Participant policy enforcement
+#   4. Domain-specific search routing (RET10, FIS12, AGR10)
+#   5. BAP/BPP filtering based on participant policies
+#
+# Test ID Naming: PS-01 to PS-15 (Policy Search combinations)
+################################################################################
+
+test_suite:
+  name: "ONDC Policy Search Combinations Test Suite"
+  description: "Test Network and Participant policies with search endpoint - BROADCAST, ALLOW, NOT_ALLOW, BLOCK scenarios"
+  total_tests: 15
+  version: "1.0"
+
+config:
+  test_environment: "ondcRegistry"
+  default_wait_time: 2
+  fail_on_error: false
+  gateway_participant: "gateway.network_service.ondc"
+  test_participant: "acme.participant.ondc"
+
+tests:
+  # =============================================================================
+  # SCENARIO 1: Network Policy - BROADCAST search for retail domain
+  # =============================================================================
+  
+  - id: PS-01
+    name: "Network Policy - BROADCAST search for ONDC:RET10"
+    description: "Create Network policy that broadcasts all search requests for RET10 domain"
+    steps:
+      - name: "Step 1: Create Network policy with BROADCAST action for RET10 search"
+        method: POST
+        endpoint: /admin/policies
+        auth_type: admin
+        expected_status: 201
+        data:
+          policy_id: "network_policy_broadcast_ret10_{{timestamp}}"
+          participant_id: "gateway.network_service.ondc"
+          type: "NETWORK"
+          name: "RET10 Search Broadcast Policy {{timestamp}}"
+          description: "Broadcast all ONDC:RET10 search requests to all registered BPPs"
+          is_active: true
+          priority: 100
+          rule_definition:
+            default_action: "BLOCK"
+            rules:
+              - id: "NW-ONDC-RET10-search-broadcast"
+                description: "Broadcast ONDC:RET10 search"
+                priority: 100
+                status: "ENABLED"
+                match_condition:
+                  domain: "ONDC:RET10"
+                  action: "search"
+                action_to_take:
+                  action_type: "BROADCAST"
+          metadata:
+            created_by: "gateway.network_service.ondc"
+            version: "1.0"
+            approval_status: "APPROVED"
+        save_response:
+          network_policy_id: "policy_id"
+        validate:
+          - field: "policy_id"
+            condition: "exists"
+          - field: "type"
+            condition: "equals"
+            value: "NETWORK"
+          - field: "is_active"
+            condition: "equals"
+            value: true
+
+  # =============================================================================
+  # SCENARIO 2: Network Policy - BLOCK search with specific bpp_id condition
+  # =============================================================================
+  
+  - id: PS-02
+    name: "Network Policy - BLOCK search when bpp_id is unknown"
+    description: "Create Network policy that blocks search for RET10 when bpp_id is '?'"
+    steps:
+      - name: "Step 1: Create Network policy with BLOCK for unknown bpp_id"
+        method: POST
+        endpoint: /admin/policies
+        auth_type: admin
+        expected_status: 201
+        data:
+          policy_id: "network_policy_block_unknown_bpp_{{timestamp}}"
+          participant_id: "gateway.network_service.ondc"
+          type: "NETWORK"
+          name: "Block Unknown BPP Search {{timestamp}}"
+          description: "Block ONDC:RET10 search when bpp_id is unknown or invalid"
+          is_active: true
+          priority: 100
+          rule_definition:
+            default_action: "ALLOW"
+            rules:
+              - id: "NW-ONDC-RET10-search-block"
+                description: "Block ONDC:RET10 search with unknown bpp"
+                priority: 100
+                status: "ENABLED"
+                match_condition:
+                  domain: "ONDC:RET10"
+                  action: "search"
+                  bpp_id: "?"
+                action_to_take:
+                  action_type: "BLOCK"
+        save_response:
+          block_policy_id: "policy_id"
+
+  # =============================================================================
+  # SCENARIO 3: Participant Policy - ALLOW specific BAP for search
+  # =============================================================================
+  
+  - id: PS-03
+    name: "Participant Policy - ALLOW specific BAP for RET10 search"
+    description: "Create Participant policy allowing only acme-retail.ondc.org BAP to search"
+    steps:
+      - name: "Step 1: Register ACME participant"
+        method: POST
+        endpoint: /admin/subscribe
+        auth_type: admin
+        expected_status: [200, 201, 409]
+        data:
+          participant_id: "acme_retail_{{timestamp}}"
+          action: "SUBSCRIBED"
+          dns_skip: true
+          skip_ssl_verification: true
+          credentials:
+            - cred_id: "cred_gst_001"
+              type: "GST"
+              cred_data:
+                gstin: "29ACME1234F1Z5"
+                legal_name: "ACME Retail Ltd"
+            - cred_id: "cred_pan_001"
+              type: "PAN"
+              cred_data:
+                pan: "ACME1234F"
+                name: "ACME Retail Ltd"
+          contacts:
+            - contact_id: "contact_001"
+              type: "AUTHORISED_SIGNATORY"
+              name: "ACME Admin"
+              email: "admin@acme-retail.ondc.org"
+              phone: "+919876543210"
+            - contact_id: "contact_002"
+              type: "BUSINESS"
+              name: "ACME Business"
+              email: "business@acme-retail.ondc.org"
+              phone: "+919876543211"
+          key:
+            uk_id: "key_001"
+            signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCD=="
+            encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAz=="
+            signed_algorithm: "ED25519"
+            encryption_algorithm: "X25519"
+            valid_from: "2026-03-01T00:00:00.000Z"
+            valid_until: "2027-03-01T00:00:00.000Z"
+          location:
+            location_id: "loc_001"
+            type: "SERVICEABLE"
+            country: "IND"
+            city: ["std:080"]
+          uri:
+            uri_id: "uri_001"
+            type: "CALLBACK"
+            url: "https://acme-retail.ondc.org/callback"
+          configs:
+            - domain: "ONDC:RET10"
+              np_type: "BPP"
+              subscriber_id: "acme-retail.ondc.org"
+              location_id: "loc_001"
+              uri_id: "uri_001"
+              key_id: "key_001"
+        save_response:
+          acme_participant_id: "participant_id"
+      
+      - name: "Step 2: Create Participant policy allowing ACME BAP for search"
+        method: POST
+        endpoint: /admin/policies
+        auth_type: admin
+        expected_status: 201
+        data:
+          policy_id: "participant_policy_allow_acme_bap_{{timestamp}}"
+          participant_id: "{{acme_participant_id}}"
+          type: "NETWORK_PARTICIPANT"
+          name: "ACME BAP Whitelist Policy {{timestamp}}"
+          description: "Allow ACME Retail BAP to perform search in RET10"
+          is_active: true
+          priority: 100
+          rule_definition:
+            rules:
+              - id: "NP-ACME-RET10-BAP-ALLOW"
+                description: "Allow ACME Retail Buyer App for RET10"
+                priority: 100
+                status: "ENABLED"
+                match_condition:
+                  domain: "ONDC:RET10"
+                  bap_id: "acme-retail.ondc.org"
+                action_to_take:
+                  action_type: "ALLOW"
+          metadata:
+            created_by: "acme-retail.ondc.org"
+            version: "1.0"
+            approval_status: "APPROVED"
+        save_response:
+          participant_allow_policy_id: "policy_id"
+
+  # =============================================================================
+  # SCENARIO 4: Participant Policy - NOT_ALLOW (blacklist) specific BAP
+  # =============================================================================
+  
+  - id: PS-04
+    name: "Participant Policy - NOT_ALLOW specific BAP for search (High cancel ratio)"
+    description: "Block buyer-app-1.ondc.org from searching ACME BPP due to high confirm-to-cancel ratio"
+    steps:
+      - name: "Step 1: Create Participant policy blocking specific BAP"
+        method: POST
+        endpoint: /admin/policies
+        auth_type: admin
+        expected_status: 201
+        data:
+          policy_id: "participant_policy_block_bap1_{{timestamp}}"
+          participant_id: "acme_retail_participant_001"
+          type: "NETWORK_PARTICIPANT"
+          name: "Block BAP-1 for ACME BPP {{timestamp}}"
+          description: "As ACME Retail seller app, block search from buyer-app-1.ondc.org due to high confirm-to-cancel ratio"
+          is_active: true
+          priority: 100
+          rule_definition:
+            rules:
+              - id: "NP-ACME-RET10-BLOCK-BAP1"
+                description: "Block buyer-app-1 from searching ACME BPP"
+                priority: 100
+                status: "ENABLED"
+                match_condition:
+                  domain: "ONDC:RET10"
+                  action: "search"
+                  bap_id: "buyer-app-1.ondc.org"
+                  bpp_id: "acme-retail.ondc.org"
+                action_to_take:
+                  action_type: "NOT_ALLOW"
+          metadata:
+            reason: "High confirm-to-cancel ratio"
+            created_by: "acme-retail.ondc.org"
+            version: "1.0"
+        save_response:
+          block_bap_policy_id: "policy_id"
+        validate:
+          - field: "rule_definition.rules[0].action_to_take.action_type"
+            condition: "equals"
+            value: "NOT_ALLOW"
+
+  # =============================================================================
+  # SCENARIO 5: Participant Policy - NOT_ALLOW BPP (Low fulfillment rate)
+  # =============================================================================
+  
+  - id: PS-05
+    name: "Participant Policy - NOT_ALLOW specific BPP for search (Low fulfillment)"
+    description: "As ACME BAP, block search results from seller-app-1.ondc.org due to low fulfillment rate"
+    steps:
+      - name: "Step 1: Create Participant policy blocking specific BPP"
+        method: POST
+        endpoint: /admin/policies
+        auth_type: admin
+        expected_status: 201
+        data:
+          policy_id: "participant_policy_block_bpp1_{{timestamp}}"
+          participant_id: "acme_retail_participant_001"
+          type: "NETWORK_PARTICIPANT"
+          name: "Block BPP-1 for ACME BAP {{timestamp}}"
+          description: "As ACME Retail buyer app, block search from seller-app-1.ondc.org due to low fulfillment rate"
+          is_active: true
+          priority: 100
+          rule_definition:
+            rules:
+              - id: "NP-ACME-RET10-BLOCK-BPP1"
+                description: "Block seller-app-1 from ACME BAP search results"
+                priority: 100
+                status: "ENABLED"
+                match_condition:
+                  domain: "ONDC:RET10"
+                  action: "search"
+                  bap_id: "acme-retail.ondc.org"
+                  bpp_id: "seller-app-1.ondc.org"
+                action_to_take:
+                  action_type: "NOT_ALLOW"
+          metadata:
+            reason: "Low fulfillment rate"
+            created_by: "acme-retail.ondc.org"
+            version: "1.0"
+
+  # =============================================================================
+  # SCENARIO 6: FIS12 Domain - Default BLOCK with exceptions
+  # =============================================================================
+  
+  - id: PS-06
+    name: "FIS12 Domain - Block all BAPs with whitelist exceptions"
+    description: "Disable transactions from all BAPs in FIS12 domain to ACME Finance, then allow specific LSPs"
+    steps:
+      - name: "Step 1: Create default BLOCK policy for FIS12"
+        method: POST
+        endpoint: /admin/policies
+        auth_type: admin
+        expected_status: 201
+        data:
+          policy_id: "participant_policy_fis12_default_block_{{timestamp}}"
+          participant_id: "acme_finance_participant_001"
+          type: "NETWORK_PARTICIPANT"
+          name: "FIS12 Default Block Policy {{timestamp}}"
+          description: "Disable transaction from all BAP of FIS12 to ACME unless overridden"
+          is_active: true
+          priority: 100
+          rule_definition:
+            rules:
+              - id: "NP-ACME-FIS12-DEFAULT-BLOCK"
+                description: "Block all FIS12 BAPs by default"
+                priority: 100
+                status: "ENABLED"
+                match_condition:
+                  domain: "ONDC:FIS12"
+                  bpp_id: "acme-finance.ondc.org"
+                action_to_take:
+                  action_type: "NOT_ALLOW"
+        save_response:
+          fis12_block_policy_id: "policy_id"
+      
+      - name: "Step 2: Create ALLOW policy for LSP1 (higher priority)"
+        method: POST
+        endpoint: /admin/policies
+        auth_type: admin
+        expected_status: 201
+        data:
+          policy_id: "participant_policy_fis12_allow_lsp1_{{timestamp}}"
+          participant_id: "acme_finance_participant_001"
+          type: "NETWORK_PARTICIPANT"
+          name: "FIS12 Allow LSP1 Policy {{timestamp}}"
+          description: "Allow transaction from LSP1 of FIS12 to ACME as operational compliance met"
+          is_active: true
+          priority: 200
+          rule_definition:
+            rules:
+              - id: "NP-ACME-FIS12-ALLOW-LSP1"
+                description: "Allow LSP1 for FIS12 transactions"
+                priority: 200
+                status: "ENABLED"
+                match_condition:
+                  domain: "ONDC:FIS12"
+                  bap_id: "lsp1.ondc.org"
+                  bpp_id: "acme-finance.ondc.org"
+                action_to_take:
+                  action_type: "ALLOW"
+          metadata:
+            reason: "Operational compliance met"
+            created_by: "acme-finance.ondc.org"
+        save_response:
+          fis12_allow_lsp1_policy_id: "policy_id"
+      
+      - name: "Step 3: Create ALLOW policy for LSP2 (higher priority)"
+        method: POST
+        endpoint: /admin/policies
+        auth_type: admin
+        expected_status: 201
+        data:
+          policy_id: "participant_policy_fis12_allow_lsp2_{{timestamp}}"
+          participant_id: "acme_finance_participant_001"
+          type: "NETWORK_PARTICIPANT"
+          name: "FIS12 Allow LSP2 Policy {{timestamp}}"
+          description: "Allow transaction from LSP2 of FIS12 to ACME as operational compliance met"
+          is_active: true
+          priority: 200
+          rule_definition:
+            rules:
+              - id: "NP-ACME-FIS12-ALLOW-LSP2"
+                description: "Allow LSP2 for FIS12 transactions"
+                priority: 200
+                status: "ENABLED"
+                match_condition:
+                  domain: "ONDC:FIS12"
+                  bap_id: "lsp2.ondc.org"
+                  bpp_id: "acme-finance.ondc.org"
+                action_to_take:
+                  action_type: "ALLOW"
+          metadata:
+            reason: "Operational compliance met"
+            created_by: "acme-finance.ondc.org"
+        validate:
+          - field: "priority"
+            condition: "equals"
+            value: 200
+          - field: "rule_definition.rules[0].priority"
+            condition: "equals"
+            value: 200
+
+  # =============================================================================
+  # SCENARIO 7: Combined Network + Participant Policy Verification
+  # =============================================================================
+  
+  - id: PS-07
+    name: "Verify Network + Participant policies are both active"
+    description: "Query policies to confirm both Network and Participant policies are active and enforceable"
+    steps:
+      - name: "Step 1: Get all Network policies"
+        method: GET
+        endpoint: /admin/policies
+        auth_type: admin
+        expected_status: 200
+        params:
+          type: "NETWORK"
+          is_active: true
+        validate:
+          - field: "policies"
+            condition: "exists"
+          - field: "policies"
+            condition: "is_array"
+      
+      - name: "Step 2: Get all Participant policies"
+        method: GET
+        endpoint: /admin/policies
+        auth_type: admin
+        expected_status: 200
+        params:
+          type: "NETWORK_PARTICIPANT"
+          is_active: true
+        validate:
+          - field: "policies"
+            condition: "exists"
+          - field: "policies"
+            condition: "is_array"
+
+  # =============================================================================
+  # SCENARIO 8: Multi-Domain Network Policy - AGR10, LOG10
+  # =============================================================================
+  
+  - id: PS-08
+    name: "Network Policy - BROADCAST search for multiple domains"
+    description: "Create Network policy that broadcasts search for AGR10 and LOG10 domains"
+    steps:
+      - name: "Step 1: Create Network policy for AGR10 BROADCAST"
+        method: POST
+        endpoint: /admin/policies
+        auth_type: admin
+        expected_status: 201
+        data:
+          policy_id: "network_policy_agr10_broadcast_{{timestamp}}"
+          participant_id: "gateway.network_service.ondc"
+          type: "NETWORK"
+          name: "AGR10 Search Broadcast Policy {{timestamp}}"
+          description: "Broadcast all ONDC:AGR10 search requests"
+          is_active: true
+          priority: 100
+          rule_definition:
+            default_action: "BLOCK"
+            rules:
+              - id: "NW-ONDC-AGR10-search-broadcast"
+                description: "Broadcast ONDC:AGR10 search"
+                priority: 100
+                status: "ENABLED"
+                match_condition:
+                  domain: "ONDC:AGR10"
+                  action: "search"
+                action_to_take:
+                  action_type: "BROADCAST"
+      
+      - name: "Step 2: Create Network policy for LOG10 BROADCAST"
+        method: POST
+        endpoint: /admin/policies
+        auth_type: admin
+        expected_status: 201
+        data:
+          policy_id: "network_policy_log10_broadcast_{{timestamp}}"
+          participant_id: "gateway.network_service.ondc"
+          type: "NETWORK"
+          name: "LOG10 Search Broadcast Policy {{timestamp}}"
+          description: "Broadcast all ONDC:LOG10 search requests"
+          is_active: true
+          priority: 100
+          rule_definition:
+            default_action: "BLOCK"
+            rules:
+              - id: "NW-ONDC-LOG10-search-broadcast"
+                description: "Broadcast ONDC:LOG10 search"
+                priority: 100
+                status: "ENABLED"
+                match_condition:
+                  domain: "ONDC:LOG10"
+                  action: "search"
+                action_to_take:
+                  action_type: "BROADCAST"
+
+  # =============================================================================
+  # SCENARIO 9: Priority Testing - Higher priority overrides lower
+  # =============================================================================
+  
+  - id: PS-09
+    name: "Policy Priority - Higher priority ALLOW overrides lower BLOCK"
+    description: "Test that priority 200 ALLOW policy overrides priority 100 BLOCK policy"
+    steps:
+      - name: "Step 1: Create low priority BLOCK policy"
+        method: POST
+        endpoint: /admin/policies
+        auth_type: admin
+        expected_status: 201
+        data:
+          policy_id: "priority_test_block_low_{{timestamp}}"
+          participant_id: "priority_test_participant_001"
+          type: "NETWORK_PARTICIPANT"
+          name: "Priority Test - Low Priority Block {{timestamp}}"
+          description: "Lower priority policy that blocks all"
+          is_active: true
+          priority: 100
+          rule_definition:
+            rules:
+              - id: "PRIORITY-TEST-BLOCK"
+                description: "Block by default"
+                priority: 100
+                status: "ENABLED"
+                match_condition:
+                  domain: "ONDC:RET10"
+                  action: "search"
+                action_to_take:
+                  action_type: "NOT_ALLOW"
+      
+      - name: "Step 2: Create high priority ALLOW policy"
+        method: POST
+        endpoint: /admin/policies
+        auth_type: admin
+        expected_status: 201
+        data:
+          policy_id: "priority_test_allow_high_{{timestamp}}"
+          participant_id: "priority_test_participant_001"
+          type: "NETWORK_PARTICIPANT"
+          name: "Priority Test - High Priority Allow {{timestamp}}"
+          description: "Higher priority policy that allows specific BAP"
+          is_active: true
+          priority: 200
+          rule_definition:
+            rules:
+              - id: "PRIORITY-TEST-ALLOW"
+                description: "Allow specific BAP with higher priority"
+                priority: 200
+                status: "ENABLED"
+                match_condition:
+                  domain: "ONDC:RET10"
+                  action: "search"
+                  bap_id: "priority-test-bap.ondc.org"
+                action_to_take:
+                  action_type: "ALLOW"
+        validate:
+          - field: "priority"
+            condition: "greater_than"
+            value: 100
+
+  # =============================================================================
+  # SCENARIO 10: Update Network Policy - Change BROADCAST to BLOCK
+  # =============================================================================
+  
+  - id: PS-10
+    name: "Update Network Policy - Change action_type from BROADCAST to BLOCK"
+    description: "Create Network policy with BROADCAST, then update to BLOCK"
+    steps:
+      - name: "Step 1: Create Network policy with BROADCAST"
+        method: POST
+        endpoint: /admin/policies
+        auth_type: admin
+        expected_status: 201
+        data:
+          policy_id: "update_test_broadcast_{{timestamp}}"
+          participant_id: "gateway.network_service.ondc"
+          type: "NETWORK"
+          name: "Update Test - Initial BROADCAST {{timestamp}}"
+          description: "Test updating action_type from BROADCAST to BLOCK"
+          is_active: true
+          priority: 100
+          rule_definition:
+            default_action: "BLOCK"
+            rules:
+              - id: "UPDATE-TEST-RULE"
+                description: "Initial BROADCAST rule"
+                priority: 100
+                status: "ENABLED"
+                match_condition:
+                  domain: "ONDC:RET12"
+                  action: "search"
+                action_to_take:
+                  action_type: "BROADCAST"
+        save_response:
+          update_test_policy_id: "policy_id"
+      
+      - name: "Step 2: Update policy to BLOCK"
+        method: PATCH
+        endpoint: /admin/policies/{{update_test_policy_id}}
+        auth_type: admin
+        expected_status: 200
+        data:
+          rule_definition:
+            default_action: "BLOCK"
+            rules:
+              - id: "UPDATE-TEST-RULE"
+                description: "Updated BLOCK rule"
+                priority: 100
+                status: "ENABLED"
+                match_condition:
+                  domain: "ONDC:RET12"
+                  action: "search"
+                action_to_take:
+                  action_type: "BLOCK"
+        validate:
+          - field: "rule_definition.rules[0].action_to_take.action_type"
+            condition: "equals"
+            value: "BLOCK"
+
+  # =============================================================================
+  # SCENARIO 11: Deactivate and Reactivate Policy
+  # =============================================================================
+  
+  - id: PS-11
+    name: "Deactivate Network Policy - Stop enforcement"
+    description: "Create active Network policy, deactivate it, then reactivate"
+    steps:
+      - name: "Step 1: Create active Network policy"
+        method: POST
+        endpoint: /admin/policies
+        auth_type: admin
+        expected_status: 201
+        data:
+          policy_id: "deactivate_test_policy_{{timestamp}}"
+          participant_id: "gateway.network_service.ondc"
+          type: "NETWORK"
+          name: "Deactivation Test Policy {{timestamp}}"
+          description: "Test policy activation/deactivation"
+          is_active: true
+          priority: 100
+          rule_definition:
+            default_action: "ALLOW"
+            rules:
+              - id: "DEACTIVATE-TEST"
+                description: "Test rule"
+                priority: 100
+                status: "ENABLED"
+                match_condition:
+                  domain: "ONDC:RET13"
+                  action: "search"
+                action_to_take:
+                  action_type: "BROADCAST"
+        save_response:
+          deactivate_policy_id: "policy_id"
+      
+      - name: "Step 2: Deactivate the policy"
+        method: PATCH
+        endpoint: /admin/policies/{{deactivate_policy_id}}
+        auth_type: admin
+        expected_status: 200
+        data:
+          is_active: false
+        validate:
+          - field: "is_active"
+            condition: "equals"
+            value: false
+      
+      - name: "Step 3: Reactivate the policy"
+        method: PATCH
+        endpoint: /admin/policies/{{deactivate_policy_id}}
+        auth_type: admin
+        expected_status: 200
+        data:
+          is_active: true
+        validate:
+          - field: "is_active"
+            condition: "equals"
+            value: true
+
+  # =============================================================================
+  # SCENARIO 12: Query policies by domain
+  # =============================================================================
+  
+  - id: PS-12
+    name: "Query policies by domain - Get all RET10 policies"
+    description: "Retrieve all policies that apply to ONDC:RET10 domain"
+    steps:
+      - name: "Step 1: Query RET10 policies"
+        method: GET
+        endpoint: /admin/policies
+        auth_type: admin
+        expected_status: 200
+        params:
+          domain: "ONDC:RET10"
+          is_active: true
+        validate:
+          - field: "policies"
+            condition: "exists"
+          - field: "policies"
+            condition: "is_array"
+
+  # =============================================================================
+  # SCENARIO 13: Delete Policy
+  # =============================================================================
+  
+  - id: PS-13
+    name: "Delete Network Policy"
+    description: "Create Network policy and then delete it"
+    steps:
+      - name: "Step 1: Create Network policy to be deleted"
+        method: POST
+        endpoint: /admin/policies
+        auth_type: admin
+        expected_status: 201
+        data:
+          policy_id: "delete_test_policy_{{timestamp}}"
+          participant_id: "gateway.network_service.ondc"
+          type: "NETWORK"
+          name: "Delete Test Policy {{timestamp}}"
+          description: "Policy to test deletion"
+          is_active: true
+          priority: 100
+          rule_definition:
+            default_action: "ALLOW"
+            rules:
+              - id: "DELETE-TEST"
+                description: "Test rule for deletion"
+                priority: 100
+                status: "ENABLED"
+                match_condition:
+                  domain: "ONDC:RET14"
+                  action: "search"
+                action_to_take:
+                  action_type: "BROADCAST"
+        save_response:
+          delete_policy_id: "policy_id"
+      
+      - name: "Step 2: Delete the policy"
+        method: DELETE
+        endpoint: /admin/policies/{{delete_policy_id}}
+        auth_type: admin
+        expected_status: [200, 204]
+      
+      - name: "Step 3: Verify policy is deleted"
+        method: GET
+        endpoint: /admin/policies/{{delete_policy_id}}
+        auth_type: admin
+        expected_status: [404, 410]
+
+  # =============================================================================
+  # SCENARIO 14: NIC2004 Domain - nic2004:52110 (Retail)
+  # =============================================================================
+  
+  - id: PS-14
+    name: "Network Policy - nic2004:52110 domain BROADCAST"
+    description: "Create Network policy for NIC2004 domain code 52110 (Retail)"
+    steps:
+      - name: "Step 1: Create Network policy for nic2004:52110"
+        method: POST
+        endpoint: /admin/policies
+        auth_type: admin
+        expected_status: 201
+        data:
+          policy_id: "network_policy_nic52110_{{timestamp}}"
+          participant_id: "gateway.network_service.ondc"
+          type: "NETWORK"
+          name: "NIC 52110 Search Broadcast Policy {{timestamp}}"
+          description: "Broadcast search for nic2004:52110 domain"
+          is_active: true
+          priority: 100
+          rule_definition:
+            default_action: "BLOCK"
+            rules:
+              - id: "NW-NIC-52110-search-broadcast"
+                description: "Broadcast nic2004:52110 search"
+                priority: 100
+                status: "ENABLED"
+                match_condition:
+                  domain: "nic2004:52110"
+                  action: "search"
+                action_to_take:
+                  action_type: "BROADCAST"
+
+  # =============================================================================
+  # SCENARIO 15: Comprehensive Validation - All policy types exist
+  # =============================================================================
+  
+  - id: PS-15
+    name: "Comprehensive Validation - Verify all policy combinations"
+    description: "Final validation to ensure Network and Participant policies with various actions exist and are active"
+    steps:
+      - name: "Step 1: Count active Network BROADCAST policies"
+        method: GET
+        endpoint: /admin/policies
+        auth_type: admin
+        expected_status: 200
+        params:
+          type: "NETWORK"
+          is_active: true
+        validate:
+          - field: "policies"
+            condition: "exists"
+          - field: "policies"
+            condition: "is_array"
+      
+      - name: "Step 2: Count active Participant ALLOW policies"
+        method: GET
+        endpoint: /admin/policies
+        auth_type: admin
+        expected_status: 200
+        params:
+          type: "NETWORK_PARTICIPANT"
+          is_active: true
+        validate:
+          - field: "policies"
+            condition: "exists"
+      
+      - name: "Step 3: Verify policies for FIS12 domain"
+        method: GET
+        endpoint: /admin/policies
+        auth_type: admin
+        expected_status: 200
+        params:
+          domain: "ONDC:FIS12"
+        validate:
+          - field: "policies"
+            condition: "exists"

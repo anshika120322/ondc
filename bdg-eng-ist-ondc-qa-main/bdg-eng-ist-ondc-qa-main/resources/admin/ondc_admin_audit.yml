@@ -1,0 +1,63 @@
+ondcAdminAudit: # Environment name, selected with --environment flag
+  host: "http://localhost:3000/api/v1" # Base API URL
+  swagger_ui: "http://localhost:3000/api" # Swagger UI URL (for reference)
+  
+  users: # Test accounts for different roles
+    super_admin:
+      email: "super@admin.com"
+      password: "SuperSecure@123"
+      role: "SUPER_ADMIN"
+    
+    admin:
+      email: "admin@example.com"
+      password: "AdminPass@123"
+      role: "ADMIN"
+    
+    operator:
+      email: "operator@example.com"
+      password: "OperatorPass@123"
+      role: "OPERATOR"
+  
+  # Audit log settings
+  audit:
+    page_size: 50
+    default_page: 1
+    
+  # Expected audit log fields
+  audit_log_fields:
+    - "action"
+    - "entityType"
+    - "entityId"
+    - "userId"
+    - "changes"
+    - "timestamp"
+  
+  # Audit actions (for reference)
+  audit_actions:
+    - "CREATE"
+    - "UPDATE"
+    - "DELETE"
+    - "LOGIN"
+    - "LOGOUT"
+    - "PASSWORD_CHANGE"
+    - "ROLE_CHANGE"
+  
+  # Entity types tracked (for reference)
+  entity_types:
+    - "USER"
+    - "PAGE"
+    - "GROUP"
+    - "SESSION"
+    - "ROLE"
+  
+  # Health check expected response
+  health_check:
+    healthy_status: "healthy"
+    healthy_database: "connected"
+    unhealthy_status: "unhealthy"
+    unhealthy_database: "disconnected"
+    expected_fields:
+      - "status"
+      - "database"
+      - "uptime"
+      - "message"

@@ -1,0 +1,1231 @@
+# ONDC Registry Policy Management Test Configuration
+# Direct /admin/policies endpoint tests (matching dev's successful tests)
+
+test_suite:
+  name: "Policy Management Tests"
+  category: "policy"
+  total_tests: 30
+  description: "Comprehensive policy management testing: NETWORK & NETWORK_PARTICIPANT policies, CRUD operations, negative tests, and validations"
+
+# Test configuration
+config:
+  auth_type: "admin"
+  default_timeout: 30
+  retry_on_failure: false
+  participant_id: "ae39_policy_1773100415069"  # Dev's test participant
+
+# ==========================================
+# POLICY MANAGEMENT TESTS (7 tests)
+# ==========================================
+
+tests:
+  # P00: Register participant first (prerequisite for direct /admin/policies endpoint)
+  - id: "P00"
+    name: "Register participant for policy testing"
+    description: "Register participant ae39_policy_1773100415069 to ensure it exists in database before policy creation"
+    method: "POST"
+    endpoint: "/admin/subscribe"
+    auth_type: "admin"
+    data:
+      dns_skip: true
+      skip_ssl_verification: true
+      participant_id: "ae39_policy_1773100415069"
+      action: "SUBSCRIBED"
+      credentials:
+        - cred_id: "cred_gst_001"
+          type: "GST"
+          cred_data:
+            gstin: "29ABCDE1234F1Z5"
+            legal_name: "Policy Test Company Ltd"
+        - cred_id: "cred_pan_001"
+          type: "PAN"
+          cred_data:
+            pan: "ABCDE1234F"
+            name: "Policy Test Company Ltd"
+      contacts:
+        - contact_id: "contact_auth_001"
+          type: "AUTHORISED_SIGNATORY"
+          name: "Test Admin"
+          email: "admin@policytest.ondc.org"
+          phone: "+919876543211"
+        - contact_id: "contact_biz_001"
+          type: "BUSINESS"
+          name: "Business Manager"
+          email: "business@policytest.ondc.org"
+          phone: "+919876543212"
+      key:
+        uk_id: "key_ae39_001"
+        signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+        encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+        signed_algorithm: "ED25519"
+        encryption_algorithm: "X25519"
+        valid_from: "2026-02-04T00:00:00.000Z"
+        valid_until: "2027-02-04T00:00:00.000Z"
+      location:
+        location_id: "loc_ae39_001"
+        type: "SERVICEABLE"
+        country: "IND"
+        city:
+          - "std:080"
+      uri:
+        uri_id: "uri_callback_001"
+        type: "CALLBACK"
+        url: "https://policytest.ondc.org/callback"
+      configs:
+        - domain: "ONDC:RET12"
+          np_type: "BPP"
+          subscriber_id: "ae39_policy_1773100415069"
+          location_id: "loc_ae39_001"
+          uri_id: "uri_callback_001"
+          key_id: "key_ae39_001"
+    expected_status: [200, 409]
+    # Note: 409 returns NACK (already exists), 200 returns ACK
+    # Validation skipped for multi-status scenarios
+
+  # Direct /admin/policies endpoint tests (matching dev's working tests)
+  - id: "P01"
+    name: "Create NETWORK policy via POST /admin/policies"
+    description: "Create a new NETWORK routing policy using direct policy endpoint (dev-tested payload)"
+    method: "POST"
+    endpoint: "/admin/policies"
+    auth_type: "admin"
+    data:
+      description: "NETWORK routing policy for RET12 domain"
+      is_active: true
+      is_expired: false
+      version: "1.0"
+      metadata: {}
+      name: "RET12 Gateway Routing Policy {{timestamp}}"
+      participant_id: "ae39_policy_1773100415069"
+      policy_id: "policy-{{timestamp}}"
+      priority: 0
+      rule_definition:
+        rules:
+          - action_to_take:
+              action_type: "ROUTING"
+              target_url: "https://gateway.example.com/search"
+            description: "Route RET12 search to specific gateway"
+            id: "550e8400-e29b-41d4-a716-446655440004"
+            match_condition:
+              action: "search"
+              domain: "ONDC:RET12"
+            priority: 100
+            status: "ENABLED"
+      type: "NETWORK"
+    expected_status: 201
+    validate:
+      - field: "type"
+        value: "NETWORK"
+      - field: "participant_id"
+        value: "ae39_policy_1773100415069"
+      - field: "is_active"
+        value: true
+
+  - id: "P02"
+    name: "Retrieve NETWORK policy via GET /admin/policies"
+    description: "Get policies for participant to verify creation (returns array)"
+    method: "GET"
+    endpoint: "/admin/policies"
+    auth_type: "admin"
+    query_params:
+      participant_id: "ae39_policy_1773100415069"
+    expected_status: 200
+    # Note: GET returns array of policies, not single policy
+    # Basic validation - just check response is successful
+
+  # Original /admin/subscribe with policy tests
+  - id: "P03"
+    name: "Admin subscribe rejects top-level policy_id"
+    description: "Validate that top-level policy_id is no longer accepted in admin subscribe payload"
+    method: "POST"
+    endpoint: "/admin/subscribe"
+    auth_type: "admin"
+    data:
+      participant_id: "{{subscriber_id}}"
+      action: "WHITELISTED"
+      policy_id: "550e8400-e29b-41d4-a716-446655440000"
+      configs:
+        - domain: "ONDC:RET1A"
+          np_type: "BPP"
+          subscriber_id: "{{subscriber_id}}"
+    expected_status: 400
+    validate:
+      - field: "message.ack.status"
+        value: "NACK"
+
+  - id: "P04"
+    name: "Admin subscribe with Policy object (upsert new)"
+    description: "Create new NETWORK routing policy via upsert and link to participant"
+    method: "POST"
+    endpoint: "/admin/subscribe"
+    auth_type: "admin"
+    data:
+      dns_skip: true
+      skip_ssl_verification: true
+      participant_id: "{{subscriber_id}}"
+      action: "WHITELISTED"
+      policy:
+        policy_id: "550e8400-e29b-41d4-a716-446655440010"
+        name: "GW System Policy {{timestamp}}"
+        type: "NETWORK"
+        is_active: true
+        is_expired: false
+        version: "1.0"
+        rule_definition:
+          rules:
+            - id: "550e8400-e29b-41d4-a716-446655440001"
+              description: "Route all RET10 search requests to GCR"
+              priority: 100
+              status: "ENABLED"
+              match_condition:
+                domain: "ONDC:RET10"
+                action: "search"
+              action_to_take:
+                action_type: "ROUTING"
+                target_url: "https://preprod.gcr.ondc.org/search"
+        metadata:
+          version: "1.0"
+          approval_status: "APPROVED"
+          effective_from: "2026-02-26T00:00:00Z"
+          created_by: "admin-system"
+      configs:
+        - domain: "ONDC:RET1A"
+          np_type: "BPP"
+          subscriber_id: "{{subscriber_id}}"
+    expected_status: 200
+    validate:
+      - field: "message.ack.status"
+        value: "ACK"
+
+  - id: "P05"
+    name: "Admin subscribe with Policy object (upsert existing)"
+    description: "Update existing NETWORK_PARTICIPANT whitelist policy via upsert by name and link to participant"
+    method: "POST"
+    endpoint: "/admin/subscribe"
+    auth_type: "admin"
+    data:
+      dns_skip: true
+      skip_ssl_verification: true
+      participant_id: "{{subscriber_id}}"
+      action: "SUBSCRIBED"
+      policy:
+        policy_id: "550e8400-e29b-41d4-a716-446655440011"
+        name: "Whitelist Policy {{timestamp}}"
+        type: "NETWORK_PARTICIPANT"
+        is_active: true
+        is_expired: false
+        version: "1.2"
+        rule_definition:
+          rules:
+            - id: "550e8400-e29b-41d4-a716-446655440002"
+              description: "Allow RET10 from specific BPP"
+              priority: 100
+              status: "ENABLED"
+              match_condition:
+                domain: "ONDC:RET10"
+                action: "search"
+                bpp_id: "acme-retail.ondc.org"
+              action_to_take:
+                action_type: "ALLOW"
+            - id: "550e8400-e29b-41d4-a716-446655440003"
+              description: "Block RET11 from specific BPP"
+              priority: 100
+              status: "ENABLED"
+              match_condition:
+                domain: "ONDC:RET11"
+                action: "search"
+                bpp_id: "acme-retail.ondc.org"
+              action_to_take:
+                action_type: "NOT_ALLOW"
+        metadata:
+          version: "1.2"
+          approval_status: "APPROVED"
+          created_by: "acme-retail.ondc.org"
+          updated_at: "2026-02-26T14:00:00Z"
+      credentials:
+        - cred_id: "cred_gst_001"
+          type: "GST"
+          cred_data:
+            gstin: "29ABCDE1234F1Z5"
+            legal_name: "Test Company Ltd"
+        - cred_id: "cred_pan_001"
+          type: "PAN"
+          cred_data:
+            pan: "ABCDE1234F"
+            name: "Test Company Ltd"
+      contacts:
+        - contact_id: "contact_auth_001"
+          type: "AUTHORISED_SIGNATORY"
+          name: "John Doe"
+          email: "john@{{subscriber_id}}"
+          phone: "+919876543211"
+        - contact_id: "contact_biz_001"
+          type: "BUSINESS"
+          name: "Business Manager"
+          email: "business@{{subscriber_id}}"
+          phone: "+919876543212"
+      key:
+        uk_id: "key123456"
+        signing_public_key: "MCowBQYDK2VwAyEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=="
+        encryption_public_key: "MCowBQYDK2VwAyEA9876543210ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba=="
+        signed_algorithm: "ED25519"
+        encryption_algorithm: "X25519"
+        valid_from: "2026-02-04T00:00:00.000Z"
+        valid_until: "2027-02-04T00:00:00.000Z"
+      location:
+        location_id: "loc001"
+        type: "SERVICEABLE"
+        country: "IND"
+        city:
+          - "std:080"
+      uri:
+        uri_id: "uri_callback_001"
+        type: "CALLBACK"
+        url: "https://{{subscriber_id}}/callback"
+      configs:
+        - domain: "ONDC:RET1A"
+          np_type: "BPP"
+          subscriber_id: "{{subscriber_id}}"
+          location_id: "loc001"
+          uri_id: "uri_callback_001"
+          key_id: "key123456"
+    expected_status: 200
+    validate:
+      - field: "message.ack.status"
+        value: "ACK"
+
+  - id: "P06"
+    name: "Admin subscribe with Policy object only"
+    description: "Upsert policy using policy object only and link to participant"
+    method: "POST"
+    endpoint: "/admin/subscribe"
+    auth_type: "admin"
+    data:
+      dns_skip: true
+      skip_ssl_verification: true
+      participant_id: "{{subscriber_id}}"
+      action: "WHITELISTED"
+      policy:
+        policy_id: "550e8400-e29b-41d4-a716-446655440012"
+        name: "Combined Policy Test {{timestamp}}"
+        type: "NETWORK"
+        is_active: true
+        is_expired: false
+        version: "1.0"
+        rule_definition:
+          rules:
+            - id: "550e8400-e29b-41d4-a716-446655440004"
+              description: "Route RET12 search to specific gateway"
+              priority: 100
+              status: "ENABLED"
+              match_condition:
+                domain: "ONDC:RET12"
+                action: "search"
+              action_to_take:
+                action_type: "ROUTING"
+                target_url: "https://gateway.example.com/search"
+        metadata:
+          source: "combined_test"
+          created_by: "admin"
+          version: "1.0"
+      configs:
+        - domain: "ONDC:RET1A"
+          np_type: "BPP"
+          subscriber_id: "{{subscriber_id}}"
+    expected_status: 200
+    validate:
+      - field: "message.ack.status"
+        value: "ACK"
+
+  # ==========================================
+  # CATEGORY 1: NETWORK_PARTICIPANT (FILTER) POLICIES
+  # ==========================================
+
+  - id: "P07"
+    name: "Create FILTER policy with ALLOW action"
+    description: "Create NETWORK_PARTICIPANT policy with whitelist (ALLOW) rule for specific BAP interaction"
+    method: "POST"
+    endpoint: "/admin/policies"
+    auth_type: "admin"
+    data:
+      description: "Whitelist specific BAPs for interaction with this participant"
+      is_active: true
+      is_expired: false
+      version: "1.0"
+      metadata:
+        version: "1.0"
+        created_by: "ae39_policy_1773100415069"
+      name: "BAP Whitelist Policy {{timestamp}}"
+      participant_id: "ae39_policy_1773100415069"
+      policy_id: "filter-allow-{{timestamp}}"
+      priority: 50
+      rule_definition:
+        rules:
+          - action_to_take:
+              action_type: "ALLOW"
+            description: "Allow RET10 search from trusted-bap"
+            id: "rule-allow-001"
+            match_condition:
+              domain: "ONDC:RET10"
+              action: "search"
+              bap_id: "trusted-bap.ondc.org"
+              bpp_id: "ae39_policy_1773100415069"
+            priority: 100
+            status: "ENABLED"
+      type: "NETWORK_PARTICIPANT"
+    expected_status: 201
+    validate:
+      - field: "type"
+        value: "NETWORK_PARTICIPANT"
+      - field: "participant_id"
+        value: "ae39_policy_1773100415069"
+
+  - id: "P08"
+    name: "Create FILTER policy with NOT_ALLOW action (Blacklist)"
+    description: "Create NETWORK_PARTICIPANT policy to block specific counterparty"
+    method: "POST"
+    endpoint: "/admin/policies"
+    auth_type: "admin"
+    data:
+      description: "Block specific BAP due to high cancel ratio"
+      is_active: true
+      is_expired: false
+      version: "1.0"
+      metadata:
+        version: "1.0"
+        reason: "High confirm-to-cancel ratio"
+      name: "BAP Blacklist Policy {{timestamp}}"
+      participant_id: "ae39_policy_1773100415069"
+      policy_id: "filter-block-{{timestamp}}"
+      priority: 60
+      rule_definition:
+        rules:
+          - action_to_take:
+              action_type: "NOT_ALLOW"
+            description: "Block RET10 from problematic-bap"
+            id: "rule-block-001"
+            match_condition:
+              domain: "ONDC:RET10"
+              action: "search"
+              bap_id: "problematic-bap.ondc.org"
+              bpp_id: "ae39_policy_1773100415069"
+            priority: 100
+            status: "ENABLED"
+      type: "NETWORK_PARTICIPANT"
+    expected_status: 201
+    validate:
+      - field: "type"
+        value: "NETWORK_PARTICIPANT"
+
+  - id: "P09"
+    name: "Create FILTER policy with multiple mixed rules"
+    description: "Create NETWORK_PARTICIPANT policy with mix of ALLOW and NOT_ALLOW rules across domains"
+    method: "POST"
+    endpoint: "/admin/policies"
+    auth_type: "admin"
+    data:
+      description: "Mixed whitelist/blacklist policy for multiple domains"
+      is_active: true
+      is_expired: false
+      version: "1.2"
+      metadata:
+        version: "1.2"
+        approval_status: "APPROVED"
+      name: "Mixed Filter Policy {{timestamp}}"
+      participant_id: "ae39_policy_1773100415069"
+      policy_id: "filter-mixed-{{timestamp}}"
+      priority: 70
+      rule_definition:
+        rules:
+          - action_to_take:
+              action_type: "ALLOW"
+            description: "Allow RET10 from partner"
+            id: "rule-mix-001"
+            match_condition:
+              domain: "ONDC:RET10"
+              bap_id: "partner-bap.ondc.org"
+            priority: 100
+            status: "ENABLED"
+          - action_to_take:
+              action_type: "NOT_ALLOW"
+            description: "Block RET11 from competitor"
+            id: "rule-mix-002"
+            match_condition:
+              domain: "ONDC:RET11"
+              bap_id: "competitor-bap.ondc.org"
+            priority: 90
+            status: "ENABLED"
+          - action_to_take:
+              action_type: "ALLOW"
+            description: "Allow FIS12 from verified LSP"
+            id: "rule-mix-003"
+            match_condition:
+              domain: "ONDC:FIS12"
+              bap_id: "lsp1.ondc.org"
+              bpp_id: "ae39_policy_1773100415069"
+            priority: 95
+            status: "ENABLED"
+      type: "NETWORK_PARTICIPANT"
+    expected_status: 201
+    validate:
+      - field: "type"
+        value: "NETWORK_PARTICIPANT"
+
+  # ==========================================
+  # CATEGORY 2: NETWORK (SYSTEM) POLICIES - Different Actions
+  # ==========================================
+
+  - id: "P10"
+    name: "Create SYSTEM policy with BROADCAST action"
+    description: "Create NETWORK policy that broadcasts requests (like TRV10 example)"
+    method: "POST"
+    endpoint: "/admin/policies"
+    auth_type: "admin"
+    data:
+      description: "Broadcast all TRV10 search requests to all registered BPPs"
+      is_active: true
+      is_expired: false
+      version: "1.0"
+      metadata:
+        version: "1.0"
+        effective_from: "2026-03-10T00:00:00Z"
+      name: "TRV10 Broadcast Policy {{timestamp}}"
+      participant_id: "ae39_policy_1773100415069"
+      policy_id: "sys-broadcast-{{timestamp}}"
+      priority: 100
+      rule_definition:
+        rules:
+          - action_to_take:
+              action_type: "BROADCAST"
+            description: "Broadcast TRV10 search to all participants"
+            id: "rule-broadcast-001"
+            match_condition:
+              domain: "ONDC:TRV10"
+              action: "search"
+            priority: 100
+            status: "ENABLED"
+      type: "NETWORK"
+    expected_status: 201
+    validate:
+      - field: "type"
+        value: "NETWORK"
+
+  - id: "P11"
+    name: "Create SYSTEM policy with conditional ROUTING"
+    description: "Create NETWORK policy with dynamic routing based on context (like RET11 BPP-specific routing)"
+    method: "POST"
+    endpoint: "/admin/policies"
+    auth_type: "admin"
+    data:
+      description: "Route to specific BPP when bpp_id is present in request"
+      is_active: true
+      is_expired: false
+      version: "1.0"
+      metadata:
+        version: "1.0"
+      name: "Conditional Routing Policy {{timestamp}}"
+      participant_id: "ae39_policy_1773100415069"
+      policy_id: "sys-conditional-{{timestamp}}"
+      priority: 95
+      rule_definition:
+        rules:
+          - action_to_take:
+              action_type: "ROUTING"
+              target_url: "$context.bpp_uri"
+            description: "Route to specific BPP for RET11 when bpp_id present"
+            id: "rule-conditional-001"
+            match_condition:
+              domain: "ONDC:RET11"
+              action: "search"
+              bpp_id: "?"
+            priority: 100
+            status: "ENABLED"
+      type: "NETWORK"
+    expected_status: 201
+    validate:
+      - field: "type"
+        value: "NETWORK"
+
+  - id: "P12"
+    name: "Create SYSTEM policy with static ROUTING to GCR"
+    description: "Create NETWORK policy routing all requests to Gateway Catalog Registry (like RET10 GCR example)"
+    method: "POST"
+    endpoint: "/admin/policies"
+    auth_type: "admin"
+    data:
+      description: "Route all RET10 search requests to GCR"
+      is_active: true
+      is_expired: false
+      version: "1.0"
+      metadata:
+        version: "1.0"
+        target_service: "GCR"
+      name: "GCR Routing Policy {{timestamp}}"
+      participant_id: "ae39_policy_1773100415069"
+      policy_id: "sys-gcr-{{timestamp}}"
+      priority: 90
+      rule_definition:
+        rules:
+          - action_to_take:
+              action_type: "ROUTING"
+              target_url: "https://preprod.gcr.ondc.org/search"
+            description: "Route RET10 search to GCR"
+            id: "rule-gcr-001"
+            match_condition:
+              domain: "ONDC:RET10"
+              action: "search"
+            priority: 100
+            status: "ENABLED"
+      type: "NETWORK"
+    expected_status: 201
+    validate:
+      - field: "type"
+        value: "NETWORK"
+
+  # ==========================================
+  # CATEGORY 3: Match Condition Variations
+  # ==========================================
+
+  - id: "P13"
+    name: "Create policy with domain + action match only"
+    description: "Test simple match condition with domain and action fields only"
+    method: "POST"
+    endpoint: "/admin/policies"
+    auth_type: "admin"
+    data:
+      description: "Simple domain-action match condition"
+      is_active: true
+      is_expired: false
+      version: "1.0"
+      metadata: {}
+      name: "Simple Match Policy {{timestamp}}"
+      participant_id: "ae39_policy_1773100415069"
+      policy_id: "match-simple-{{timestamp}}"
+      priority: 50
+      rule_definition:
+        rules:
+          - action_to_take:
+              action_type: "BROADCAST"
+            description: "Broadcast for domain-action match"
+            id: "rule-simple-001"
+            match_condition:
+              domain: "ONDC:RET13"
+              action: "search"
+            priority: 100
+            status: "ENABLED"
+      type: "NETWORK"
+    expected_status: 201
+
+  - id: "P14"
+    name: "Create policy with bap_id/bpp_id filtering"
+    description: "Test match condition with participant ID filtering (like FIS12 LSP example)"
+    method: "POST"
+    endpoint: "/admin/policies"
+    auth_type: "admin"
+    data:
+      description: "Filter by specific BAP for FIS12 domain"
+      is_active: true
+      is_expired: false
+      version: "1.0"
+      metadata: {}
+      name: "Participant Filter Policy {{timestamp}}"
+      participant_id: "ae39_policy_1773100415069"
+      policy_id: "match-filter-{{timestamp}}"
+      priority: 80
+      rule_definition:
+        rules:
+          - action_to_take:
+              action_type: "ALLOW"
+            description: "Allow only verified LSP for FIS12"
+            id: "rule-filter-001"
+            match_condition:
+              domain: "ONDC:FIS12"
+              bap_id: "lsp1.ondc.org"
+              bpp_id: "ae39_policy_1773100415069"
+            priority: 100
+            status: "ENABLED"
+      type: "NETWORK_PARTICIPANT"
+    expected_status: 201
+
+  - id: "P15"
+    name: "Create policy with complex match (domain + action + bpp_id)"
+    description: "Test complex match condition with multiple criteria (like conditional routing example)"
+    method: "POST"
+    endpoint: "/admin/policies"
+    auth_type: "admin"
+    data:
+      description: "Complex match with domain, action, and bpp_id"
+      is_active: true
+      is_expired: false
+      version: "1.0"
+      metadata: {}
+      name: "Complex Match Policy {{timestamp}}"
+      participant_id: "ae39_policy_1773100415069"
+      policy_id: "match-complex-{{timestamp}}"
+      priority: 85
+      rule_definition:
+        rules:
+          - action_to_take:
+              action_type: "ROUTING"
+              target_url: "https://specific-bpp.ondc.org/callback"
+            description: "Route to specific BPP for RET14"
+            id: "rule-complex-001"
+            match_condition:
+              domain: "ONDC:RET14"
+              action: "search"
+              bpp_id: "specific-bpp.ondc.org"
+            priority: 100
+            status: "ENABLED"
+      type: "NETWORK"
+    expected_status: 201
+
+  # ==========================================
+  # CATEGORY 4: Priority & Status Testing
+  # ==========================================
+
+  - id: "P16"
+    name: "Create policies with different priorities"
+    description: "Test priority ordering by creating high and low priority policies"
+    method: "POST"
+    endpoint: "/admin/policies"
+    auth_type: "admin"
+    data:
+      description: "High priority policy for testing precedence"
+      is_active: true
+      is_expired: false
+      version: "1.0"
+      metadata:
+        priority_level: "high"
+      name: "High Priority Policy {{timestamp}}"
+      participant_id: "ae39_policy_1773100415069"
+      policy_id: "priority-high-{{timestamp}}"
+      priority: 200
+      rule_definition:
+        rules:
+          - action_to_take:
+              action_type: "ALLOW"
+            description: "High priority allow rule"
+            id: "rule-priority-001"
+            match_condition:
+              domain: "ONDC:RET15"
+              action: "search"
+            priority: 200
+            status: "ENABLED"
+      type: "NETWORK_PARTICIPANT"
+    expected_status: 201
+    validate:
+      - field: "priority"
+        value: 200
+
+  - id: "P17"
+    name: "Create policy with is_active = false"
+    description: "Test inactive policy creation to verify it's not enforced"
+    method: "POST"
+    endpoint: "/admin/policies"
+    auth_type: "admin"
+    data:
+      description: "Inactive policy for testing deactivation"
+      is_active: false
+      is_expired: false
+      version: "1.0"
+      metadata:
+        status: "inactive"
+      name: "Inactive Policy {{timestamp}}"
+      participant_id: "ae39_policy_1773100415069"
+      policy_id: "status-inactive-{{timestamp}}"
+      priority: 50
+      rule_definition:
+        rules:
+          - action_to_take:
+              action_type: "NOT_ALLOW"
+            description: "This rule should not be enforced"
+            id: "rule-inactive-001"
+            match_condition:
+              domain: "ONDC:RET16"
+              action: "search"
+            priority: 100
+            status: "DISABLED"
+      type: "NETWORK_PARTICIPANT"
+    expected_status: 201
+    validate:
+      - field: "is_active"
+        value: false
+
+  - id: "P18"
+    name: "Update policy priority (PATCH)"
+    description: "Self-contained test: Create policy then update its priority via PATCH"
+    workflow: true
+    steps:
+      - name: "Create policy for PATCH test"
+        method: "POST"
+        endpoint: "/admin/policies"
+        auth_type: "admin"
+        data:
+          description: "Policy for priority update test"
+          is_active: true
+          is_expired: false
+          version: "1.0"
+          metadata: {}
+          name: "PATCH Priority Test Policy {{timestamp}}"
+          participant_id: "ae39_policy_1773100415069"
+          policy_id: "patch-p18-{{timestamp}}"
+          priority: 50
+          rule_definition:
+            rules:
+              - action_to_take:
+                  action_type: "ALLOW"
+                description: "Test rule for priority update"
+                id: "rule-p18-priority-001"
+                match_condition:
+                  domain: "ONDC:RET16"
+                  action: "search"
+                priority: 100
+                status: "ENABLED"
+          type: "NETWORK_PARTICIPANT"
+        expected_status: 201
+        validate:
+          - field: "priority"
+            value: 50
+      
+      - name: "Update policy priority"
+        method: "PATCH"
+        endpoint: "/admin/policies"
+        auth_type: "admin"
+        data:
+          policy_id: "patch-p18-{{timestamp}}"
+          priority: 150
+          is_active: true
+        expected_status: [200, 204]
+
+  # ==========================================
+  # CATEGORY 5: Metadata Validation
+  # ==========================================
+
+  - id: "P19"
+    name: "Create policy with full metadata"
+    description: "Test policy creation with complete metadata fields (version, approval_status, effective_from, expires_at)"
+    method: "POST"
+    endpoint: "/admin/policies"
+    auth_type: "admin"
+    data:
+      description: "Policy with comprehensive metadata for lifecycle management"
+      is_active: true
+      is_expired: false
+      version: "2.0"
+      metadata:
+        version: "2.0"
+        approval_status: "APPROVED"
+        effective_from: "2026-03-10T00:00:00Z"
+        expires_at: "2027-03-10T00:00:00Z"
+        created_by: "ae39_policy_1773100415069"
+        updated_at: "2026-03-10T10:00:00Z"
+        comments: "Full metadata test policy"
+      name: "Full Metadata Policy {{timestamp}}"
+      participant_id: "ae39_policy_1773100415069"
+      policy_id: "metadata-full-{{timestamp}}"
+      priority: 50
+      rule_definition:
+        rules:
+          - action_to_take:
+              action_type: "ALLOW"
+            description: "Sample rule for metadata test"
+            id: "rule-metadata-001"
+            match_condition:
+              domain: "ONDC:RET17"
+              action: "search"
+            priority: 100
+            status: "ENABLED"
+      type: "NETWORK_PARTICIPANT"
+    expected_status: 201
+
+  - id: "P20"
+    name: "Create policy with future effective_from date"
+    description: "Test scheduled policy activation with future effective date"
+    method: "POST"
+    endpoint: "/admin/policies"
+    auth_type: "admin"
+    data:
+      description: "Policy scheduled to activate in future"
+      is_active: true
+      is_expired: false
+      version: "1.0"
+      metadata:
+        version: "1.0"
+        approval_status: "PENDING"
+        effective_from: "2026-04-01T00:00:00Z"
+        expires_at: null
+      name: "Scheduled Policy {{timestamp}}"
+      participant_id: "ae39_policy_1773100415069"
+      policy_id: "scheduled-{{timestamp}}"
+      priority: 50
+      rule_definition:
+        rules:
+          - action_to_take:
+              action_type: "BROADCAST"
+            description: "Future activation rule"
+            id: "rule-scheduled-001"
+            match_condition:
+              domain: "ONDC:RET18"
+              action: "search"
+            priority: 100
+            status: "ENABLED"
+      type: "NETWORK"
+    expected_status: 201
+
+  # ==========================================
+  # CATEGORY 6: Negative Tests (Critical for Robustness)
+  # ==========================================
+
+  - id: "P21"
+    name: "Create policy with invalid type"
+    description: "Negative test: attempt to create policy with non-existent type value"
+    method: "POST"
+    endpoint: "/admin/policies"
+    auth_type: "admin"
+    data:
+      description: "Policy with invalid type"
+      is_active: true
+      is_expired: false
+      version: "1.0"
+      metadata: {}
+      name: "Invalid Type Policy {{timestamp}}"
+      participant_id: "ae39_policy_1773100415069"
+      policy_id: "neg-invalidtype-{{timestamp}}"
+      priority: 50
+      rule_definition:
+        rules:
+          - action_to_take:
+              action_type: "ALLOW"
+            description: "Test rule"
+            id: "rule-neg-001"
+            match_condition:
+              domain: "ONDC:RET19"
+            priority: 100
+            status: "ENABLED"
+      type: "INVALID_TYPE"
+    expected_status: [400, 422]
+    # Expect validation error
+
+  - id: "P22"
+    name: "Create policy without required fields"
+    description: "Negative test: attempt to create policy missing participant_id"
+    method: "POST"
+    endpoint: "/admin/policies"
+    auth_type: "admin"
+    data:
+      description: "Policy missing participant_id"
+      is_active: true
+      is_expired: false
+      version: "1.0"
+      metadata: {}
+      name: "Missing Field Policy {{timestamp}}"
+      policy_id: "neg-missing-{{timestamp}}"
+      priority: 50
+      rule_definition:
+        rules:
+          - action_to_take:
+              action_type: "ALLOW"
+            description: "Test rule"
+            id: "rule-neg-002"
+            match_condition:
+              domain: "ONDC:RET20"
+            priority: 100
+            status: "ENABLED"
+      type: "NETWORK"
+    expected_status: [400, 422]
+    # Expect validation error for missing participant_id
+
+  - id: "P23"
+    name: "Create policy with invalid action_type"
+    description: "Negative test: API SHOULD reject invalid action_type (currently accepts it - validation gap)"
+    method: "POST"
+    endpoint: "/admin/policies"
+    auth_type: "admin"
+    data:
+      description: "Policy with invalid action_type"
+      is_active: true
+      is_expired: false
+      version: "1.0"
+      metadata: {}
+      name: "Invalid Action Policy {{timestamp}}"
+      participant_id: "ae39_policy_1773100415069"
+      policy_id: "neg-invalidaction-{{timestamp}}"
+      priority: 50
+      rule_definition:
+        rules:
+          - action_to_take:
+              action_type: "INVALID_ACTION"
+            description: "Invalid action rule"
+            id: "rule-neg-003"
+            match_condition:
+              domain: "ONDC:RET21"
+              action: "search"
+            priority: 100
+            status: "ENABLED"
+      type: "NETWORK"
+    expected_status: [400, 422]
+    # Expected: Validation error for invalid action_type
+    # Actual: API returns 201 (accepts invalid value) - VALIDATION GAP
+
+  - id: "P24"
+    name: "Create NETWORK policy for non-gateway participant"
+    description: "Negative test: regular participant attempting to create SYSTEM policy (should be restricted)"
+    method: "POST"
+    endpoint: "/admin/policies"
+    auth_type: "admin"
+    data:
+      description: "Non-gateway trying to create SYSTEM policy"
+      is_active: true
+      is_expired: false
+      version: "1.0"
+      metadata: {}
+      name: "Unauthorized NETWORK Policy {{timestamp}}"
+      participant_id: "ae39_policy_1773100415069"
+      policy_id: "neg-unauthorized-{{timestamp}}"
+      priority: 100
+      rule_definition:
+        rules:
+          - action_to_take:
+              action_type: "BROADCAST"
+            description: "Unauthorized broadcast rule"
+            id: "rule-neg-004"
+            match_condition:
+              domain: "ONDC:RET22"
+              action: "search"
+            priority: 100
+            status: "ENABLED"
+      type: "NETWORK"
+    expected_status: 403
+    # Expected: Forbidden - non-gateway participant should NOT be allowed to create NETWORK (SYSTEM) policies
+    # Actual: API returns 201 (accepts it) - CRITICAL AUTHORIZATION GAP
+
+  - id: "P25"
+    name: "Create policy with duplicate rule IDs"
+    description: "Negative test: API SHOULD reject duplicate rule IDs (currently accepts them - validation gap)"
+    method: "POST"
+    endpoint: "/admin/policies"
+    auth_type: "admin"
+    data:
+      description: "Policy with duplicate rule IDs"
+      is_active: true
+      is_expired: false
+      version: "1.0"
+      metadata: {}
+      name: "Duplicate Rule ID Policy {{timestamp}}"
+      participant_id: "ae39_policy_1773100415069"
+      policy_id: "neg-duprule-{{timestamp}}"
+      priority: 50
+      rule_definition:
+        rules:
+          - action_to_take:
+              action_type: "ALLOW"
+            description: "First rule"
+            id: "duplicate-rule-id"
+            match_condition:
+              domain: "ONDC:RET23"
+            priority: 100
+            status: "ENABLED"
+          - action_to_take:
+              action_type: "NOT_ALLOW"
+            description: "Second rule with same ID"
+            id: "duplicate-rule-id"
+            match_condition:
+              domain: "ONDC:RET24"
+            priority: 90
+            status: "ENABLED"
+      type: "NETWORK_PARTICIPANT"
+    expected_status: [400, 409, 422]
+    # Expected: Conflict or validation error for duplicate rule IDs
+    # Actual: API returns 201 (accepts duplicates) - VALIDATION GAP
+
+  - id: "P26"
+    name: "Create policy for non-existent participant"
+    description: "Negative test: API SHOULD return 404/400 for non-existent participant (currently returns 500 - error handling issue)"
+    method: "POST"
+    endpoint: "/admin/policies"
+    auth_type: "admin"
+    data:
+      description: "Policy for non-existent participant"
+      is_active: true
+      is_expired: false
+      version: "1.0"
+      metadata: {}
+      name: "Nonexistent Participant Policy {{timestamp}}"
+      participant_id: "nonexistent-participant-{{timestamp}}.ondc.org"
+      policy_id: "neg-noparticipant-{{timestamp}}"
+      priority: 50
+      rule_definition:
+        rules:
+          - action_to_take:
+              action_type: "ALLOW"
+            description: "Test rule"
+            id: "rule-neg-005"
+            match_condition:
+              domain: "ONDC:RET25"
+            priority: 100
+            status: "ENABLED"
+      type: "NETWORK_PARTICIPANT"
+    expected_status: [400, 404, 422]
+    # Expected: Not found or validation error for non-existent participant
+    # Actual: API returns 500 (server error) - ERROR HANDLING GAP
+
+  # ==========================================
+  # CATEGORY 7: Update Operations (PATCH)
+  # ==========================================
+
+  - id: "P27"
+    name: "Update policy is_active flag (PATCH)"
+    description: "Self-contained test: Create active policy then deactivate it via PATCH"
+    workflow: true
+    steps:
+      - name: "Create active policy for deactivation test"
+        method: "POST"
+        endpoint: "/admin/policies"
+        auth_type: "admin"
+        data:
+          description: "Policy for is_active flag update test"
+          is_active: true
+          is_expired: false
+          version: "1.0"
+          metadata: {}
+          name: "PATCH IsActive Test Policy {{timestamp}}"
+          participant_id: "ae39_policy_1773100415069"
+          policy_id: "patch-p27-{{timestamp}}"
+          priority: 50
+          rule_definition:
+            rules:
+              - action_to_take:
+                  action_type: "ALLOW"
+                description: "Test rule for is_active update"
+                id: "rule-p27-active-001"
+                match_condition:
+                  domain: "ONDC:RET27"
+                  action: "search"
+                priority: 100
+                status: "ENABLED"
+          type: "NETWORK_PARTICIPANT"
+        expected_status: 201
+        validate:
+          - field: "is_active"
+            value: true
+      
+      - name: "Deactivate policy"
+        method: "PATCH"
+        endpoint: "/admin/policies"
+        auth_type: "admin"
+        data:
+          policy_id: "patch-p27-{{timestamp}}"
+          is_active: false
+        expected_status: [200, 204]
+
+  - id: "P28"
+    name: "Update policy rules (PATCH) - Negative Test"
+    description: "Self-contained test: Verify rule_definition updates are blocked (only is_active/is_expired allowed)"
+    workflow: true
+    steps:
+      - name: "Create policy for rules update test"
+        method: "POST"
+        endpoint: "/admin/policies"
+        auth_type: "admin"
+        data:
+          description: "Policy for rules update test"
+          is_active: true
+          is_expired: false
+          version: "1.0"
+          metadata: {}
+          name: "PATCH Rules Test Policy {{timestamp}}"
+          participant_id: "ae39_policy_1773100415069"
+          policy_id: "patch-p28-{{timestamp}}"
+          priority: 50
+          rule_definition:
+            rules:
+              - action_to_take:
+                  action_type: "ALLOW"
+                description: "Original rule before update"
+                id: "rule-p28-original-001"
+                match_condition:
+                  domain: "ONDC:RET28"
+                  action: "search"
+                priority: 100
+                status: "ENABLED"
+          type: "NETWORK"
+        expected_status: 201
+      
+      - name: "Attempt to update policy rules (should fail)"
+        method: "PATCH"
+        endpoint: "/admin/policies"
+        auth_type: "admin"
+        data:
+          policy_id: "patch-p28-{{timestamp}}"
+          rule_definition:
+            rules:
+              - action_to_take:
+                  action_type: "BROADCAST"
+                description: "Updated rule via PATCH"
+                id: "rule-updated-001"
+                match_condition:
+                  domain: "ONDC:RET28"
+                  action: "search"
+                priority: 100
+                status: "ENABLED"
+        expected_status: [400, 403]
+
+  - id: "P29"
+    name: "Update policy with invalid changes (PATCH) - Expanded Immutability Test"
+    description: "Self-contained test: Verify immutable fields cannot be changed (participant_id, version, priority, rule_definition)"
+    workflow: true
+    steps:
+      - name: "Create policy for immutability test"
+        method: "POST"
+        endpoint: "/admin/policies"
+        auth_type: "admin"
+        data:
+          description: "Policy for immutability validation test"
+          is_active: true
+          is_expired: false
+          version: "1.0"
+          metadata: {}
+          name: "PATCH Immutability Test Policy {{timestamp}}"
+          participant_id: "ae39_policy_1773100415069"
+          policy_id: "patch-p29-{{timestamp}}"
+          priority: 50
+          rule_definition:
+            rules:
+              - action_to_take:
+                  action_type: "ALLOW"
+                description: "Test rule for immutability check"
+                id: "rule-p29-immutable-001"
+                match_condition:
+                  domain: "ONDC:RET29"
+                  action: "search"
+                priority: 100
+                status: "ENABLED"
+          type: "NETWORK_PARTICIPANT"
+        expected_status: 201
+      
+      - name: "Attempt to change version (should fail)"
+        method: "PATCH"
+        endpoint: "/admin/policies"
+        auth_type: "admin"
+        data:
+          policy_id: "patch-p29-{{timestamp}}"
+          version: "2.0"
+        expected_status: [400, 403, 422]
+      
+      - name: "Attempt to change priority (should fail)"
+        method: "PATCH"
+        endpoint: "/admin/policies"
+        auth_type: "admin"
+        data:
+          policy_id: "patch-p29-{{timestamp}}"
+          priority: 100
+        expected_status: [400, 403, 422]
+      
+      - name: "Attempt to change participant_id (should fail)"
+        method: "PATCH"
+        endpoint: "/admin/policies"
+        auth_type: "admin"
+        data:
+          policy_id: "patch-p29-{{timestamp}}"
+          participant_id: "different-participant.ondc.org"
+        expected_status: [400, 403, 422]

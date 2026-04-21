@@ -1,0 +1,87 @@
+
+ondcGatewaySearch: # Environment name for all Gateway tests
+  host: "https://gateway-uat.kynondc.net" #UAT Gateway API URL (Ingress service)
+  postack_host: "not needed"
+  private_key_seed: "MC4CAQAwBQYDK2VwBCIEIPGt7Hv6vy2haK04ipiBbgU0omo/IGjs+hmuGE+jXkbf"
+  participant_id: "ondcp.tatacapital.com"
+  subscriber_id: "ondcp.tatacapital.com"
+  uk_id: "81d42a5d-42bf-4c80-bcaf-62f9662df580"
+  bap_id: "ondc.prod.invoicepar.com"
+  bap_uri: "https://seller-mock.kynondc.net"
+  bpp_id: "bfl.ondcprod.ignosis.ai"
+  bpp_uri: "https://seller-mock.kynondc.net"
+  core_version: 1.2.0
+
+  # Lookup Configuration (disabled)
+  lookup_host: null
+  lookup_domain: null
+  lookup_city: null
+
+  # Test ONDC domains
+  domains:
+    - "ONDC:FIS12"
+
+  # Test cities
+  cities:
+    - "std:080"  # Bangalore
+    - "std:022"  # Mumbai
+    - "std:011"  # Delhi
+    - "std:040"  # Hyderabad
+    - "std:033"  # Kolkata
+    - "std:020"  # Pune
+    - "std:044"  # Chennai
+
+  # Payload defaults
+  country: "IND"
+  currency: "INR"
+  request_ttl: "PT30S"
+
+  # Issue categories for /issue tests
+  issue_categories:
+    - "FULFILLMENT"
+    - "ORDER"
+    - "PAYMENT"
+    - "PRODUCT"
+
+  # Issue sub-categories keyed by category
+  issue_sub_categories:
+    FULFILLMENT:
+      - "FLM01"
+      - "FLM02"
+      - "FLM03"
+    ORDER:
+      - "ORD01"
+      - "ORD02"
+    PAYMENT:
+      - "PMT01"
+      - "PMT02"
+    PRODUCT:
+      - "PRD01"
+
+  # Complainant details (buyer raising the issue)
+  complainant:
+    name: "Test Buyer"
+    phone: "+91-9876543210"
+    email: "buyer@test.ondc"
+
+  # Respondent details (seller responding to the issue)
+  respondent:
+    name: "Seller Support"
+    phone: "+91-8888888888"
+    email: "support@seller.ondc"
+    organization_name: "Test Seller Org"
+
+  # Test order used in /issue payloads
+  test_order:
+    id: "order-test-001"
+    state: "Completed"
+    provider_id: "provider-fis-001"
+    items:
+      - id: "loan-001"
+        quantity: 1
+
+  # Test configuration
+  test_config:
+    signature_ttl_seconds: 300
+    request_timeout_seconds: 10
+    max_retries: 3

@@ -1,0 +1,21 @@
+har_files_util:
+  kwords: [] # list of keywords to search in the HAR files
+  headers: [] # list of headers to add as a column in the CSV/XLSX files
+
+
+# Before posting results to DevOps Intelligence, some configurations are needed, follow the instructions in the link below:
+# https://pages.github.kyndryl.net/ModernOps/devops-architecture/documentation/application/dashboard/#application-configurations
+dev_ops_api:
+  dev_ops_envs:
+    <name-of-config>: # name of the config to be used in the tests
+      host: null # host of the Kyndryl DevOps Intelligence tenant 
+      token: null # token to access the tenant, generated in the /config/tokens API
+      file_type: xunit
+      default_application: null # default application to push results on DevOps Intelligence
+
+get_csv_util:
+  s3_bucket : null # S3 bucket where the CSV files are located
+
+email_report:
+  recipients: [] # list of recipients to send the report
+  sender: null # sender of the email, gmail account

@@ -1,0 +1,60 @@
+# Example: Place this workflow in the OTHER repository that wants to trigger ONDC tests.
+# Adjust the 'uses' ref (branch/tag) and JSON_INPUTS values as needed.
+
+name: Trigger ONDC Tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      test:
+        description: 'Test case name (e.g. ondc_reg_v2lookup)'
+        required: true
+      environment:
+        description: 'Environment name (e.g. ondcRegistryV2Lookup)'
+        required: true
+      users:
+        description: 'Number of users'
+        required: false
+        default: '1'
+      iterations:
+        description: 'Number of iterations'
+        required: false
+        default: '5'
+      wait_min:
+        description: 'Min wait time (seconds)'
+        required: false
+        default: '1'
+      wait_max:
+        description: 'Max wait time (seconds)'
+        required: false
+        default: '3'
+      spawn_rate:
+        description: 'Spawn rate'
+        required: false
+        default: '1'
+      ramp_up:
+        description: 'Ramp-up time (seconds)'
+        required: false
+        default: '0'
+      release:
+        description: 'Release tag/label (optional)'
+        required: false
+        default: ''
+
+jobs:
+  trigger-ondc-tests:
+    uses: kyndryl-cto/bdg-eng-ist-ondc-qa/.github/workflows/regtest_ondc_reg_v2lookup.yml@gitaction_try1
+    with:
+      JSON_INPUTS: >-
+        {
+          "test": "${{ inputs.test }}",
+          "environment": "${{ inputs.environment }}",
+          "users": ${{ inputs.users }},
+          "iterations": ${{ inputs.iterations }},
+          "wait_min": ${{ inputs.wait_min }},
+          "wait_max": ${{ inputs.wait_max }},
+          "spawn_rate": ${{ inputs.spawn_rate }},
+          "ramp_up": ${{ inputs.ramp_up }},
+          "release": "${{ inputs.release }}"
+        }
+    secrets: inherit
