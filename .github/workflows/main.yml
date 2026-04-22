@@ -16,16 +16,16 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install -r bdg-eng-ist-ondc-qa-main/requirements.txt
+        run: pip install -r bdg-eng-ist-ondc-qa-main/bdg-eng-ist-ondc-qa-main/requirements.txt
 
       - name: Run V3 Lookup API Tests
         working-directory: bdg-eng-ist-ondc-qa-main
         continue-on-error: true
-        run: python func_test_scripts/registry/ondc_reg_v3_lookup_api_tests.py
+        run: python bdg-eng-ist-ondc-qa-main/func_test_scripts/registry/ondc_reg_v3_lookup_api_tests.py
 
       - name: Upload test report
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: v3-lookup-report
-          path: bdg-eng-ist-ondc-qa-main/results/registry/
+          path: bdg-eng-ist-ondc-qa-main/bdg-eng-ist-ondc-qa-main/results/registry/
