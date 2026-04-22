@@ -1,0 +1,31 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  v3-lookup-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r bdg-eng-ist-ondc-qa-main/requirements.txt
+
+      - name: Run V3 Lookup API Tests
+        working-directory: bdg-eng-ist-ondc-qa-main
+        continue-on-error: true
+        run: python func_test_scripts/registry/ondc_reg_v3_lookup_api_tests.py
+
+      - name: Upload test report
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: v3-lookup-report
+          path: bdg-eng-ist-ondc-qa-main/results/registry/
