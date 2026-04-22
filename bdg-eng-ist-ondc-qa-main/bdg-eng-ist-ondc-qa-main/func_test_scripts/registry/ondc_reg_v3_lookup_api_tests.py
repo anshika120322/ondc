@@ -24,7 +24,7 @@ SSL_VERIFY: bool = os.environ.get("ONDC_SKIP_SSL_VERIFY", "0") != "1"
 if not SSL_VERIFY:
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 from tests.utils.ondc_auth_helper import ONDCAuthHelper
 
 WORKSPACE = Path(__file__).resolve().parent.parent.parent
