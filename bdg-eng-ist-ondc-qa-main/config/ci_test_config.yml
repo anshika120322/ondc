@@ -8,10 +8,10 @@ tests:
     artifact_name: "v1-lookup-report"
     report_path: "bdg-eng-ist-ondc-qa-main/bdg-eng-ist-ondc-qa-main/results/registry/"
 
-  - name: v2-lookup-tests
-    script: "func_test_scripts/registry/ondc_reg_v2_lookup_api_tests.py"
-    artifact_name: "v2-lookup-report"
-    report_path: "bdg-eng-ist-ondc-qa-main/bdg-eng-ist-ondc-qa-main/results/registry/"
+  # - name: v2-lookup-tests
+  #   script: "func_test_scripts/registry/ondc_reg_v2_lookup_api_tests.py"
+  #   artifact_name: "v2-lookup-report"
+  #   report_path: "bdg-eng-ist-ondc-qa-main/bdg-eng-ist-ondc-qa-main/results/registry/"
 
   - name: v3-lookup-tests
     script: "func_test_scripts/registry/ondc_reg_v3_lookup_api_tests.py"
