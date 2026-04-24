@@ -5,27 +5,55 @@ on:
     branches: [main]
 
 jobs:
-  v3-lookup-tests:
+  load-config:
     runs-on: ubuntu-latest
+    outputs:
+      python_version: ${{ steps.config.outputs.python_version }}
+      requirements_file: ${{ steps.config.outputs.requirements_file }}
+      working_directory: ${{ steps.config.outputs.working_directory }}
+      matrix: ${{ steps.config.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Parse test config
+        id: config
+        run: |
+          pip install pyyaml
+          python -c "
+          import yaml, json
+          cfg = yaml.safe_load(open('bdg-eng-ist-ondc-qa-main/config/ci_test_config.yml'))
+          print(f\"python_version={cfg['python_version']}\")
+          print(f\"requirements_file={cfg['requirements_file']}\")
+          print(f\"working_directory={cfg['working_directory']}\")
+          print(f\"matrix={json.dumps(cfg['tests'])}\")
+          " >> "$GITHUB_OUTPUT"
+
+  run-tests:
+    needs: load-config
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        test: ${{ fromJson(needs.load-config.outputs.matrix) }}
 
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: ${{ needs.load-config.outputs.python_version }}
 
       - name: Install dependencies
-        run: pip install -r bdg-eng-ist-ondc-qa-main/bdg-eng-ist-ondc-qa-main/requirements.txt
+        run: pip install -r ${{ needs.load-config.outputs.requirements_file }}
 
-      - name: Run V3 Lookup API Tests
-        working-directory: bdg-eng-ist-ondc-qa-main
+      - name: Run ${{ matrix.test.name }}
+        working-directory: ${{ needs.load-config.outputs.working_directory }}
         continue-on-error: true
-        run: python bdg-eng-ist-ondc-qa-main/func_test_scripts/registry/ondc_reg_v3_lookup_api_tests.py
+        run: python ${{ matrix.test.script }}
 
       - name: Upload test report
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: v3-lookup-report
-          path: bdg-eng-ist-ondc-qa-main/bdg-eng-ist-ondc-qa-main/results/registry/
+          name: ${{ matrix.test.artifact_name }}
+          path: ${{ matrix.test.report_path }}
